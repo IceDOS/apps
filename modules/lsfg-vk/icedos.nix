@@ -1,19 +1,9 @@
-{ config, lib, ... }:
+{ ... }:
 
-let
-  inherit (lib)
-    mkOption
-    optional
-    optionalAttrs
-    types
-    ;
-in
 {
-  options = {
-    icedos.applications.lsfg-vk = mkOption { type = types.bool; };
-  };
+  options = { };
 
-  inputs = optionalAttrs config.applications.lsfg-vk {
+  inputs = {
     lsfg-vk = {
       url = "github:pabloaul/lsfg-vk-flake";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -23,18 +13,20 @@ in
   outputs = {
     nixosModules =
       { inputs, ... }:
-      optional config.applications.lsfg-vk [
+      [
         inputs.lsfg-vk.nixosModules.default
-        ./.
+
+        {
+          services.lsfg-vk = {
+            enable = true;
+            ui.enable = true;
+          };
+        }
       ];
   };
 
   meta = {
     name = "lsfg-vk";
-    depends = [
-      {
-        modules = [ "chaotic" ];
-      }
-    ];
+    depends = [ ];
   };
 }
