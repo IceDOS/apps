@@ -1,8 +1,6 @@
 { ... }:
 
 {
-  options = { };
-
   inputs.lsfg-vk = {
     url = "github:pabloaul/lsfg-vk-flake";
     inputs.nixpkgs.follows = "nixpkgs";
