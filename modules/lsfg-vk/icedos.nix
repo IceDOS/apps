@@ -1,22 +1,24 @@
 { ... }:
 
 {
-  inputs.lsfg-vk = {
-    url = "github:pabloaul/lsfg-vk-flake";
-    inputs.nixpkgs.follows = "nixpkgs";
-  };
-
   outputs.nixosModules =
-    { inputs, ... }:
+    { ... }:
     [
-      inputs.lsfg-vk.nixosModules.default
+      (
+        { pkgs, ... }:
+        let
+          base = pkgs.lsfg-vk;
+        in
+        {
+          environment.systemPackages = with pkgs; [
+            base
+            lsfg-vk-ui
+          ];
 
-      {
-        services.lsfg-vk = {
-          enable = true;
-          ui.enable = true;
-        };
-      }
+          environment.etc."vulkan/implicit_layer.d/VkLayer_LS_frame_generation.json".source =
+            "${base}/share/vulkan/implicit_layer.d/VkLayer_LS_frame_generation.json";
+        }
+      )
     ];
 
   meta = {
