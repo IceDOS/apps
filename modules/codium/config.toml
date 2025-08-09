@@ -1,5 +1,7 @@
 [icedos.applications]
 defaultEditor = "codium.desktop"
 
-[icedos.applications.codium]
-zoomLevel = 0
+[icedos.system.users.username.applications.codium]
+autoSave = "off" # Options: 'off', 'afterDelay', 'onFocusChange', 'onWindowChange'
+formatOnSave = true
+formatOnPaste = true
