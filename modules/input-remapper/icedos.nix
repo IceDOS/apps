@@ -6,9 +6,9 @@
     [
       (
         {
-          pkgs,
-          lib,
           config,
+          lib,
+          pkgs,
           ...
         }:
         let
