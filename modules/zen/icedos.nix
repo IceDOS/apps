@@ -12,15 +12,15 @@
           ;
       in
       {
-        privacy = mkBoolOption;
+        privacy = mkBoolOption { default = false; };
 
-        profiles = mkSubmoduleListOption {
-          default = mkBoolOption;
-          exec = mkStrOption;
-          icon = mkStrOption;
-          name = mkStrOption;
-          pwa = mkBoolOption;
-          sites = mkStrListOption;
+        profiles = mkSubmoduleListOption { default = [ ]; } {
+          default = mkBoolOption { };
+          exec = mkStrOption { };
+          icon = mkStrOption { };
+          name = mkStrOption { };
+          pwa = mkBoolOption { };
+          sites = mkStrListOption { };
         };
       };
   };

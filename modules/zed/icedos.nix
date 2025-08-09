@@ -1,24 +1,31 @@
-{ icedosLib, ... }:
+{
+  lib,
+  icedosLib,
+  ...
+}:
 
 {
   options.icedos.applications =
     let
       inherit (icedosLib) mkBoolOption mkNumberOption mkStrOption;
+
+      applications = fromTOML (lib.fileContents ./config.toml).icedos.applications;
+      zed = applications.zed;
     in
     {
       zed = {
-        fontSize = mkNumberOption;
+        fontSize = mkNumberOption { default = zed.fontSize; };
 
         theme = {
-          dark = mkStrOption;
-          light = mkStrOption;
-          mode = mkStrOption;
+          dark = mkStrOption { default = zed.theme.dark; };
+          light = mkStrOption { default = zed.theme.light; };
+          mode = mkStrOption { default = zed.theme.mode; };
         };
 
-        vim = mkBoolOption;
+        vim = mkBoolOption { default = zed.vim; };
       };
 
-      defaultEditor = mkStrOption;
+      defaultEditor = mkStrOption { default = applications.defaultEditor; };
     };
 
   outputs.nixosModules =

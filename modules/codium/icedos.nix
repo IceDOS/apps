@@ -1,4 +1,8 @@
-{ icedosLib, ... }:
+{
+  icedosLib,
+  lib,
+  ...
+}:
 
 {
   options.icedos =
@@ -9,16 +13,18 @@
         mkStrOption
         mkSubmoduleAttrsOption
         ;
+
+      applications = fromTOML (lib.fileContents ./config.toml).icedos.applications;
     in
     {
-      applications.defaultEditor = mkStrOption;
+      applications.defaultEditor = mkStrOption { default = applications.defaultEditor; };
 
-      system.users = mkSubmoduleAttrsOption {
+      system.users = mkSubmoduleAttrsOption { default = { }; } {
         applications.codium = {
-          autoSave = mkStrOption;
-          formatOnPaste = mkBoolOption;
-          formatOnSave = mkBoolOption;
-          zoomLevel = mkNumberOption;
+          autoSave = mkStrOption { };
+          formatOnPaste = mkBoolOption { };
+          formatOnSave = mkBoolOption { };
+          zoomLevel = mkNumberOption { };
         };
       };
     };

@@ -1,9 +1,15 @@
-{ icedosLib, ... }:
+{
+  lib,
+  icedosLib,
+  ...
+}:
 
 {
-  options.icedos = {
-    applications.defaultBrowser = icedosLib.mkStrOption;
-  };
+  options.icedos.applications.defaultBrowser =
+    let
+      applications = fromTOML (lib.fileContents ./config.toml).icedos.applications;
+    in
+    icedosLib.mkStrOption { default = applications.defaultBrowser; };
 
   outputs.nixosModules =
     { ... }:
