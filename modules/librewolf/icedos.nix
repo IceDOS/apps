@@ -26,7 +26,7 @@
           # Set as default browser for electron apps
           environment = {
             sessionVariables.DEFAULT_BROWSER = mkIf (
-              cfg.applications.defaultBrowser == "librewolf"
+              cfg.applications.defaultBrowser == "librewolf.desktop"
             ) "${package}/bin/librewolf";
 
             systemPackages = [ package ];

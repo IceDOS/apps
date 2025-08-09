@@ -1,0 +1,23 @@
+[icedos.applications]
+defaultBrowser = "zen.desktop"
+
+[icedos.applications.zen]
+privacy = true
+
+[[icedos.applications.zen.profiles]]
+default = true
+exec = "default"
+pwa = false
+
+[[icedos.applications.zen.profiles]]
+default = false
+exec = "zen-social"
+pwa = true
+icon = "zen"
+name = "Zen Social"
+sites = [
+  "https://mail.proton.me",
+  "https://lumo.proton.me",
+  "https://develop.element.io",
+  "https://discord.com/app",
+]
