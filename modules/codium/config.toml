@@ -1,5 +1,5 @@
 [icedos.applications]
-defaultEditor = "codium"
+defaultEditor = "codium.desktop"
 
 [icedos.applications.codium]
 zoomLevel = 0

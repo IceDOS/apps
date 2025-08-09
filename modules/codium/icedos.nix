@@ -27,7 +27,9 @@
           users = cfg.system.users;
         in
         {
-          environment.variables.EDITOR = mkIf (cfg.applications.defaultEditor == "codium") "codium -n -w";
+          environment.variables.EDITOR = mkIf (
+            cfg.applications.defaultEditor == "codium.desktop"
+          ) "codium -n -w";
 
           home-manager.users = mapAttrs (user: _: {
             programs.vscode = {

@@ -1,0 +1,11 @@
+[icedos.applications]
+defaultEditor = "dev.zed.Zed.desktop"
+
+[icedos.applications.zed]
+fontSize = 16
+vim = true
+
+[icedos.applications.zed.theme]
+dark = "One Dark Pro"
+light = "One Light"
+mode = "system" # Options: 'system', 'dark', 'light'
