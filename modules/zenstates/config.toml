@@ -1,0 +1,2 @@
+[icedos.applications.zenstates]
+serviceArgs = "-p 0 -v 3C -f A0" # Pstate 0, 1.175 voltage, 4000 clock speed
