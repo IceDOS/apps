@@ -29,11 +29,11 @@ let
       cd ${config.icedos.configurationLocation} 2> /dev/null ||
       (echo 'warning: configuration path is invalid, run build.sh located inside the configuration scripts directory to update the path.' && false) &&
 
-      cache "flake.nix"
-
       if ${u}; then
-        nix-shell ./build.sh --update $@ && cache "flake.lock" || true
-        runCommand update-codium-extensions
+        nix-shell ./build.sh --update $@ &&
+
+        cache "flake.lock"
+        cache "flake.nix"
       else
         nix-shell ./build.sh $@
       fi
