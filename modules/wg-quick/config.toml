@@ -1,0 +1,2 @@
+[icedos.applications.wg-quick]
+interfaces = ["protonvpn"]
