@@ -1,0 +1,3 @@
+[icedos.applications.container-manager]
+usePodman = true
+requireSudoForDocker = true # CAUTION: Disabling this gives every user root priviledges!
