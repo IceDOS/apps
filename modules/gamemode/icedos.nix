@@ -1,6 +1,8 @@
-{ ... }:
+{ icedosLib, ... }:
 
 {
+  options.icedos.applications.gamemode = icedosLib.mkBoolOption { default = true; };
+
   outputs.nixosModules =
     { ... }:
     [

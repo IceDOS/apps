@@ -32,13 +32,21 @@
 
           proton-launch = (
             pkgs.writeShellScriptBin "proton-launch" ''
-              GAMEMODE="${pkgs.gamemode}/bin/gamemoderun"
               PROTON_ENABLE_HIDRAW=0
               PROTON_ENABLE_WAYLAND=1
               PROTON_PREFER_SDL=1
               PROTON_USE_WOW64=1
               SDL="--backend sdl"
               SteamDeck=0
+
+              ${
+                if (hasAttr "gamemode" cfg.applications) then
+                  ''
+                    GAMEMODE="${pkgs.gamemode}/bin/gamemoderun"
+                  ''
+                else
+                  ""
+              }
 
               ${
                 if (hasAttr "mangohud" cfg.applications) then
