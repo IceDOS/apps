@@ -1,0 +1,3 @@
+[icedos.applications.kitty]
+fontSize = 12
+hideDecorations = false # Hide top bar
