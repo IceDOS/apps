@@ -14,7 +14,7 @@
         mkSubmoduleAttrsOption
         ;
 
-      applications = fromTOML (lib.fileContents ./config.toml).icedos.applications;
+      applications = (fromTOML (lib.fileContents ./config.toml)).icedos.applications;
     in
     {
       applications.defaultEditor = mkStrOption { default = applications.defaultEditor; };

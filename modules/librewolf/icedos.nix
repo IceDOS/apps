@@ -7,7 +7,7 @@
 {
   options.icedos.applications.defaultBrowser =
     let
-      applications = fromTOML (lib.fileContents ./config.toml).icedos.applications;
+      applications = (fromTOML (lib.fileContents ./config.toml)).icedos.applications;
     in
     icedosLib.mkStrOption { default = applications.defaultBrowser; };
 

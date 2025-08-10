@@ -1,8 +1,8 @@
-{ icedosLib, ... }:
+{ icedosLib, lib, ... }:
 
 {
   options.icedos = {
-    applications.zen =
+    applications =
       let
         inherit (icedosLib)
           mkBoolOption
@@ -10,17 +10,23 @@
           mkStrOption
           mkSubmoduleListOption
           ;
+
+        applications = (fromTOML (lib.fileContents ./config.toml)).icedos.applications;
       in
       {
-        privacy = mkBoolOption { default = false; };
+        defaultBrowser = mkStrOption { default = applications.defaultBrowser; };
 
-        profiles = mkSubmoduleListOption { default = [ ]; } {
-          default = mkBoolOption { };
-          exec = mkStrOption { };
-          icon = mkStrOption { };
-          name = mkStrOption { };
-          pwa = mkBoolOption { };
-          sites = mkStrListOption { };
+        zen = {
+          privacy = mkBoolOption { default = false; };
+
+          profiles = mkSubmoduleListOption { default = [ ]; } {
+            default = mkBoolOption { };
+            exec = mkStrOption { };
+            icon = mkStrOption { };
+            name = mkStrOption { };
+            pwa = mkBoolOption { };
+            sites = mkStrListOption { };
+          };
         };
       };
   };

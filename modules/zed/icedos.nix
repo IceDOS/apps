@@ -9,7 +9,7 @@
     let
       inherit (icedosLib) mkBoolOption mkNumberOption mkStrOption;
 
-      applications = fromTOML (lib.fileContents ./config.toml).icedos.applications;
+      applications = (fromTOML (lib.fileContents ./config.toml)).icedos.applications;
       zed = applications.zed;
     in
     {
