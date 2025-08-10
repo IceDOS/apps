@@ -183,7 +183,7 @@
         mkIf (cfg.applications.proton-launch) {
           environment.systemPackages = packages;
 
-          icedos.internals.toolset.commands = [
+          icedos.applications.toolset.commands = [
             (
               let
                 command = "proton-launch";

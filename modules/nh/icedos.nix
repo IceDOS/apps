@@ -30,7 +30,7 @@
           generations = toString (cfg.generations);
         in
         {
-          icedos.internals.toolset.commands = [
+          icedos.applications.toolset.commands = [
             {
               bin = "${pkgs.writeShellScript command ''"${pkgs.nh}/bin/nh" clean all -k "${generations}" -K "${days}"''}";
               command = command;

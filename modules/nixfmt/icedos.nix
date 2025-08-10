@@ -16,7 +16,7 @@
         {
           environment.systemPackages = [ package ];
 
-          icedos.internals.toolset.commands = [
+          icedos.applications.toolset.commands = [
             (
               let
                 command = "nixf";
