@@ -22,7 +22,7 @@
 
           cfg = config.icedos;
           package = [ pkgs.gamescope ];
-          ifSteam = deck: cfg.applications.steam.enable && deck;
+          ifSteam = deck: lib.hasAttr "steam" cfg.applications && deck;
         in
         {
           environment.systemPackages = package;

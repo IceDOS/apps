@@ -169,7 +169,7 @@
             ''
           );
 
-          ifSteam = deck: cfg.applications.steam.enable && deck;
+          ifSteam = deck: lib.hasAttr "steam" cfg.applications && deck;
         in
         mkIf (cfg.applications.proton-launch) {
           environment.systemPackages = packages;
