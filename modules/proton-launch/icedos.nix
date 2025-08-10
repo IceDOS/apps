@@ -16,6 +16,7 @@
 
         let
           inherit (lib)
+            hasAttr
             head
             last
             mapAttrs
@@ -25,7 +26,7 @@
             ;
 
           cfg = config.icedos;
-          hasGamescope = lib.hasAttr "gamescope" cfg.applications;
+          hasGamescope = hasAttr "gamescope" cfg.applications;
 
           packages = [ proton-launch ] ++ optional hasGamescope pkgs.gamescope;
 
@@ -40,7 +41,7 @@
               SteamDeck=0
 
               ${
-                if (cfg.applications.mangohud.enable) then
+                if (hasAttr "mangohud" cfg.applications) then
                   ''
                     MANGOAPP="--mangoapp"
                     MANGOHUD="${pkgs.mangohud}/bin/mangohud"
