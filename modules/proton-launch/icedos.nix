@@ -207,5 +207,5 @@
       )
     ];
 
-  meta.name = "gamescope";
+  meta.name = "proton-launch";
 }

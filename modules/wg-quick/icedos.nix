@@ -63,5 +63,5 @@
       )
     ];
 
-  meta.name = "zsh";
+  meta.name = "wg-quick";
 }
