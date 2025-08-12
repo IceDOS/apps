@@ -1,5 +1,6 @@
 {
   config,
+  icedosLib,
   lib,
   pkgs,
   ...
@@ -13,7 +14,13 @@ let
     ;
 
   cfg = config.icedos;
-  accentColor = cfg.internals.accentColor;
+
+  accentColor = icedosLib.generateAccentColor {
+    accentColor = cfg.desktop.accentColor;
+    gnomeAccentColor = cfg.desktop.gnomeAccentColor;
+    hasGnome = lib.hasAttr "gnome" cfg.desktop;
+  };
+
   firefoxVersion = substring 0 5 pkgs.firefox.version;
   zen = cfg.applications.zen;
 

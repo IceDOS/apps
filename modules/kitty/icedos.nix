@@ -51,7 +51,7 @@
               "$mainMod, X, exec, kitty"
             ];
 
-            dconf.settings = mkIf (cfg.desktop.gnome.enable) {
+            dconf.settings = mkIf (lib.hasAttr "gnome" cfg.desktop) {
               "org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/kitty" = {
                 binding = "<Super>x";
                 command = "kitty";

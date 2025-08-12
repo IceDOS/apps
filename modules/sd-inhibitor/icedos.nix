@@ -84,7 +84,7 @@
                   Install.WantedBy =
                     [ ]
                     ++ optional (cfg.desktop.hyprland.enable) "hyprland-session.target"
-                    ++ optional (cfg.desktop.gnome.enable) "gnome-session.target";
+                    ++ optional (lib.hasAttr "gnome" cfg.desktop) "gnome-session.target";
 
                   Service = {
                     ExecStart = with pkgs; "${writeShellScript "sd-inhibitor" (readFile ./sd-inhibitor.sh)}";
