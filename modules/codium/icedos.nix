@@ -19,7 +19,7 @@
     {
       applications.defaultEditor = mkStrOption { default = applications.defaultEditor; };
 
-      system.users = mkSubmoduleAttrsOption { default = { }; } {
+      system.users = mkSubmoduleAttrsOption { } {
         applications.codium = {
           autoSave = mkStrOption { };
           formatOnPaste = mkBoolOption { };
