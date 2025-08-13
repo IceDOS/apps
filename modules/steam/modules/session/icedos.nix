@@ -25,12 +25,12 @@
         }:
 
         let
-          inherit (lib) hasAttr;
+          inherit (lib) hasAttr mkIf;
           cfg = config.icedos;
           session = cfg.applications.steam.session;
         in
         {
-          jovian = {
+          jovian = mkIf (!cfg.system.isFirstBuild) {
             hardware.has.amd.gpu = hasAttr "radeon" cfg.hardware.graphics;
 
             steam = {

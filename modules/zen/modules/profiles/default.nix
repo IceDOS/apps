@@ -59,5 +59,5 @@ in
 
       force = true;
     };
-  }) cfg.system.users;
+  }) cfg.users;
 }

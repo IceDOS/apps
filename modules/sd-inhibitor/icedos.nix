@@ -1,7 +1,7 @@
 { icedosLib, ... }:
 
 {
-  options.icedos.system.users =
+  options.icedos.applications.sd-inhibitor.users =
     let
       inherit (icedosLib)
         mkBoolOption
@@ -11,7 +11,7 @@
         ;
     in
     mkSubmoduleAttrsOption { default = { }; } {
-      applications.sd-inhibitor.watchers = {
+      watchers = {
         cpu = {
           enable = mkBoolOption { default = false; };
           threshold = mkNumberOption { default = 60; };
@@ -71,7 +71,7 @@
             systemd.user.services.sd-inhibitor =
               let
                 inherit (lib) hasAttr;
-                watchers = cfg.system.users.${user}.applications.sd-inhibitor.watchers;
+                watchers = cfg.applications.sd-inhibitor.users.${user}.watchers;
               in
               mkIf
                 (watchers.cpu.enable || watchers.disk.enable || watchers.network.enable || watchers.pipewire.enable)
@@ -94,7 +94,7 @@
                     StartLimitBurst = 60;
                   };
                 };
-          }) cfg.system.users;
+          }) cfg.users;
         }
       )
     ];

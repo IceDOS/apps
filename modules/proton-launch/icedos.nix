@@ -179,8 +179,9 @@
           );
 
           ifSteam = deck: lib.hasAttr "steam" cfg.applications && deck;
+          steamdeck = hasAttr "steamdeck" cfg.hardware.devices;
         in
-        mkIf (cfg.applications.proton-launch) {
+        {
           environment.systemPackages = packages;
 
           icedos.applications.toolset.commands = [
@@ -196,13 +197,19 @@
             )
           ];
 
-          programs.steam.extraPackages = mkIf (ifSteam (cfg.hardware.devices.steamdeck)) packages;
+          programs.steam.extraPackages = mkIf (ifSteam steamdeck) packages;
+
+          nixpkgs.overlays = [
+            (final: super: {
+              scopebuddy = final.callPackage ./package.nix { };
+            })
+          ];
 
           home-manager.users = mapAttrs (user: _: {
-            home.packages = mkIf (ifSteam (!cfg.hardware.devices.steamdeck)) [
+            home.packages = mkIf (ifSteam (!steamdeck)) [
               (pkgs.steam.override { extraPkgs = pkgs: packages; })
             ];
-          }) cfg.system.users;
+          }) cfg.users;
         }
       )
     ];

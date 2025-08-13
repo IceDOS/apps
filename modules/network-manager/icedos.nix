@@ -25,7 +25,7 @@
             firewall.enable = false;
           };
 
-          users.users = mapAttrs (user: _: { extraGroups = [ "networkmanager" ]; }) cfg.system.users;
+          users.users = mapAttrs (user: _: { extraGroups = [ "networkmanager" ]; }) cfg.users;
 
           home-manager.users = mapAttrs (user: _: {
             xdg.desktopEntries = mkIf (cfg.applications.network-manager.applet) {
@@ -45,7 +45,7 @@
                 type = "Application";
               };
             };
-          }) cfg.system.users;
+          }) cfg.users;
         }
       )
     ];

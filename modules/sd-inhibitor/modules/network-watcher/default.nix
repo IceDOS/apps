@@ -13,7 +13,7 @@ in
   home-manager.users = mapAttrs (user: _: {
     home.packages =
       let
-        watcher = cfg.system.users.${user}.applications.sd-inhibitor.watchers.network;
+        watcher = cfg.applications.sd-inhibitor.users.${user}.watchers.network;
       in
       mkIf (watcher.enable) [
         (pkgs.writeShellScriptBin "network-watcher" ''
@@ -29,5 +29,5 @@ in
           fi
         '')
       ];
-  }) cfg.system.users;
+  }) cfg.users;
 }

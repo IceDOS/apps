@@ -1,7 +1,7 @@
 { icedosLib, ... }:
 
 {
-  options.icedos.applications.mangohud.maxFpsLimit = icedosLib.mkNumberOption { default = 0; };
+  options.icedos.applications.mangohud.fpsLimit = icedosLib.mkStrOption { default = "0"; };
 
   outputs.nixosModules =
     { ... }:
@@ -21,45 +21,49 @@
           home-manager.users = mapAttrs (
             user: _:
             let
-              type = cfg.system.users.${user}.type;
+              steamdeck = lib.hasAttr "steamdeck" cfg.hardware.devices;
             in
             {
               programs.mangohud = {
-                enable = (type != "work");
+                enable = true;
 
-                settings = {
-                  background_alpha = 0;
-                  battery = (cfg.hardware.devices.laptop || cfg.hardware.devices.steamdeck);
-                  battery_icon = (cfg.hardware.devices.laptop || cfg.hardware.devices.steamdeck);
-                  battery_time = (cfg.hardware.devices.laptop || cfg.hardware.devices.steamdeck);
-                  cpu_color = "FFFFFF";
-                  cpu_power = true;
-                  cpu_temp = true;
-                  engine_color = "FFFFFF";
-                  engine_short_names = true;
-                  font_size = 18;
-                  fps_color = "FFFFFF";
-                  fps_limit = "${toString (cfg.applications.mangohud.maxFpsLimit)},60,0";
-                  frame_timing = false;
-                  frametime = false;
-                  gl_vsync = 0;
-                  gpu_color = "FFFFFF";
-                  gpu_power = true;
-                  gpu_temp = true;
-                  horizontal = true;
-                  hud_compact = true;
-                  hud_no_margin = true;
-                  no_small_font = true;
-                  offset_x = 5;
-                  offset_y = 5;
-                  text_color = "FFFFFF";
-                  toggle_fps_limit = "Ctrl_L+Shift_L+F1";
-                  vram_color = "FFFFFF";
-                  vsync = 1;
-                };
+                settings =
+                  let
+                    portable = cfg.hardware.devices.laptop && steamdeck;
+                  in
+                  {
+                    background_alpha = 0;
+                    battery = portable;
+                    battery_icon = portable;
+                    battery_time = portable;
+                    cpu_color = "FFFFFF";
+                    cpu_power = true;
+                    cpu_temp = true;
+                    engine_color = "FFFFFF";
+                    engine_short_names = true;
+                    font_size = 18;
+                    fps_color = "FFFFFF";
+                    fps_limit = cfg.applications.mangohud.fpsLimit;
+                    frame_timing = false;
+                    frametime = false;
+                    gl_vsync = 0;
+                    gpu_color = "FFFFFF";
+                    gpu_power = true;
+                    gpu_temp = true;
+                    horizontal = true;
+                    hud_compact = true;
+                    hud_no_margin = true;
+                    no_small_font = true;
+                    offset_x = 5;
+                    offset_y = 5;
+                    text_color = "FFFFFF";
+                    toggle_fps_limit = "Ctrl_L+Shift_L+F1";
+                    vram_color = "FFFFFF";
+                    vsync = 1;
+                  };
               };
             }
-          ) cfg.system.users;
+          ) cfg.users;
         }
       )
     ];

@@ -26,7 +26,7 @@
 
               ".config/zsh/p10k-theme.zsh".source = ./p10k-theme.zsh;
             };
-          }) cfg.system.users;
+          }) cfg.users;
 
           programs.zsh = {
             enable = true;

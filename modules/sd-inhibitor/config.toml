@@ -1,16 +1,16 @@
-[icedos.system.users.username.applications.sd-inhibitor.watchers.cpu]
+[icedos.users.username.applications.sd-inhibitor.watchers.cpu]
 enable = true
 threshold = 60 # CPU usage to inhibit lock in percentage
 
-[icedos.system.users.username.applications.sd-inhibitor.watchers.disk]
+[icedos.users.username.applications.sd-inhibitor.watchers.disk]
 enable = true
 threshold = 10 # Disk usage to inhibit lock in MB/s
 
-[icedos.system.users.username.applications.sd-inhibitor.watchers.network]
+[icedos.users.username.applications.sd-inhibitor.watchers.network]
 enable = true
 threshold = 1_000_000 # Network usage to inhibit lock in bytes/s
 
-[icedos.system.users.username.applications.sd-inhibitor.watchers.pipewire]
+[icedos.users.username.applications.sd-inhibitor.watchers.pipewire]
 enable = true
 inputsToIgnore = ["Noise Canceling source", "Peak detect", "cava"]
 outputsToIgnore = ["Discord", "Element"]

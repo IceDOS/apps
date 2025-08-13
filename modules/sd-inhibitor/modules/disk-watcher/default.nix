@@ -13,7 +13,7 @@ in
   home-manager.users = mapAttrs (user: _: {
     home.packages =
       let
-        watcher = cfg.system.users.${user}.applications.sd-inhibitor.watchers.disk;
+        watcher = cfg.applications.sd-inhibitor.users.${user}.watchers.disk;
       in
       mkIf (watcher.enable) [
         (pkgs.writeShellScriptBin "disk-watcher" ''
@@ -60,5 +60,5 @@ in
         pkgs.jq
         pkgs.sysstat
       ];
-  }) cfg.system.users;
+  }) cfg.users;
 }

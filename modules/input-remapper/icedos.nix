@@ -13,7 +13,7 @@
         }:
         let
           inherit (lib) mapAttrs;
-          users = config.icedos.system.users;
+          users = config.icedos.users;
         in
         {
           services.input-remapper.enable = true;

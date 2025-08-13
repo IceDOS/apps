@@ -13,7 +13,7 @@ in
   home-manager.users = mapAttrs (user: _: {
     home.packages =
       let
-        watcher = cfg.system.users.${user}.applications.sd-inhibitor.watchers.cpu;
+        watcher = cfg.applications.sd-inhibitor.users.${user}.watchers.cpu;
       in
       mkIf (watcher.enable) [
         (pkgs.writeShellScriptBin "cpu-watcher" ''
@@ -27,5 +27,5 @@ in
           fi
         '')
       ];
-  }) cfg.system.users;
+  }) cfg.users;
 }

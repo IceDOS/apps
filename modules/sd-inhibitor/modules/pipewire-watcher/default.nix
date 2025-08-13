@@ -13,7 +13,7 @@ in
   home-manager.users = mapAttrs (user: _: {
     home.packages =
       let
-        watcher = cfg.system.users.${user}.applications.sd-inhibitor.watchers.pipewire;
+        watcher = cfg.applications.sd-inhibitor.users.${user}.watchers.pipewire;
         strListItem = item: "'${item}',";
       in
       mkIf (watcher.enable) [
@@ -88,5 +88,5 @@ in
           nodeManager:activate()
         '')
       ];
-  }) cfg.system.users;
+  }) cfg.users;
 }

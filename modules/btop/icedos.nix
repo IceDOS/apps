@@ -21,7 +21,7 @@
 
           home-manager.users = mapAttrs (user: _: {
             home.file.".config/btop/btop.conf".source = ./btop.conf;
-          }) cfg.system.users;
+          }) cfg.users;
         }
       )
     ];

@@ -1,35 +1,27 @@
-{ icedosLib, lib, ... }:
+{ icedosLib, ... }:
 
 {
-  options.icedos = {
-    applications =
-      let
-        inherit (icedosLib)
-          mkBoolOption
-          mkStrListOption
-          mkStrOption
-          mkSubmoduleListOption
-          ;
+  options.icedos.applications.zen =
+    let
+      inherit (icedosLib)
+        mkBoolOption
+        mkStrListOption
+        mkStrOption
+        mkSubmoduleListOption
+        ;
+    in
+    {
 
-        applications = (fromTOML (lib.fileContents ./config.toml)).icedos.applications;
-      in
-      {
-        defaultBrowser = mkStrOption { default = applications.defaultBrowser; };
-
-        zen = {
-          privacy = mkBoolOption { default = false; };
-
-          profiles = mkSubmoduleListOption { default = [ ]; } {
-            default = mkBoolOption { };
-            exec = mkStrOption { };
-            icon = mkStrOption { };
-            name = mkStrOption { };
-            pwa = mkBoolOption { };
-            sites = mkStrListOption { };
-          };
-        };
+      profiles = mkSubmoduleListOption { default = [ ]; } {
+        default = mkBoolOption { default = false; };
+        exec = mkStrOption { };
+        icon = mkStrOption { default = ""; };
+        name = mkStrOption { default = ""; };
+        privacy = mkBoolOption { default = false; };
+        pwa = mkBoolOption { default = false; };
+        sites = mkStrListOption { default = [ ]; };
       };
-  };
+    };
 
   inputs.zen = {
     url = "github:0xc000022070/zen-browser-flake";

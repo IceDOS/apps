@@ -22,7 +22,7 @@
 
           users.users = mapAttrs (user: _: {
             extraGroups = [ "adbusers" ];
-          }) cfg.system.users;
+          }) cfg.users;
         }
       )
     ];

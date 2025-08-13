@@ -1,16 +1,6 @@
-{
-  lib,
-  icedosLib,
-  ...
-}:
+{ ... }:
 
 {
-  options.icedos.applications.defaultBrowser =
-    let
-      applications = (fromTOML (lib.fileContents ./config.toml)).icedos.applications;
-    in
-    icedosLib.mkStrOption { default = applications.defaultBrowser; };
-
   outputs.nixosModules =
     { ... }:
     [
@@ -25,7 +15,7 @@
           inherit (lib) mapAttrs mkIf;
 
           cfg = config.icedos;
-          users = cfg.system.users;
+          users = cfg.users;
           package = pkgs.librewolf;
         in
         {

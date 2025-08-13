@@ -1,11 +1,10 @@
 {
   icedosLib,
-  lib,
   ...
 }:
 
 {
-  options.icedos =
+  options.icedos.applications.codium =
     let
       inherit (icedosLib)
         mkBoolOption
@@ -13,19 +12,13 @@
         mkStrOption
         mkSubmoduleAttrsOption
         ;
-
-      applications = (fromTOML (lib.fileContents ./config.toml)).icedos.applications;
     in
     {
-      applications.defaultEditor = mkStrOption { default = applications.defaultEditor; };
-
-      system.users = mkSubmoduleAttrsOption { } {
-        applications.codium = {
-          autoSave = mkStrOption { };
-          formatOnPaste = mkBoolOption { };
-          formatOnSave = mkBoolOption { };
-          zoomLevel = mkNumberOption { };
-        };
+      users = mkSubmoduleAttrsOption { default = { }; } {
+        autoSave = mkStrOption { default = "off"; };
+        formatOnPaste = mkBoolOption { default = true; };
+        formatOnSave = mkBoolOption { default = true; };
+        zoomLevel = mkNumberOption { default = 1.0; };
       };
     };
 
@@ -40,10 +33,13 @@
           ...
         }:
         let
-          inherit (lib) mapAttrs mkIf;
+          inherit (lib)
+            mapAttrs
+            mkIf
+            ;
 
           cfg = config.icedos;
-          users = cfg.system.users;
+          users = cfg.users;
         in
         {
           environment.variables.EDITOR = mkIf (
@@ -53,8 +49,7 @@
           home-manager.users = mapAttrs (
             user: _:
             let
-              cfg = config.icedos;
-              codium = cfg.system.users.${user}.applications.codium;
+              codium = cfg.applications.codium.users.${user};
             in
             {
               programs.vscode = {

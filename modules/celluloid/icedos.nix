@@ -36,7 +36,7 @@
                 always-append-to-playlist = true;
               };
             };
-          }) config.icedos.system.users;
+          }) config.icedos.users;
         }
       )
     ];

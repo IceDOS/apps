@@ -5,7 +5,7 @@
 }:
 
 {
-  options.icedos.applications =
+  options.icedos.applications.zed =
     let
       inherit (icedosLib) mkBoolOption mkNumberOption mkStrOption;
 
@@ -13,19 +13,15 @@
       zed = applications.zed;
     in
     {
-      zed = {
-        fontSize = mkNumberOption { default = zed.fontSize; };
+      fontSize = mkNumberOption { default = zed.fontSize; };
 
-        theme = {
-          dark = mkStrOption { default = zed.theme.dark; };
-          light = mkStrOption { default = zed.theme.light; };
-          mode = mkStrOption { default = zed.theme.mode; };
-        };
-
-        vim = mkBoolOption { default = zed.vim; };
+      theme = {
+        dark = mkStrOption { default = zed.theme.dark; };
+        light = mkStrOption { default = zed.theme.light; };
+        mode = mkStrOption { default = zed.theme.mode; };
       };
 
-      defaultEditor = mkStrOption { default = applications.defaultEditor; };
+      vim = mkBoolOption { default = zed.vim; };
     };
 
   outputs.nixosModules =
@@ -43,7 +39,7 @@
 
           cfg = config.icedos;
           zed = cfg.applications.zed;
-          users = cfg.system.users;
+          users = cfg.users;
         in
         {
           environment.variables.EDITOR = mkIf (

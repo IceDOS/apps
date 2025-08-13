@@ -62,7 +62,7 @@
                 "/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/kitty/"
               ];
             };
-          }) cfg.system.users;
+          }) cfg.users;
         }
       )
     ];

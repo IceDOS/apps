@@ -3,9 +3,11 @@
 {
   options.icedos.applications =
     let
-      inherit (icedosLib) mkStrListOption;
+      inherit (icedosLib) mkStrOption mkStrListOption;
     in
     {
+      defaultBrowser = mkStrOption { default = ""; };
+      defaultEditor = mkStrOption { default = ""; };
       extraPackages = mkStrListOption { default = [ ]; };
       insecurePackages = mkStrListOption { default = [ ]; };
     };

@@ -1,20 +1,13 @@
 { icedosLib, ... }:
 
 {
-  options.icedos.system.users =
+  options.icedos.applications.git.users =
     let
       inherit (icedosLib) mkStrOption mkSubmoduleAttrsOption;
     in
-    mkSubmoduleAttrsOption { } {
-      description = mkStrOption { };
-      type = mkStrOption { };
-
-      applications = {
-        git = {
-          username = mkStrOption { };
-          email = mkStrOption { };
-        };
-      };
+    mkSubmoduleAttrsOption { default = { }; } {
+      username = mkStrOption { default = ""; };
+      email = mkStrOption { default = ""; };
     };
 
   outputs.nixosModules =
@@ -31,6 +24,7 @@
         let
           inherit (lib) mapAttrs;
           cfg = config.icedos;
+          users = cfg.applications.git.users;
         in
         {
           home-manager.users = mapAttrs (user: _: {
@@ -38,10 +32,10 @@
 
             programs.git = {
               enable = true;
-              userName = "${cfg.system.users.${user}.applications.git.username}";
-              userEmail = "${cfg.system.users.${user}.applications.git.email}";
+              userName = "${users.${user}.username}";
+              userEmail = "${users.${user}.email}";
             };
-          }) cfg.system.users;
+          }) cfg.users;
         }
       )
     ];

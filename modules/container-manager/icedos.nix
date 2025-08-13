@@ -42,7 +42,7 @@
                 [
                   "docker"
                 ];
-          }) cfg.system.users;
+          }) cfg.users;
         }
       )
     ];

@@ -1,3 +1,3 @@
-[icedos.system.users.username.applications.git]
+[icedos.applications.git.users.username]
 username = "username"
 email = "username@host.domain"

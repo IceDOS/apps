@@ -30,40 +30,32 @@
 
           cfg = config.icedos;
           applications = cfg.applications;
-          steamdeck = cfg.hardware.devices.steamdeck;
+          steamdeck = hasAttr "steamdeck" cfg.hardware.devices;
         in
         {
-          home-manager.users = mapAttrs (
-            user: _:
-            let
-              type = cfg.system.users.${user}.type;
-            in
-            {
-              home = {
-                file = {
-                  # Enable steam beta
-                  ".local/share/Steam/package/beta" = mkIf (type != "work" && applications.steam.beta) {
-                    text = if (applications.steam.session.enable) then "steamdeck_publicbeta" else "publicbeta";
-                  };
-
-                  # Enable slow steam downloads workaround
-                  ".local/share/Steam/steam_dev.cfg" =
-                    mkIf (type != "work" && applications.steam.downloadsWorkaround)
-                      {
-                        text = ''
-                          @nClientDownloadEnableHTTP2PlatformLinux 0
-                        '';
-                      };
+          home-manager.users = mapAttrs (user: _: {
+            home = {
+              file = {
+                # Enable steam beta
+                ".local/share/Steam/package/beta" = mkIf (applications.steam.beta) {
+                  text = if (hasAttr "steamdeck" cfg.hardware.devices) then "steamdeck_publicbeta" else "publicbeta";
                 };
 
-                packages =
-                  mkIf (!steamdeck && !(hasAttr "gamescope" applications) && !(hasAttr "proton-launch" applications))
-                    [
-                      pkgs.steam
-                    ];
+                # Enable slow steam downloads workaround
+                ".local/share/Steam/steam_dev.cfg" = mkIf (applications.steam.downloadsWorkaround) {
+                  text = ''
+                    @nClientDownloadEnableHTTP2PlatformLinux 0
+                  '';
+                };
               };
-            }
-          ) cfg.system.users;
+
+              packages =
+                mkIf (!steamdeck && !(hasAttr "gamescope" applications) && !(hasAttr "proton-launch" applications))
+                  [
+                    pkgs.steam
+                  ];
+            };
+          }) cfg.users;
 
           programs.steam = mkIf steamdeck {
             enable = true;

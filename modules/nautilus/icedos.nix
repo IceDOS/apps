@@ -73,7 +73,7 @@
               "Templates/new.sh".text = "";
               "Templates/new.txt".text = "";
             };
-          }) cfg.system.users;
+          }) cfg.users;
         }
       )
     ];
