@@ -13,22 +13,22 @@
     mkSubmoduleAttrsOption { default = { }; } {
       watchers = {
         cpu = {
-          enable = mkBoolOption { default = false; };
+          enable = mkBoolOption { default = true; };
           threshold = mkNumberOption { default = 60; };
         };
 
         disk = {
-          enable = mkBoolOption { default = false; };
+          enable = mkBoolOption { default = true; };
           threshold = mkNumberOption { default = 10; };
         };
 
         network = {
-          enable = mkBoolOption { default = false; };
+          enable = mkBoolOption { default = true; };
           threshold = mkNumberOption { default = 1000000; };
         };
 
         pipewire = {
-          enable = mkBoolOption { default = false; };
+          enable = mkBoolOption { default = true; };
           inputsToIgnore = mkStrListOption { default = [ ]; };
           outputsToIgnore = mkStrListOption { default = [ ]; };
         };
