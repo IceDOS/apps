@@ -1,2 +1,4 @@
 [icedos.applications.mangohud]
-maxFpsLimit = 144 # 0 equals unlimited
+fontSize = 20
+fpsLimit = "144,0,60" # 0 equals unlimited
+position = "top-left" # Options: top-left, top-right, middle-left, middle-right, bottom-left, bottom-right, top-center, bottom-center

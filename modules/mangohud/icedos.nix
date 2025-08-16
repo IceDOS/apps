@@ -1,7 +1,11 @@
 { icedosLib, ... }:
 
 {
-  options.icedos.applications.mangohud.fpsLimit = icedosLib.mkStrOption { default = "0"; };
+  options.icedos.applications.mangohud = {
+    fontSize = icedosLib.mkNumberOption { default = 18; };
+    fpsLimit = icedosLib.mkStrOption { default = "0"; };
+    position = icedosLib.mkStrOption { default = "bottom-right"; };
+  };
 
   outputs.nixosModules =
     { ... }:
@@ -29,36 +33,48 @@
 
                 settings =
                   let
-                    portable = cfg.hardware.devices.laptop && steamdeck;
+                    hasBattery = cfg.hardware.devices.laptop || steamdeck;
+                    mangohud = cfg.applications.mangohud;
+                    normalColor = "F9F9F9";
+                    loadColors = "${normalColor},D09965,DC6A73";
+                    reversedLoadColors = "DC6A73,D09965,${normalColor}";
+                    loadValues = "70,90";
                   in
                   {
                     background_alpha = 0;
-                    battery = portable;
-                    battery_icon = portable;
-                    battery_time = portable;
-                    cpu_color = "FFFFFF";
+                    battery = hasBattery;
+                    battery_icon = hasBattery;
+                    battery_time = hasBattery;
+                    cpu_color = normalColor;
+                    cpu_load_change = true;
+                    cpu_load_color = loadColors;
+                    cpu_load_value = loadValues;
                     cpu_power = true;
                     cpu_temp = true;
-                    engine_color = "FFFFFF";
+                    engine_color = normalColor;
                     engine_short_names = true;
-                    font_size = 18;
-                    fps_color = "FFFFFF";
-                    fps_limit = cfg.applications.mangohud.fpsLimit;
+                    font_size = mangohud.fontSize;
+                    fps_color = reversedLoadColors;
+                    fps_color_change = true;
+                    fps_limit = mangohud.fpsLimit;
+                    fps_value = "20,30";
                     frame_timing = false;
-                    frametime = false;
                     gl_vsync = 0;
-                    gpu_color = "FFFFFF";
+                    gpu_color = normalColor;
+                    gpu_load_change = true;
+                    gpu_load_color = loadColors;
+                    gpu_load_value = loadValues;
                     gpu_power = true;
                     gpu_temp = true;
                     horizontal = true;
                     hud_compact = true;
                     hud_no_margin = true;
-                    no_small_font = true;
                     offset_x = 5;
                     offset_y = 5;
-                    text_color = "FFFFFF";
-                    toggle_fps_limit = "Ctrl_L+Shift_L+F1";
-                    vram_color = "FFFFFF";
+                    position = mangohud.position;
+                    text_color = normalColor;
+                    text_outline = false;
+                    vram_color = normalColor;
                     vsync = 1;
                   };
               };
