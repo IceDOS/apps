@@ -7,6 +7,7 @@
     in
     {
       beta = mkBoolOption { default = false; };
+      cpuUsageWorkaround = mkBoolOption { default = false; };
       downloadsWorkaround = mkBoolOption { default = false; };
     };
 
@@ -23,6 +24,7 @@
 
         let
           inherit (lib)
+            attrNames
             hasAttr
             mapAttrs
             mkIf
@@ -30,6 +32,7 @@
 
           cfg = config.icedos;
           applications = cfg.applications;
+          steam = applications.steam;
           steamdeck = hasAttr "steamdeck" cfg.hardware.devices;
         in
         {
@@ -37,12 +40,12 @@
             home = {
               file = {
                 # Enable steam beta
-                ".local/share/Steam/package/beta" = mkIf (applications.steam.beta) {
+                ".local/share/Steam/package/beta" = mkIf (steam.beta) {
                   text = if (hasAttr "steamdeck" cfg.hardware.devices) then "steamdeck_publicbeta" else "publicbeta";
                 };
 
                 # Enable slow steam downloads workaround
-                ".local/share/Steam/steam_dev.cfg" = mkIf (applications.steam.downloadsWorkaround) {
+                ".local/share/Steam/steam_dev.cfg" = mkIf (steam.downloadsWorkaround) {
                   text = ''
                     @nClientDownloadEnableHTTP2PlatformLinux 0
                   '';
@@ -61,6 +64,12 @@
             enable = true;
             extest.enable = true;
           };
+
+          systemd.tmpfiles.rules = mkIf steam.cpuUsageWorkaround (
+            map (user: "L+ /home/${user}/.local/share/Steam/steamapps/compatdata/0 - - - - /dev/null") (
+              attrNames cfg.users
+            )
+          );
         }
       )
     ];
