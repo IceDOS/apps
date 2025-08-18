@@ -8,6 +8,9 @@ let
   builder =
     c: u:
     "${pkgs.writeShellScript "${c}" ''
+      RED='\033[0;31m'
+      NC='\033[0m'
+
       function cache() {
         FILE="$1"
 
@@ -27,7 +30,7 @@ let
       }
 
       cd ${config.icedos.configurationLocation} 2> /dev/null ||
-      (echo 'warning: configuration path is invalid, run build.sh located inside the configuration scripts directory to update the path.' && false) &&
+      (echo -e "''${RED}error''${NC}: configuration path is invalid, run build.sh located inside the configuration scripts directory to update the path." && false) &&
 
       if ${u}; then
         nix-shell ./build.sh --update $@ &&
