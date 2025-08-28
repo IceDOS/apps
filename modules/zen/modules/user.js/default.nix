@@ -17,7 +17,7 @@ let
 
   accentColor = icedosLib.generateAccentColor {
     accentColor = cfg.desktop.accentColor;
-    gnomeAccentColor = cfg.desktop.gnomeAccentColor;
+    gnomeAccentColor = cfg.desktop.gnome.accentColor;
     hasGnome = lib.hasAttr "gnome" cfg.desktop;
   };
 
