@@ -20,10 +20,7 @@
         in
 
         {
-          networking = {
-            networkmanager.enable = true;
-            firewall.enable = false;
-          };
+          networking.networkmanager.enable = true;
 
           users.users = mapAttrs (user: _: { extraGroups = [ "networkmanager" ]; }) cfg.users;
 
