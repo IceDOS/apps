@@ -14,7 +14,7 @@
         {
           nixpkgs.overlays = [
             (final: super: {
-              winboat = final.callPackage ./package3.nix { };
+              winboat = final.callPackage ./package.nix { };
             })
           ];
 
