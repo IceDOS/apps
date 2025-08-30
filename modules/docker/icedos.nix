@@ -6,6 +6,7 @@
       docker = (fromTOML (lib.fileContents ./config.toml)).icedos.applications.docker;
     in
     {
+      daemonSettings = lib.mkOption { default = { }; };
       requireSudo = icedosLib.mkBoolOption { default = docker.requireSudo; };
     };
 
@@ -26,7 +27,10 @@
         in
         {
           environment.systemPackages = [ pkgs.distrobox ];
-          virtualisation.docker.enable = true;
+          virtualisation.docker = {
+            enable = true;
+            daemon.settings = cfg.applications.docker.daemonSettings;
+          };
 
           users.users = mapAttrs (user: _: {
             extraGroups = mkIf (!cfg.applications.docker.requireSudo) [ "docker" ];
