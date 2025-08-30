@@ -20,35 +20,41 @@ let
   };
 
   icon = "${appimageTools.extract winboatAppimage}/winboat.png";
-  winboat = appimageTools.wrapType2 winboatAppimage;
+  winboatWrapped = "sg docker ${appimageTools.wrapType2 winboatAppimage}/bin/winboat";
 
   desktopItem =
     let
       capitalize =
         string:
         let
-          firstChar = builtins.substring 0 1 string;
-          remainingChars = builtins.substring 1 (builtins.stringLength string - 1) string;
+          inherit (builtins) stringLength substring;
+
+          firstChar = substring 0 1 string;
+          remainingChars = substring 1 (stringLength string - 1) string;
         in
         lib.toUpper firstChar + remainingChars;
     in
     makeDesktopItem {
-      inherit name;
+      inherit icon name;
 
       categories = [ "Utility" ];
       comment = "Run Windows apps on 🐧 Linux with ✨ seamless integration";
       desktopName = capitalize name;
-      exec = "${winboat}/bin/winboat";
-      icon = "${icon}";
+      exec = winboatWrapped;
     };
 in
-stdenvNoCC.mkDerivation rec {
+stdenvNoCC.mkDerivation {
   name = pname;
-  src = winboat;
+  dontUnpack = true;
 
-  installPhase = ''
-    mkdir $out
-    cp -r ${src}/bin $out
-    cp -r ${desktopItem}/share $out
-  '';
+  installPhase =
+    let
+      winboatBinPath = "$out/bin/winboat";
+    in
+    ''
+      mkdir -p $out/bin
+      echo "${winboatWrapped} $@" > ${winboatBinPath}
+      chmod +x ${winboatBinPath}
+      ln -s ${desktopItem}/share $out
+    '';
 }
