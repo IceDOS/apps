@@ -1,6 +1,5 @@
 {
   appimageTools,
-  fetchFromGitHub,
   fetchurl,
   lib,
   makeDesktopItem,
@@ -12,22 +11,16 @@ let
   pname = "winboat";
   version = "0.6.3";
 
-  icon = "${
-    fetchFromGitHub {
-      owner = "TibixDev";
-      repo = "winboat";
-      tag = "v${version}";
-      hash = "sha256-zw71B4xsmaOhVaAHuvmB1Kg0ehperrZedOnt030wdaM=";
-    }
-  }/icons/icon.png";
-
-  winboat = appimageTools.wrapType2 {
+  winboatAppimage = {
     inherit pname version;
     src = fetchurl {
       url = "https://github.com/TibixDev/winboat/releases/download/v${version}/winboat-${version}.AppImage";
       hash = "sha256-VX/Xf1sX5uf+r+FzXlJdHfCwAK1xyMW1F/SHpV882Jc=";
     };
   };
+
+  icon = "${appimageTools.extract winboatAppimage}/winboat.png";
+  winboat = appimageTools.wrapType2 winboatAppimage;
 
   desktopItem =
     let
