@@ -89,12 +89,14 @@ in
               fi
 
               cd "$TMP_FOLDER"
+              cat "$CONFIG" > tmp
 
               for i in $(seq 0 $((APPS - 1))); do
-                ${tomlBin} set "$CONFIG" apps[$i].runner.mounts '[${concatStringsSep "," (map toJSON volumes)}]' > tmp
+                ${tomlBin} set tmp apps[$i].runner.mounts '[${concatStringsSep "," (map toJSON volumes)}]' > tmp2
+                sed -i 's/^\s*mounts = "\[\(.*\)\]"$/mounts = [\1]/; /^\s*mounts = / s/\\"/\"/g' tmp2
+                cp tmp2 tmp
               done
 
-              sed -i 's/^\s*mounts = "\[\(.*\)\]"$/mounts = [\1]/; /^\s*mounts = / s/\\"/\"/g' tmp
               cat tmp > "$CONFIG"
               rm -rf "$TMP_FOLDER"
             '';
