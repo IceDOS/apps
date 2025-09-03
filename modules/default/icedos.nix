@@ -51,6 +51,7 @@
             ++ (pkgMapper cfg.applications.extraPackages);
 
           nixpkgs.config.permittedInsecurePackages = cfg.applications.insecurePackages;
+          programs.nano.enable = false;
         }
       )
     ];
