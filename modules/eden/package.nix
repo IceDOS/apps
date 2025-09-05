@@ -7,16 +7,16 @@
 let
   name = pname;
   pname = "eden";
-  version = "0.0.3-rc3";
+  version = "0.0.3";
 
   edenAppimage = fetchurl {
     url = "https://github.com/eden-emulator/Releases/releases/download/v${version}/Eden-Linux-v${version}-${build}.AppImage";
     hash =
       {
-        amd64 = "sha256-ipgIJVwu/EVGanSZZRubkN7nhmTamMYtMxYxixckftc=";
-        legacy = "sha256-2XnM+1C9VVB4xcIac5ukGo42gB/BbtMReQx3yAQftQg=";
-        rog-ally = "sha256-MdrvlKJneH0mD52Jcvflcz0FmjZgpoONz8c+NCOetNI=";
-        steamdeck = "sha256-zCiHJv4tykgOjG1remsTyMI4xFbev7we5TtUsq8mZXQ=";
+        amd64 = "sha256-P2Qy1VdSvKXvPNJKzzIzLxMumS5BQ79bOC0FTgFHMiw=";
+        legacy = "sha256-/FQT22Effl/Q1sWv0tdbXAKQOky+aju19CPBTv+cHNY=";
+        rog-ally = "sha256-eTM+vx9L7GjYUD4c4IyU1wVn5dib/pnMDHKJiS5+m7U=";
+        steamdeck = "sha256-8EB1X/kkx3hOTzbJC0geOH/YpH1wFY5MyxkoKYwXmF4=";
       }
       .${build};
   };
@@ -29,7 +29,7 @@ stdenvNoCC.mkDerivation {
   installPhase =
     let
       appImagePath = "$out/lib/eden.AppImage";
-      appName = "org.eden_emu.eden";
+      appName = "dev.eden_emu.eden";
       edenBin = "$out/bin/eden";
       edenLibRun = "$out/lib/AppRun";
       desktopFile = "${appName}.desktop";
