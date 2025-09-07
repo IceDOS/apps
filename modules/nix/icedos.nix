@@ -15,20 +15,22 @@
 
         let
           inherit (lib) mapAttrs mapAttrsToList;
+
+          colorBashHeader = ''
+            NC='\033[0m'
+            PURPLE='\033[0;35m'
+            RED='\033[0;31m'
+          '';
+
+          helpFlags = ''"$1" == "" || "$1" == "--help" || "$1" == "-h" || "$1" == "help" || "$1" == "h"'';
+          purpleString = string: ''''${PURPLE}${string}''${NC}'';
+          redString = string: ''''${RED}${string}''${NC}'';
         in
         {
           icedos.applications.toolset.commands = [
             (
               let
                 inherit (lib) concatMapStrings sort;
-
-                colorBashHeader = ''
-                  NC='\033[0m'
-                  PURPLE='\033[0;35m'
-                  RED='\033[0;31m'
-                '';
-
-                helpFlags = ''"$1" == "" || "$1" == "--help" || "$1" == "-h" || "$1" == "help" || "$1" == "h"'';
 
                 commands = [
                   (
@@ -84,8 +86,6 @@
                 ];
 
                 command = "pkgs";
-                purpleString = string: ''''${PURPLE}${string}''${NC}'';
-                redString = string: ''''${RED}${string}''${NC}'';
               in
               {
                 bin = "${pkgs.writeShellScript command ''
@@ -128,6 +128,34 @@
                 bin = "${pkgs.writeShellScript command "nix-store --verify --check-contents --repair"}";
                 command = command;
                 help = "repair nix store";
+              }
+            )
+
+            (
+              let
+                command = "shell";
+              in
+              {
+                bin = "${pkgs.writeShellScript command ''
+                  ${colorBashHeader}
+
+                  export NIXPKGS_ALLOW_UNFREE=1
+
+                  if [[ ${helpFlags} ]]; then
+                    echo "Available arguments:"
+                    echo -e "> ${purpleString "--insecure"}: allow insecure packages"
+                    exit 0
+                  fi
+
+                  if [ "$1" == "--insecure" ]; then
+                    export NIXPKGS_ALLOW_INSECURE=1
+                    shift
+                  fi
+
+                  nix-shell $@
+                ''}";
+                command = command;
+                help = "spawn a nix shell with optimized env";
               }
             )
           ];
