@@ -1,0 +1,6 @@
+[icedos.applications.shadps4.customBuild]
+enable = false
+hash = "sha256-jLCWwNjRYneuYQg0hQVHuVW4e+rWaoYWj9kAOzwqdmw="
+onwer = "diegolix29"
+repo = "shadps4"
+tag = "BBFork-shadPS4-2025-09-07-9468c80"
