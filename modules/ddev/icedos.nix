@@ -53,9 +53,19 @@
                       command = "stop";
                     in
                     {
-                      bin = "${pkgs.writeShellScript command ''ddev poweroff''}";
+                      bin = "${pkgs.writeShellScript command ''${ddev} poweroff''}";
                       command = command;
                       help = "stop development server";
+                    }
+                  )
+                  (
+                    let
+                      command = "db";
+                    in
+                    {
+                      bin = "${pkgs.writeShellScript command ''${ddev} describe | grep --color=never db''}";
+                      command = command;
+                      help = "print db info";
                     }
                   )
                 ];
