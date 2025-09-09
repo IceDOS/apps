@@ -5,7 +5,7 @@ let
 
   defaultVolumes = [
     "/nix/store:/nix/store:ro"
-    "/run/current-system/sw/bin:/host-apps:ro"
+    "/run/current-system/sw/bin:/host-apps/system:ro"
     "/run/opengl-driver:/run/opengl-driver:ro"
   ];
 in
@@ -76,7 +76,12 @@ in
 
               jqBin = "${jq}/bin/jq";
               tomlBin = "${toml-cli}/bin/toml";
-              volumes = extraVolumes ++ defaultVolumes;
+              volumes =
+                extraVolumes
+                ++ defaultVolumes
+                ++ map (user: "${user.value.home}/.nix-profile/bin:/host-apps/${user.name}:ro") (
+                  icedosLib.getNormalUsers { inherit (config.users) users; }
+                );
             in
             ''
               CONFIG="/etc/wolf/cfg/config.toml"
