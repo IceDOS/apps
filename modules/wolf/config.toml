@@ -1,3 +1,4 @@
 [icedos.applications.wolf]
 stateFolder = "/etc/wolf"
 extraVolumes = ["/etc:/host-etc:ro"]
+extraPackages = ["cemu"]

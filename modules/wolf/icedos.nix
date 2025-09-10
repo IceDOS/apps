@@ -2,15 +2,10 @@
 
 let
   defaultStateFolder = "/etc/wolf";
-
-  defaultVolumes = [
-    "/nix/store:/nix/store:ro"
-    "/run/current-system/sw/bin:/host-apps/system:ro"
-    "/run/opengl-driver:/run/opengl-driver:ro"
-  ];
 in
 {
   options.icedos.applications.wolf = {
+    extraPackages = icedosLib.mkStrListOption { default = [ ]; };
     extraVolumes = icedosLib.mkStrListOption { default = [ ]; };
     stateFolder = icedosLib.mkStrOption { default = defaultStateFolder; };
   };
@@ -69,19 +64,34 @@ in
 
           systemd.services.docker-wolf.preStart =
             let
-              inherit (builtins) toJSON;
-              inherit (lib) concatStringsSep;
+              inherit (builtins) attrNames toJSON readDir;
+              inherit (lib) concatStringsSep flatten;
               inherit (pkgs) jq toml-cli;
-              inherit (wolf) extraVolumes;
+              inherit (wolf) extraPackages extraVolumes;
+
+              defaultVolumes = [
+                "/nix/store:/nix/store:ro"
+                "/run/current-system/sw/bin:/host-apps/system:ro"
+                "/run/opengl-driver:/run/opengl-driver:ro"
+              ];
+
+              extraPackagesVolumes = flatten (
+                map (
+                  package:
+                  map (binExe: "${pkgs.${package}}/bin/${binExe}:/host-apps/extra/${binExe}:ro") (
+                    attrNames (readDir "${pkgs.${package}}/bin")
+                  )
+                ) extraPackages
+              );
 
               jqBin = "${jq}/bin/jq";
               tomlBin = "${toml-cli}/bin/toml";
-              volumes =
-                extraVolumes
-                ++ defaultVolumes
-                ++ map (user: "${user.value.home}/.nix-profile/bin:/host-apps/${user.name}:ro") (
-                  icedosLib.getNormalUsers { inherit (config.users) users; }
-                );
+
+              userPackagesVolumes = map (user: "${user.value.home}/.nix-profile/bin:/host-apps/${user.name}:ro") (
+                icedosLib.getNormalUsers { inherit (config.users) users; }
+              );
+
+              volumes = defaultVolumes ++ extraPackagesVolumes ++ extraVolumes ++ userPackagesVolumes;
             in
             ''
               CONFIG="/etc/wolf/cfg/config.toml"
