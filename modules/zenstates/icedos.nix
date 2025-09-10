@@ -41,5 +41,5 @@
       )
     ];
 
-  meta.name = "zenergy";
+  meta.name = "zenstates";
 }
