@@ -1,57 +1,70 @@
 {
-  build ? "anylinux-x86_64_v3",
+  SDL2,
+  autoPatchelfHook,
   fetchurl,
+  ffmpeg,
+  kdePackages,
+  libusb1,
+  libva,
+  qt5,
   stdenvNoCC,
+  unzip,
 }:
 
-let
-  name = pname;
+stdenvNoCC.mkDerivation (final: {
   pname = "citron";
-  version = "0.6.1";
+  version = "0.7.0";
 
-  citronAppimage = fetchurl {
-    url = "https://github.com/pkgforge-dev/Citron-AppImage/releases/download/v${version}/Citron-v${version}-${build}.AppImage";
-    hash =
-      {
-        anylinux-x86_64 = "sha256-MDrM4n6s0sPVl0d9pIZ2XLKXYw0AX+5znflAwquZ6o0=";
-        anylinux-x86_64_v3 = "sha256-Hjh2xbZJe/0OoXgmC1vKkzMfOpW95pMhqhTOP342bqA=";
-      }
-      .${build};
+  src = fetchurl {
+    url = "https://git.citron-emu.org/api/v4/projects/1/packages/generic/Citron-Canary/${final.version}/citron_linux.zip";
+    sha256 = "sha256-Cg18Z9qRL9riiCMKXQPUyQKlJ/lHE1kFsDY0xOpZnGE=";
   };
-in
-stdenvNoCC.mkDerivation {
-  inherit name;
+
+  runtimeLibs =
+    let
+      inherit (qt5) qtbase qtmultimedia;
+    in
+    [
+      SDL2
+      ffmpeg
+      libusb1
+      libva
+      qtbase
+      qtmultimedia
+    ];
+
+  nativeBuildInputs =
+    let
+      inherit (kdePackages) wrapQtAppsHook;
+    in
+    [
+      autoPatchelfHook
+      wrapQtAppsHook
+    ]
+    ++ final.runtimeLibs;
 
   dontUnpack = true;
 
   installPhase =
     let
-      appImagePath = "$out/lib/citron.AppImage";
-      appName = "org.citron_emu.citron";
-      citronBin = "$out/bin/citron";
-      citronLibRun = "$out/lib/AppRun";
-      desktopFile = "${appName}.desktop";
-      desktopFilePath = "$out/share/applications/${desktopFile}";
-      icon = "${appName}.svg";
-      iconPath = "$out/share/applications/${icon}";
+      inherit (final) pname;
     in
     ''
-      mkdir -p $out/lib $out/bin $out/share/applications
+      mkdir -p $out/share/applications
+      ${unzip}/bin/unzip $src -d $out
 
-      cp ${citronAppimage} ${appImagePath}
-      chmod +x ${appImagePath}
-      ${appImagePath} --appimage-extract
-      rm ${appImagePath}
-      mv AppDir/* $out/lib
-      rm -r AppDir squashfs-root
+      for f in "$out/bin"/*; do
+        chmod +x "$f"
+      done
 
-      ln -s $out/lib/${desktopFile} ${desktopFilePath}
-      ln -s $out/lib/${icon} ${iconPath}
-
-      substituteInPlace ${desktopFilePath} --replace-fail "${appName}" "${iconPath}" \
-        --replace-fail "Name=citron" "Name=Citron"
-
-      ln -s ${citronLibRun} ${citronBin}
-      chmod +x ${citronBin}
+      cat > $out/share/applications/${pname}.desktop <<EOF
+      [Desktop Entry]
+      Name=Citron
+      Exec=${pname}
+      Icon=applications-games
+      Type=Application
+      Categories=Utility;
+      Terminal=false
+      EOF
     '';
-}
+})
