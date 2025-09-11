@@ -1,5 +1,6 @@
 {
   atk,
+  autoPatchelfHook,
   cairo,
   callPackage,
   dpkg,
@@ -8,10 +9,9 @@
   gcc,
   gdk-pixbuf,
   glib,
-  glibc,
   gtk3,
   harfbuzz,
-  lib,
+  jdk,
   libayatana-appindicator,
   libayatana-indicator,
   libdbusmenu,
@@ -62,11 +62,13 @@ stdenvNoCC.mkDerivation (
         libayatana-indicator
         libdbusmenu
         libepoxy
-        mpv
         pango
       ];
 
-    nativeBuildInputs = [ dpkg ];
+    nativeBuildInputs = [
+      autoPatchelfHook
+      dpkg
+    ];
 
     installPhase = ''
       mkdir -p ${binDir}
@@ -75,26 +77,18 @@ stdenvNoCC.mkDerivation (
     '';
 
     postFixup = ''
-      base="${lib.makeLibraryPath final.buildInputs}"
+      addAutoPatchelfSearchPath ${jdk}/lib/openjdk/lib/server
 
-      patchelf \
-        --set-interpreter ${glibc}/lib/ld-linux-x86-64.so.2 \
-        ${harmonyMusicBin}
+      substituteInPlace ${shareDir}/applications/harmonymusic.desktop \
+        --replace-fail "harmonymusic %U" "${harmonyMusicWrapper}"
 
-        substituteInPlace ${shareDir}/applications/harmonymusic.desktop \
-          --replace-fail "harmonymusic %U" "${harmonyMusicWrapper}"
+      echo "
+        export LD_LIBRARY_PATH=${mpv}/lib
+        export PATH=$PATH:${xdg-user-dirs}/bin
+        exec ${harmonyMusicBin} $@
+      " > ${harmonyMusicWrapper}
 
-      (
-        echo "
-          #!/usr/bin/env bash
-
-          export LD_LIBRARY_PATH=$base:$out/lib
-          export PATH=\$PATH:${xdg-user-dirs}/bin
-          exec ${harmonyMusicBin} $@
-        " > ${harmonyMusicWrapper}
-
-        chmod +x ${harmonyMusicWrapper}
-      )
+      chmod +x ${harmonyMusicWrapper}
     '';
   }
 )
