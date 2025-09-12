@@ -9,13 +9,13 @@
 let
   name = pname;
   pname = "winboat";
-  version = "0.7.9";
+  version = "0.7.11";
 
   winboatAppimage = {
     inherit pname version;
     src = fetchurl {
       url = "https://github.com/TibixDev/winboat/releases/download/v${version}/winboat-${version}-x86_64.AppImage";
-      hash = "sha256-Vr9HXGyUqlXVElKDGy4PIyWjKm6mPuCkYKgcSjpQjjU=";
+      hash = "sha256-bMgGSbfzW0UN+p/Htk+uo0oN8jHQwPBmeRLWWZKZZQM=";
     };
   };
 
