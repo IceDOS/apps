@@ -60,6 +60,16 @@
                   )
                   (
                     let
+                      command = "delete";
+                    in
+                    {
+                      bin = "${pkgs.writeShellScript command ''${ddev} delete --omit-snapshot''}";
+                      command = command;
+                      help = "delete project from ddev";
+                    }
+                  )
+                  (
+                    let
                       command = "db";
                     in
                     {
