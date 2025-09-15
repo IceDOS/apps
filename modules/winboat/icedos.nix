@@ -1,6 +1,8 @@
-{ ... }:
+{ icedosLib, ... }:
 
 {
+  options.icedos.applications.winboat.autostart = icedosLib.mkBoolOption { default = false; };
+
   outputs.nixosModules =
     { ... }:
     [
@@ -52,6 +54,16 @@
           users.users = lib.mapAttrs (user: _: {
             extraGroups = [ "docker" ];
           }) config.icedos.users;
+
+          systemd.services.docker.serviceConfig.ExecStartPost =
+            let
+              cfg = config.icedos;
+              inherit (lib) mkIf;
+              inherit (pkgs) docker;
+            in
+            mkIf (!cfg.applications.winboat.autostart) ''
+              ${docker}/bin/docker stop WinBoat
+            '';
         }
       )
     ];
