@@ -13,7 +13,16 @@
         }:
 
         {
-          environment.systemPackages = [ pkgs.ddev ];
+          environment.systemPackages =
+            let
+              inherit (pkgs) ddev mkcert ngrok;
+            in
+            [
+              ddev
+              mkcert
+              ngrok
+            ];
+
           virtualisation.docker.enable = true;
 
           icedos.applications.toolset.commands = [
