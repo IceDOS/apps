@@ -1,0 +1,15 @@
+[[icedos.applications.me3.profiles]]
+name = "nightreign"
+config = """
+profileVersion = "v1"
+
+[[supports]]
+game = "nightrein"
+
+[[natives]]
+path = "/path/to/native.dll"
+
+[[packages]]
+id = "package-example"
+path = "/path/to/package/folder/"
+"""
