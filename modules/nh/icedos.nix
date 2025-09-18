@@ -45,12 +45,14 @@
 
               tempBuildDirs=$(find /tmp -type d -name "icedos-build*" 2>/dev/null)
               totalSize=0
+              buildPathsCount=0
 
               for dir in $tempBuildDirs; do
                   echo -e "- ''${RED}DEL''${NC} $dir"
                   sizeKb=$(du -sk "$dir" | cut -f1)
                   sizeMb=$(echo "scale=2; $sizeKb / 1024" | ${bc})
                   totalSize=$(echo "scale=2; $totalSize + $sizeMb" | ${bc})
+                  buildPathsCount=$(( buildPathsCount + 1 ))
               done
 
               formattedTotal=$(printf "%.2f" "$totalSize")
@@ -62,7 +64,7 @@
                   rm -r "$dir"
               done
 
-              echo -e "\n''${formattedTotal} MiB freed"
+              echo -e "\n''$buildPathsCount build path''$([ $buildPathsCount != 1 ] && echo s) deleted, ''${formattedTotal} MiB freed"
             ''}/bin/${command}";
         in
         {
