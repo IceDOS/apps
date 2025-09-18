@@ -1,14 +1,20 @@
-{ icedosLib, ... }:
+{ lib, icedosLib, ... }:
 
 let
   defaultStateFolder = "/etc/wolf";
 in
 {
-  options.icedos.applications.wolf = {
-    extraPackages = icedosLib.mkStrListOption { default = [ ]; };
-    extraVolumes = icedosLib.mkStrListOption { default = [ ]; };
-    stateFolder = icedosLib.mkStrOption { default = defaultStateFolder; };
-  };
+  options.icedos.applications.wolf =
+    let
+      inherit (lib) mkOption;
+      inherit (icedosLib) mkStrOption mkStrListOption;
+    in
+    {
+      extraEnvironmentFlags = mkOption { default = { }; };
+      extraPackages = mkStrListOption { default = [ ]; };
+      extraVolumes = mkStrListOption { default = [ ]; };
+      stateFolder = mkStrOption { default = defaultStateFolder; };
+    };
 
   outputs.nixosModules =
     { ... }:
@@ -46,9 +52,10 @@ in
                   ];
 
                   environment = {
-                    XDG_RUNTIME_DIR = "/tmp/sockets";
                     HOST_APPS_STATE_FOLDER = stateFolder;
-                  };
+                    XDG_RUNTIME_DIR = "/tmp/sockets";
+                  }
+                  // wolf.extraEnvironmentFlags;
 
                   volumes = [
                     "/dev:/dev"
