@@ -2,3 +2,6 @@
 stateFolder = "/etc/wolf"
 extraVolumes = ["/etc:/host-etc:ro"]
 extraPackages = ["cemu"]
+
+[icedos.applications.wolf.extraEnvironmentFlags]
+WOLF_RENDER_NODE = "/dev/dri/renderD129"
