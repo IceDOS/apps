@@ -62,7 +62,7 @@
               inherit (pkgs) docker;
             in
             mkIf (!cfg.applications.winboat.autostart) ''
-              ${docker}/bin/docker stop WinBoat
+              (${docker}/bin/docker stop WinBoat || exit 0)
             '';
         }
       )
