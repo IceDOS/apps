@@ -11,6 +11,7 @@ in
     in
     {
       extraEnvironmentFlags = mkOption { default = { }; };
+      extraOptions = mkStrListOption { default = [ ]; };
       extraPackages = mkStrListOption { default = [ ]; };
       extraVolumes = mkStrListOption { default = [ ]; };
       stateFolder = mkStrOption { default = defaultStateFolder; };
@@ -49,7 +50,8 @@ in
                     "--device=/dev/dri"
                     "--device=/dev/uinput"
                     "--device=/dev/uhid"
-                  ];
+                  ]
+                  ++ wolf.extraOptions;
 
                   environment = {
                     HOST_APPS_STATE_FOLDER = stateFolder;
