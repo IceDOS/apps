@@ -82,9 +82,33 @@
                       command = "db";
                     in
                     {
-                      bin = "${pkgs.writeShellScript command ''${ddev} describe | grep --color=never db''}";
+                      bin = "${pkgs.writeShellScript command ''
+                        ${colorBashHeader}
+
+                        if [[ ${helpFlags} ]]; then
+                          echo "Available commands:"
+                          echo -e "> ${purpleString "import"}: import database from file"
+                          echo -e "> ${purpleString "info"}: print database info"
+                          exit 0
+                        fi
+
+                        case "$1" in
+                          import)
+                            ${ddev} import-db --file="$2"
+                            exit 0
+                            ;;
+                          info)
+                            ${ddev} describe | grep --color=never db
+                            exit 0
+                            ;;
+                          *|-*|--*)
+                            echo -e "${redString "Unknown arg"}: $1" >&2
+                            exit 1
+                            ;;
+                        esac
+                      ''}";
                       command = command;
-                      help = "print db info";
+                      help = "database related commands";
                     }
                   )
                 ];
