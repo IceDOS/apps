@@ -1,11 +1,18 @@
 { icedosLib, ... }:
 
 {
+  inputs.winboat = {
+    url = "github:TibixDev/winboat";
+    inputs.nixpkgs.follows = "nixpkgs";
+  };
+
   options.icedos.applications.winboat.autostart = icedosLib.mkBoolOption { default = false; };
 
   outputs.nixosModules =
-    { ... }:
+    { inputs, ... }:
     [
+      inputs.winboat.nixosModules."x86_64-linux".default
+
       (
         {
           config,
@@ -14,23 +21,7 @@
           ...
         }:
         {
-          nixpkgs.overlays = [
-            (final: super: {
-              winboat = final.callPackage ./package.nix { };
-            })
-          ];
-
-          boot.kernelModules = [
-            "ip_tables"
-            "iptable_nat"
-          ];
-
-          environment.systemPackages = with pkgs; [
-            freerdp
-            winboat
-          ];
-
-          virtualisation.docker.enable = true;
+          services.winboat.enable = true;
 
           icedos.applications.toolset.commands = [
             (
