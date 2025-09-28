@@ -22,7 +22,7 @@
         }:
 
         let
-          inherit (lib) mapAttrs mkIf;
+          inherit (lib) mapAttrs mkIf hasAttr;
           cfg = config.icedos;
           kitty = cfg.applications.kitty;
         in
@@ -47,11 +47,11 @@
               themeFile = "OneDark-Pro";
             };
 
-            wayland.windowManager.hyprland.settings.bind = mkIf (lib.hasAttr "hyprland" cfg.desktop) [
+            wayland.windowManager.hyprland.settings.bind = mkIf (hasAttr "hyprland" cfg.desktop) [
               "$mainMod, X, exec, kitty"
             ];
 
-            dconf.settings = mkIf (lib.hasAttr "gnome" cfg.desktop) {
+            dconf.settings = mkIf (hasAttr "desktop" cfg && hasAttr "gnome" cfg.desktop) {
               "org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/kitty" = {
                 binding = "<Super>x";
                 command = "kitty";
