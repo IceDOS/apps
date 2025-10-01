@@ -31,7 +31,7 @@
           programs.steam.extraPackages = mkIf (ifSteam steamdeck) package;
 
           home-manager.users = mapAttrs (user: _: {
-            home.packages = mkIf (ifSteam (!steamdeck) && !cfg.applications.proton-launch) [
+            home.packages = mkIf (ifSteam (!steamdeck) && !(hasAttr "proton-launch" cfg.applications)) [
               (pkgs.steam.override { extraPkgs = pkgs: package; })
             ];
           }) cfg.users;
