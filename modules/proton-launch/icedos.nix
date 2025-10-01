@@ -19,6 +19,7 @@
             hasAttr
             head
             last
+            length
             mapAttrs
             mkIf
             optional
@@ -60,18 +61,21 @@
               }
 
               ${
-                let
-                  monitor = head (cfg.hardware.monitors);
-                  resolution = splitString "x" (monitor.resolution);
-                  width = head (resolution);
-                  height = last (resolution);
-                  refreshRate = toString (monitor.refreshRate);
-                in
-                ''
-                  DEFAULT_WIDTH="-W ${width}"
-                  DEFAULT_HEIGHT="-H ${height}"
-                  DEFAULT_REFRESH_RATE="-r ${refreshRate}"
-                ''
+                if hasAttr "monitors" cfg.hardware && (length cfg.hardware.monitors) != 0 then
+                  let
+                    monitor = head (cfg.hardware.monitors);
+                    resolution = splitString "x" (monitor.resolution);
+                    width = head resolution;
+                    height = last resolution;
+                    refreshRate = toString (monitor.refreshRate);
+                  in
+                  ''
+                    DEFAULT_WIDTH="-W ${width}"
+                    DEFAULT_HEIGHT="-H ${height}"
+                    DEFAULT_REFRESH_RATE="-r ${refreshRate}"
+                  ''
+                else
+                  ""
               }
 
               while [[ $# -gt 0 ]]; do
