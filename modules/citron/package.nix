@@ -1,28 +1,37 @@
 {
   SDL2,
   autoPatchelfHook,
+  build ? "native",
   fetchurl,
   ffmpeg,
   kdePackages,
   libusb1,
   libva,
-  qt5,
+  qt6,
   stdenvNoCC,
   unzip,
 }:
 
 stdenvNoCC.mkDerivation (final: {
   pname = "citron";
-  version = "0.7.0";
+  version = "0.7.1";
+
+  hash =
+    {
+      compat = "sha256-L844iTIHhOb0wJZSE5s5MyTXDrjQdJ0KOobPQGap29M=";
+      native = "sha256-wLwHrOIhHNeKTicH+Gzr16rZhnibOEFYjNcoFuY0zNs=";
+      steamdeck = "sha256-DoJGqw6XKylI87cjWNGX9/51RIxFhWbwHW718edRQvg=";
+    }
+    .${build};
 
   src = fetchurl {
-    url = "https://git.citron-emu.org/api/v4/projects/1/packages/generic/Citron-Canary/${final.version}/citron_linux.zip";
-    sha256 = "sha256-Cg18Z9qRL9riiCMKXQPUyQKlJ/lHE1kFsDY0xOpZnGE=";
+    inherit (final) hash;
+    url = "https://git.citron-emu.org/api/v4/projects/1/packages/generic/Citron/${final.version}/citron_linux_${build}.zip";
   };
 
   runtimeLibs =
     let
-      inherit (qt5) qtbase qtmultimedia;
+      inherit (qt6) qtbase qtmultimedia;
     in
     [
       SDL2
