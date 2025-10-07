@@ -1,5 +1,8 @@
 { ... }:
 
+let
+  name = "rvc-rocm";
+in
 {
   outputs.nixosModules =
     { ... }:
@@ -12,18 +15,34 @@
         {
           nixpkgs.overlays = [
             (final: super: {
-              rvc-rocm = final.callPackage ./package.nix { };
+              ${name} = final.callPackage ./package.nix { };
             })
           ];
 
-          environment.systemPackages = with pkgs; [
-            rvc-rocm
-          ];
+          environment.systemPackages = [
+            (
+              let
+                inherit (pkgs) rvc-rocm writeShellScriptBin;
+                rvcBin = "${rvc-rocm}/bin/${name}";
 
-          programs.nix-ld.enable = true;
+                rvcWrapped = ''${writeShellScriptBin name ''
+                  steam-run ${rvcBin} &
+                  steam_run_pid="$!"
+
+                  sleep 1
+                  kill -9 "$steam_run_pid"
+
+                  ${rvcBin}
+                ''}/bin/${name}'';
+              in
+              writeShellScriptBin "${name}" ''
+                nix-shell -p steam-run-free --run ${rvcWrapped}
+              ''
+            )
+          ];
         }
       )
     ];
 
-  meta.name = "rvc-rocm";
+  meta.name = name;
 }
