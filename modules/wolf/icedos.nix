@@ -124,6 +124,15 @@ in
               cat tmp > "$CONFIG"
               rm -rf "$TMP_FOLDER"
             '';
+
+          services.udev.extraRules = ''
+            # Moonlight / NVIDIA GameStream virtual Xbox controller
+            SUBSYSTEMS=="input", \
+            ATTRS{name}=="Wolf X-Box One (virtual) pad", \
+            MODE="0660", \
+            ENV{ID_SEAT}="seat9", \
+            GROUP="root"
+          '';
         }
       )
     ];
