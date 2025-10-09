@@ -6,7 +6,7 @@
   libtorch-bin,
   portaudio,
   stdenvNoCC,
-  version ? "b2332",
+  version,
   zlib,
 }:
 
@@ -21,7 +21,7 @@ stdenvNoCC.mkDerivation (
   in
   {
     inherit version;
-    pname = "rvc-rocm";
+    pname = "rvc-rocm-wrapped";
     dontUnpack = true;
 
     buildInputs = [
