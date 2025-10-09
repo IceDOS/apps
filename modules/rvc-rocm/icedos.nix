@@ -2,6 +2,7 @@
 
 let
   name = "rvc-rocm";
+  version = "b2332";
 in
 {
   outputs.nixosModules =
@@ -15,15 +16,25 @@ in
         {
           nixpkgs.overlays = [
             (final: super: {
-              ${name} = final.callPackage ./package.nix { };
+              ${name} = final.callPackage ./package.nix { inherit version; };
             })
           ];
 
           environment.systemPackages = [
             (
               let
-                inherit (pkgs) rvc-rocm writeShellScriptBin;
-                rvcBin = "${rvc-rocm}/bin/${name}";
+                inherit (pkgs)
+                  imagemagick
+                  makeDesktopItem
+                  runCommand
+                  rvc-rocm
+                  stdenv
+                  writeShellScriptBin
+                  ;
+
+                inherit (stdenv) mkDerivation;
+                rvcName = "${name}-wrapped";
+                rvcBin = "${rvc-rocm}/bin/${rvcName}";
 
                 rvcWrapped = ''${writeShellScriptBin name ''
                   steam-run ${rvcBin} &
@@ -34,10 +45,39 @@ in
 
                   ${rvcBin}
                 ''}/bin/${name}'';
+
+                nixShellInit = writeShellScriptBin "${name}" ''
+                  nix-shell -p steam-run-free --run ${rvcWrapped}
+                '';
+
+                icon = "${
+                  runCommand "rvc-icon" { } ''
+                    mkdir -p $out
+                    ${imagemagick}/bin/magick convert ${rvc-rocm}/lib/${rvcName}/_internal/dist/favicon.ico $out/icon.png
+                  ''
+                }/icon.png";
+
+                desktopItem = makeDesktopItem {
+                  inherit icon;
+                  categories = [ "Utility" ];
+                  desktopName = "RVC";
+                  exec = "${nixShellInit}/bin/${name}";
+                  name = "rvc-rocm";
+                  terminal = true;
+                };
               in
-              writeShellScriptBin "${name}" ''
-                nix-shell -p steam-run-free --run ${rvcWrapped}
-              ''
+              mkDerivation {
+                inherit version;
+                pname = "${name}";
+                src = nixShellInit;
+
+                installPhase = ''
+                  mkdir -p $out/bin $out/share/applications
+
+                  ln -s $src/bin/${name} $out/bin/${name}
+                  ln -s ${desktopItem}/share/applications/*.desktop $out/share/applications/
+                '';
+              }
             )
           ];
         }
