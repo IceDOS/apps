@@ -34,20 +34,11 @@
           proton-launch = (
             pkgs.writeShellScriptBin "proton-launch" ''
               PROTON_ENABLE_HIDRAW=0
-              PROTON_ENABLE_WAYLAND=1
+              PROTON_ENABLE_WAYLAND=0
               PROTON_PREFER_SDL=1
-              PROTON_USE_WOW64=1
+              PROTON_USE_WOW64=0
               SDL="--backend sdl"
               SteamDeck=0
-
-              ${
-                if (hasAttr "gamemode" cfg.applications) then
-                  ''
-                    GAMEMODE="${pkgs.gamemode}/bin/gamemoderun"
-                  ''
-                else
-                  ""
-              }
 
               ${
                 if (hasAttr "mangohud" cfg.applications) then
@@ -96,17 +87,28 @@
                     PROTON_ENABLE_HIDRAW=1
                     shift
                     ;;
-                  --gamescope)
                     ${
-                      if (hasGamescope) then
+                      if (hasAttr "gamemode" cfg.applications) then
                         ''
-                          GAMESCOPE="${pkgs.scopebuddy}/bin/scopebuddy --"
+                          --gamemode)
+                            GAMEMODE="${pkgs.gamemode}/bin/gamemoderun"
+                            shift
+                            ;;
                         ''
                       else
                         ""
                     }
-                    shift
-                    ;;
+                    ${
+                      if hasGamescope then
+                        ''
+                          --gamescope)
+                            GAMESCOPE="${pkgs.scopebuddy}/bin/scopebuddy --"
+                            shift
+                            ;;
+                        ''
+                      else
+                        ""
+                    }
                   --gamescope-args)
                     GAMESCOPE_ARGS="$2"
 
@@ -135,16 +137,16 @@
                     PROTON_PREFER_SDL=0
                     shift
                     ;;
-                  --no-wayland)
-                    PROTON_ENABLE_WAYLAND=0
-                    shift
-                    ;;
                   --no-ntsync)
                     PROTON_USE_NTSYNC=0
                     shift
                     ;;
-                  --no-wow64)
-                    PROTON_USE_WOW64=0
+                  --wayland)
+                    PROTON_ENABLE_WAYLAND=1
+                    shift
+                    ;;
+                  --wow64)
+                    PROTON_USE_WOW64=1
                     shift
                     ;;
                   --)
@@ -205,7 +207,7 @@
 
           nixpkgs.overlays = [
             (final: super: {
-              scopebuddy = final.callPackage ./package.nix { };
+              scopebuddy = final.callPackage ./lib/scopebuddy.nix { };
             })
           ];
 
