@@ -41,11 +41,14 @@
               file = {
                 # Enable steam beta
                 ".local/share/Steam/package/beta" = mkIf (steam.beta) {
+                  force = true;
                   text = if (hasAttr "steamdeck" cfg.hardware.devices) then "steamdeck_publicbeta" else "publicbeta";
                 };
 
                 # Enable slow steam downloads workaround
                 ".local/share/Steam/steam_dev.cfg" = mkIf (steam.downloadsWorkaround) {
+                  force = true;
+
                   text = ''
                     @nClientDownloadEnableHTTP2PlatformLinux 0
                   '';
