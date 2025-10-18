@@ -7,7 +7,11 @@
 let
   builder =
     c: u:
-    "${pkgs.writeShellScript "${c}" ''
+    let
+      inherit (pkgs) flatpak writeShellScript;
+      flatpakUpdate = if (config.services.flatpak.enable) then "${flatpak}/bin/flatpak update" else "";
+    in
+    "${writeShellScript "${c}" ''
       RED='\033[0;31m'
       NC='\033[0m'
 
@@ -33,6 +37,8 @@ let
       (echo -e "''${RED}error''${NC}: configuration path is invalid, run build.sh located inside the configuration scripts directory to update the path." && false) &&
 
       if ${u}; then
+        ${flatpakUpdate}
+
         nix-shell ./build.sh --update $@ &&
 
         cache "flake.lock"
