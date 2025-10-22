@@ -5,13 +5,13 @@
 
 stdenvNoCC.mkDerivation rec {
   name = "scopebuddy";
-  version = "1.2.0";
+  version = "1.2.1";
 
   src = fetchFromGitHub {
     owner = "HikariKnight";
     repo = "ScopeBuddy";
     rev = version;
-    hash = "sha256-NhJ1duURHGKJ1L43Hxymgbz3hFioP/jGkkcH/phGqIM=";
+    hash = "sha256-IGMCMkmqqJH+viisx1MQ2F2cG9BqY1n/G8HHYTtHi9E=";
   };
 
   installPhase = ''
