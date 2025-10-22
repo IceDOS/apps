@@ -7,13 +7,22 @@
 {
   options.icedos.applications.zed =
     let
-      inherit (icedosLib) mkBoolOption mkNumberOption mkStrOption;
+      inherit (lib) mkOption;
+
+      inherit (icedosLib)
+        mkBoolOption
+        mkNumberOption
+        mkStrListOption
+        mkStrOption
+        ;
 
       applications = (fromTOML (lib.fileContents ./config.toml)).icedos.applications;
       zed = applications.zed;
     in
     {
+      extensions = mkStrListOption { default = zed.extensions; };
       fontSize = mkNumberOption { default = zed.fontSize; };
+      lspSettings = mkOption { default = { }; };
 
       theme = {
         dark = mkStrOption { default = zed.theme.dark; };
@@ -35,36 +44,39 @@
           ...
         }:
         let
-          inherit (lib) mapAttrs mkIf;
+          inherit (lib)
+            mapAttrs
+            mkIf
+            ;
+
+          inherit (pkgs) nil nixd zed-editor-fhs;
 
           cfg = config.icedos;
           zed = cfg.applications.zed;
           users = cfg.users;
+
+          lsp.nil.initialization_options.formatting.command = [ "nixfmt" ];
+          lspSettings = lsp // zed.lspSettings;
         in
         {
           environment.variables.EDITOR = mkIf (
             cfg.applications.defaultEditor == "dev.zed.Zed.desktop"
           ) "zeditor -n -w";
 
-          environment.systemPackages = with pkgs; [
+          environment.systemPackages = [
             nil
             nixd
-            package-version-server
           ];
 
           home-manager.users = mapAttrs (user: _: {
             programs.zed-editor = {
               enable = true;
+              package = zed-editor-fhs;
 
-              extensions = [
-                "git-firefly"
-                "html"
+              extensions = zed.extensions ++ [
                 "nix"
                 "one-dark-pro"
-                "php"
-                "sql"
                 "toml"
-                "twig"
               ];
 
               userSettings = {
@@ -83,7 +95,6 @@
 
                 inlay_hints.enabled = true;
                 journal.hour_format = "hour24";
-                lsp.nil.initialization_options.formatting.command = [ "nixfmt" ];
                 notification_panel.button = false;
                 relative_line_numbers = true;
                 show_whitespaces = "boundary";
@@ -104,6 +115,8 @@
 
                 ui_font_size = zed.fontSize + 2;
                 vim_mode = zed.vim;
+
+                lsp = lspSettings;
               };
             };
           }) users;

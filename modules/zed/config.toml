@@ -2,6 +2,7 @@
 defaultEditor = "dev.zed.Zed.desktop"
 
 [icedos.applications.zed]
+extensions = []
 fontSize = 16
 vim = true
 
