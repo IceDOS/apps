@@ -1,18 +1,27 @@
 { icedosLib, ... }:
 
 {
-  options.icedos.applications.obs.virtualCamera = icedosLib.mkBoolOption { default = false; };
+  options.icedos.applications.obs = {
+    plugins = icedosLib.mkStrListOption { default = [ ]; };
+    virtualCamera = icedosLib.mkBoolOption { default = false; };
+  };
 
   outputs.nixosModules =
     { ... }:
     [
       (
-        { config, ... }:
+        { config, icedosLib, ... }:
         {
-          programs.obs-studio = {
-            enable = true;
-            enableVirtualCamera = config.icedos.applications.obs.virtualCamera;
-          };
+          programs.obs-studio =
+            let
+              inherit (icedosLib) pkgMapper;
+              obs = config.icedos.applications.obs;
+            in
+            {
+              enable = true;
+              enableVirtualCamera = obs.virtualCamera;
+              plugins = pkgMapper obs.plugins;
+            };
         }
       )
     ];
