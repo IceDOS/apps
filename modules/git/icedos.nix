@@ -38,8 +38,11 @@
 
             programs.git = {
               enable = true;
-              userName = "${users.${user}.username}";
-              userEmail = "${users.${user}.email}";
+
+              settings = {
+                user.email = "${users.${user}.username}";
+                user.name = "${users.${user}.email}";
+              };
             };
           }) cfg.users;
 
