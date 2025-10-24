@@ -17,13 +17,25 @@ let
 
       function cache() {
         FILE="$1"
+        CACHE_DIR=".cache"
 
-        [ ! -f "$FILE" ] && return 1
-        mkdir -p .cache
+        LATEST_FOLDER=$(ls -dt "$CACHE_DIR"/*/ 2>/dev/null | head -1)
 
-        LASTFILE=$(ls -lt ".cache" | grep "$FILE" | head -2 | tail -1 | awk '{print $9}')
+        if [ -n "$LATEST_FOLDER" ]; then
+          CACHED_FILE=$(find "$LATEST_FOLDER" -name "$FILE" | head -1)
 
-        diff -sq ".cache/$LASTFILE" "$FILE" &> /dev/null || cp "$FILE" ".cache/$FILE-$(date -Is)"
+          if [ -f "$CACHED_FILE" ]; then
+            if diff -q "$FILE" "$CACHED_FILE" &> /dev/null; then
+              IS_CACHED=1
+            fi
+          fi
+        fi
+
+        if [[ ! "$IS_CACHED" -eq 1 ]]; then
+          DATE_FOLDER="$CACHE_DIR/$(date -Is)"
+          mkdir -p "$DATE_FOLDER"
+          cp "$FILE" "$DATE_FOLDER"
+        fi
       }
 
       function runCommand() {
@@ -38,14 +50,14 @@ let
 
       if ${u}; then
         ${flatpakUpdate}
-
-        nix-shell ./build.sh --update $@ &&
-
-        cache "flake.lock"
-        cache "flake.nix"
+        nix-shell ./build.sh --update $@
       else
         nix-shell ./build.sh $@
       fi
+
+      cache "config.toml"
+      cache "flake.lock"
+      cache "flake.nix"
     ''}";
 in
 {
