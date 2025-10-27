@@ -7,7 +7,7 @@
 
       defaultConfig =
         let
-          inherit (lib) fromTOML readFile;
+          inherit (lib) readFile;
         in
         (fromTOML (readFile ./config.toml)).icedos.applications.git.users.username;
     in
@@ -40,8 +40,8 @@
               enable = true;
 
               settings = {
-                user.email = "${users.${user}.username}";
-                user.name = "${users.${user}.email}";
+                user.email = "${users.${user}.email}";
+                user.name = "${users.${user}.username}";
               };
             };
           }) cfg.users;
