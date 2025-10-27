@@ -1,17 +1,23 @@
 { icedosLib, ... }:
 
 {
-  inputs.winboat = {
-    url = "github:TibixDev/winboat";
-    inputs.nixpkgs.follows = "nixpkgs";
-  };
-
   options.icedos.applications.winboat.autostart = icedosLib.mkBoolOption { default = false; };
 
   outputs.nixosModules =
-    { inputs, ... }:
+    { ... }:
+
     [
-      { environment.systemPackages = [ inputs.winboat.packages.x86_64-linux.winboat ]; }
+      (
+        { pkgs, ... }:
+
+        {
+          environment.systemPackages =
+            let
+              inherit (pkgs) winboat;
+            in
+            [ winboat ];
+        }
+      )
 
       (
         {
