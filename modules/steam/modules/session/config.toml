@@ -1,6 +1,6 @@
 [icedos.applications.steam.session]
-user = "username"
+user = ""
 
 [icedos.applications.steam.session.autoStart]
-enable = true
-desktopSession = "hyprland"
+enable = false
+desktopSession = ""
