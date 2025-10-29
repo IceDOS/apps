@@ -1,17 +1,24 @@
-{ icedosLib, ... }:
+{ icedosLib, lib, ... }:
 
 {
   options.icedos.applications.steam.session =
     let
       inherit (icedosLib) mkBoolOption mkStrOption;
+      inherit (defaultConfig) autoStart user;
+
+      defaultConfig =
+        let
+          inherit (lib) readFile;
+        in
+        (fromTOML (readFile ./config.toml)).icedos.applications.steam.session;
     in
     {
       autoStart = {
-        enable = mkBoolOption { default = false; };
-        desktopSession = mkStrOption { default = ""; };
+        enable = mkBoolOption { default = autoStart.enable; };
+        desktopSession = mkStrOption { default = autoStart.desktopSession; };
       };
 
-      user = mkStrOption { default = ""; };
+      user = mkStrOption { default = user; };
     };
 
   outputs.nixosModules =
@@ -20,25 +27,32 @@
       (
         {
           config,
+          icedosLib,
           lib,
           ...
         }:
 
         let
+          inherit (icedosLib) abortIf;
           inherit (lib) hasAttr mkIf;
-          cfg = config.icedos;
-          session = cfg.applications.steam.session;
+          inherit (config.services.displayManager) autoLogin;
+          inherit (config.icedos) applications hardware system;
+          inherit (applications.steam.session) autoStart user;
         in
-        {
-          jovian = mkIf (!cfg.system.isFirstBuild) {
-            hardware.has.amd.gpu = hasAttr "radeon" cfg.hardware.graphics;
+        mkIf (!system.isFirstBuild) {
+          jovian = {
+            hardware.has.amd.gpu = hasAttr "radeon" hardware.graphics;
 
             steam = {
+              inherit user;
               enable = true;
-              autoStart = session.autoStart.enable;
-              desktopSession = session.autoStart.desktopSession;
-              updater.splash = if (hasAttr "steamdeck" cfg.hardware.devices) then "jovian" else "vendor";
-              user = session.user;
+
+              autoStart =
+                autoStart.enable
+                && (abortIf (autoLogin.enable) ''Autologin is enabled for user "${autoLogin.user}" - this configuration is incompatible with steam session's autostart. Please remove the "icedos.desktop.autologinUser" entry!'');
+
+              desktopSession = autoStart.desktopSession;
+              updater.splash = if (hasAttr "steamdeck" hardware.devices) then "jovian" else "vendor";
             };
           };
         }

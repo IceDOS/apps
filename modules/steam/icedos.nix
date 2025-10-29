@@ -1,14 +1,21 @@
-{ icedosLib, ... }:
+{ icedosLib, lib, ... }:
 
 {
   options.icedos.applications.steam =
     let
       inherit (icedosLib) mkBoolOption;
+      inherit (defaultConfig) beta cpuUsageWorkaround downloadsWorkaround;
+
+      defaultConfig =
+        let
+          inherit (lib) readFile;
+        in
+        (fromTOML (readFile ./config.toml)).icedos.applications.steam.session;
     in
     {
-      beta = mkBoolOption { default = false; };
-      cpuUsageWorkaround = mkBoolOption { default = false; };
-      downloadsWorkaround = mkBoolOption { default = false; };
+      beta = mkBoolOption { default = beta; };
+      cpuUsageWorkaround = mkBoolOption { default = cpuUsageWorkaround; };
+      downloadsWorkaround = mkBoolOption { default = downloadsWorkaround; };
     };
 
   outputs.nixosModules =

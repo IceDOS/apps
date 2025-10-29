@@ -1,4 +1,4 @@
 [icedos.applications.steam]
-beta = true
-cpuUsageWorkaround = true
-downloadsWorkaround = true
+beta = false
+cpuUsageWorkaround = false
+downloadsWorkaround = false
