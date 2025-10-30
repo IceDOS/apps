@@ -20,7 +20,9 @@
       zed = applications.zed;
     in
     {
+      autosave = mkBoolOption { default = false; };
       extensions = mkStrListOption { default = zed.extensions; };
+      formatOnSave = mkBoolOption { default = false; };
       fontSize = mkNumberOption { default = zed.fontSize; };
       lspSettings = mkOption { default = { }; };
 
@@ -81,12 +83,12 @@
 
               userSettings = {
                 auto_update = false;
-                autosave = "off";
+                autosave = if (zed.autosave) then "on" else "off";
                 buffer_font_family = "JetBrainsMono Nerd Font";
                 buffer_font_size = zed.fontSize;
-                chat_panel.button = "never";
                 collaboration_panel.button = false;
                 features.edit_prediction_provider = "none";
+                format_on_save = if (zed.formatOnSave) then "on" else "off";
 
                 indent_guides = {
                   enabled = true;
