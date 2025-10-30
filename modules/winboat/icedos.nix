@@ -30,7 +30,7 @@
           boot.kernelModules = [ "iptable_nat" ];
 
           environment.systemPackages = with pkgs; [
-            freerdp3
+            freerdp
             docker-compose
             iptables
           ];
