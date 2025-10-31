@@ -10,7 +10,7 @@
         let
           inherit (lib) readFile;
         in
-        (fromTOML (readFile ./config.toml)).icedos.applications.steam.session;
+        (fromTOML (readFile ./config.toml)).icedos.applications.steam;
     in
     {
       beta = mkBoolOption { default = beta; };
