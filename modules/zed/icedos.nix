@@ -16,23 +16,40 @@
         mkStrOption
         ;
 
-      applications = (fromTOML (lib.fileContents ./config.toml)).icedos.applications;
-      zed = applications.zed;
+      inherit ((fromTOML (lib.fileContents ./config.toml)).icedos.applications.zed)
+        autosave
+        extensions
+        extraPackages
+        fhs
+        fontSize
+        formatOnSave
+        languages
+        lsp
+        theme
+        vim
+        ;
     in
     {
-      autosave = mkBoolOption { default = false; };
-      extensions = mkStrListOption { default = zed.extensions; };
-      formatOnSave = mkBoolOption { default = false; };
-      fontSize = mkNumberOption { default = zed.fontSize; };
-      lspSettings = mkOption { default = { }; };
+      autosave = mkBoolOption { default = autosave; };
+      extensions = mkStrListOption { default = extensions; };
+      extraPackages = mkStrListOption { default = extraPackages; };
+      fhs = mkBoolOption { default = fhs; };
+      fontSize = mkNumberOption { default = fontSize; };
+      formatOnSave = mkBoolOption { default = formatOnSave; };
+      languages = mkOption { default = languages; };
+      lsp = mkOption { default = lsp; };
 
-      theme = {
-        dark = mkStrOption { default = zed.theme.dark; };
-        light = mkStrOption { default = zed.theme.light; };
-        mode = mkStrOption { default = zed.theme.mode; };
-      };
+      theme =
+        let
+          inherit (theme) dark light mode;
+        in
+        {
+          dark = mkStrOption { default = dark; };
+          light = mkStrOption { default = light; };
+          mode = mkStrOption { default = mode; };
+        };
 
-      vim = mkBoolOption { default = zed.vim; };
+      vim = mkBoolOption { default = vim; };
     };
 
   outputs.nixosModules =
@@ -46,24 +63,37 @@
           ...
         }:
         let
+          inherit (config.icedos) applications users;
+          inherit (applications) defaultEditor zed;
+
+          inherit (zed)
+            autosave
+            extensions
+            extraPackages
+            fhs
+            fontSize
+            formatOnSave
+            theme
+            languages
+            lsp
+            vim
+            ;
+
           inherit (lib)
+            foldl'
+            lists
             mapAttrs
             mkIf
+            splitString
             ;
 
           inherit (pkgs) nil nixd zed-editor-fhs;
 
-          cfg = config.icedos;
-          zed = cfg.applications.zed;
-          users = cfg.users;
-
-          lsp.nil.initialization_options.formatting.command = [ "nixfmt" ];
-          lspSettings = lsp // zed.lspSettings;
+          pkgMapper =
+            pkgList: lists.map (pkgName: foldl' (acc: cur: acc.${cur}) pkgs (splitString "." pkgName)) pkgList;
         in
         {
-          environment.variables.EDITOR = mkIf (
-            cfg.applications.defaultEditor == "dev.zed.Zed.desktop"
-          ) "zeditor -n -w";
+          environment.variables.EDITOR = mkIf (defaultEditor == "dev.zed.Zed.desktop") "zeditor -n -w";
 
           environment.systemPackages = [
             nil
@@ -73,22 +103,38 @@
           home-manager.users = mapAttrs (user: _: {
             programs.zed-editor = {
               enable = true;
-              package = zed-editor-fhs;
 
-              extensions = zed.extensions ++ [
+              extensions = extensions ++ [
                 "nix"
                 "one-dark-pro"
                 "toml"
               ];
 
+              extraPackages = pkgMapper extraPackages;
+              package = mkIf fhs zed-editor-fhs;
+
               userSettings = {
+                inherit
+                  (
+                    lsp
+                    // {
+                      lsp.nil.initialization_options.formatting.command = [ "nixfmt" ];
+                    }
+                    // {
+                      inherit languages;
+                    }
+                  )
+                  lsp
+                  languages
+                  ;
+
                 auto_update = false;
-                autosave = if (zed.autosave) then "on" else "off";
+                autosave = if autosave then "on" else "off";
                 buffer_font_family = "JetBrainsMono Nerd Font";
-                buffer_font_size = zed.fontSize;
+                buffer_font_size = fontSize;
                 collaboration_panel.button = false;
                 features.edit_prediction_provider = "none";
-                format_on_save = if (zed.formatOnSave) then "on" else "off";
+                format_on_save = if formatOnSave then "on" else "off";
 
                 indent_guides = {
                   enabled = true;
@@ -106,19 +152,19 @@
                   blinking = "on";
                   copy_on_select = true;
                   font_family = "JetBrainsMono Nerd Font";
-                  font_size = zed.fontSize;
+                  font_size = fontSize;
                 };
 
-                theme = {
-                  dark = zed.theme.dark;
-                  light = zed.theme.light;
-                  mode = zed.theme.mode;
-                };
+                theme =
+                  let
+                    inherit (theme) dark light mode;
+                  in
+                  {
+                    inherit dark light mode;
+                  };
 
-                ui_font_size = zed.fontSize + 2;
-                vim_mode = zed.vim;
-
-                lsp = lspSettings;
+                ui_font_size = fontSize + 2;
+                vim_mode = vim;
               };
             };
           }) users;

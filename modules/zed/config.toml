@@ -2,11 +2,19 @@
 defaultEditor = "dev.zed.Zed.desktop"
 
 [icedos.applications.zed]
+autosave = false
 extensions = []
+extraPackages = []
+fhs = false
 fontSize = 16
-vim = true
+formatOnSave = false
+vim = false
 
 [icedos.applications.zed.theme]
 dark = "One Dark Pro"
 light = "One Light"
 mode = "system" # Options: 'system', 'dark', 'light'
+
+[icedos.applications.zed.languages]
+
+[icedos.applications.zed.lsp]
