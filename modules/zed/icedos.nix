@@ -16,12 +16,13 @@
         mkStrOption
         ;
 
-      applications = (fromTOML (lib.fileContents ./config.toml)).icedos.applications;
-      zed = applications.zed;
+      zed = (fromTOML (lib.fileContents ./config.toml)).icedos.applications.zed;
     in
     {
       autosave = mkBoolOption { default = false; };
       extensions = mkStrListOption { default = zed.extensions; };
+      extraPackages = mkStrListOption { default = zed.extraPackages; };
+      fhs = mkBoolOption { default = zed.fhs; };
       formatOnSave = mkBoolOption { default = false; };
       fontSize = mkNumberOption { default = zed.fontSize; };
       lspSettings = mkOption { default = { }; };
@@ -47,8 +48,11 @@
         }:
         let
           inherit (lib)
+            foldl'
+            lists
             mapAttrs
             mkIf
+            splitString
             ;
 
           inherit (pkgs) nil nixd zed-editor-fhs;
@@ -59,6 +63,9 @@
 
           lsp.nil.initialization_options.formatting.command = [ "nixfmt" ];
           lspSettings = lsp // zed.lspSettings;
+
+          pkgMapper =
+            pkgList: lists.map (pkgName: foldl' (acc: cur: acc.${cur}) pkgs (splitString "." pkgName)) pkgList;
         in
         {
           environment.variables.EDITOR = mkIf (
@@ -73,13 +80,15 @@
           home-manager.users = mapAttrs (user: _: {
             programs.zed-editor = {
               enable = true;
-              package = zed-editor-fhs;
+              package = mkIf (zed.fhs) zed-editor-fhs;
 
               extensions = zed.extensions ++ [
                 "nix"
                 "one-dark-pro"
                 "toml"
               ];
+
+              extraPackages = pkgMapper zed.extraPackages;
 
               userSettings = {
                 auto_update = false;

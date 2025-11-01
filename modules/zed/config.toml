@@ -3,8 +3,10 @@ defaultEditor = "dev.zed.Zed.desktop"
 
 [icedos.applications.zed]
 extensions = []
+extraPackages = []
+fhs = false
 fontSize = 16
-vim = true
+vim = false
 
 [icedos.applications.zed.theme]
 dark = "One Dark Pro"
