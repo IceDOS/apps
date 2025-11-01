@@ -10,6 +10,7 @@ in
       inherit (icedosLib) mkStrOption mkStrListOption;
     in
     {
+      branch = mkStrOption { default = "stable"; };
       extraEnvironmentFlags = mkOption { default = { }; };
       extraOptions = mkStrListOption { default = [ ]; };
       extraPackages = mkStrListOption { default = [ ]; };
@@ -35,13 +36,13 @@ in
             oci-containers =
               let
                 inherit (lib) optional;
-                inherit (wolf) stateFolder;
+                inherit (wolf) branch stateFolder;
               in
               {
                 backend = "docker";
 
                 containers.wolf = {
-                  image = "ghcr.io/games-on-whales/wolf:stable";
+                  image = "ghcr.io/games-on-whales/wolf:${branch}";
 
                   extraOptions = [
                     "--pull=always"
