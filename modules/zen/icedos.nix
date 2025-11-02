@@ -39,19 +39,15 @@
           ...
         }:
         let
+          inherit (config.icedos.applications) defaultBrowser;
+          inherit (pkgs.stdenv.hostPlatform) system;
+          inherit (inputs.zen.packages.${system}) default;
           inherit (lib) mkIf;
-
-          cfg = config.icedos;
-          package = inputs.zen.packages."${pkgs.system}".default;
         in
         {
-          # Set as default browser for electron apps
           environment = {
-            sessionVariables.DEFAULT_BROWSER = mkIf (
-              cfg.applications.defaultBrowser == "zen.desktop"
-            ) "${package}/bin/zen-beta";
-
-            systemPackages = [ package ];
+            sessionVariables.DEFAULT_BROWSER = mkIf (defaultBrowser == "zen.desktop") "${default}/bin/zen-beta";
+            systemPackages = [ default ];
           };
         }
       )
