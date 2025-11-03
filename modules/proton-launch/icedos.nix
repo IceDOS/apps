@@ -20,8 +20,6 @@
             head
             last
             length
-            mapAttrs
-            mkIf
             optional
             splitString
             ;
@@ -188,39 +186,16 @@
               $MANGOHUD $GAMEMODE $GAMESCOPE "''${COMMAND[@]}"
             ''
           );
-
-          ifSteam = deck: lib.hasAttr "steam" cfg.applications && deck;
-          steamdeck = hasAttr "steamdeck" cfg.hardware.devices;
         in
         {
           environment.systemPackages = packages;
 
-          icedos.applications.toolset.commands = [
-            (
-              let
-                command = "proton-launch";
-              in
-              {
-                bin = "${proton-launch}/bin/${command}";
-                command = command;
-                help = "launch exec using optimal usage flags for gaming";
-              }
-            )
-          ];
-
-          programs.steam.extraPackages = mkIf (ifSteam steamdeck) packages;
-
           nixpkgs.overlays = [
             (final: super: {
+              inherit proton-launch;
               scopebuddy = final.callPackage ./lib/scopebuddy.nix { };
             })
           ];
-
-          home-manager.users = mapAttrs (user: _: {
-            home.packages = mkIf (ifSteam (!steamdeck)) [
-              (pkgs.steam.override { extraPkgs = pkgs: packages; })
-            ];
-          }) cfg.users;
         }
       )
     ];

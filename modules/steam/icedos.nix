@@ -3,19 +3,26 @@
 {
   options.icedos.applications.steam =
     let
-      inherit (icedosLib) mkBoolOption;
-      inherit (defaultConfig) beta cpuUsageWorkaround downloadsWorkaround;
+      inherit (icedosLib) mkBoolOption mkStrListOption;
 
-      defaultConfig =
-        let
-          inherit (lib) readFile;
-        in
-        (fromTOML (readFile ./config.toml)).icedos.applications.steam;
+      inherit
+        (
+          let
+            inherit (lib) readFile;
+          in
+          (fromTOML (readFile ./config.toml)).icedos.applications.steam
+        )
+        beta
+        cpuUsageWorkaround
+        downloadsWorkaround
+        extraPackages
+        ;
     in
     {
       beta = mkBoolOption { default = beta; };
       cpuUsageWorkaround = mkBoolOption { default = cpuUsageWorkaround; };
       downloadsWorkaround = mkBoolOption { default = downloadsWorkaround; };
+      extraPackages = mkStrListOption { default = extraPackages; };
     };
 
   outputs.nixosModules =
@@ -30,30 +37,45 @@
         }:
 
         let
+          inherit (config.icedos) applications hardware users;
+          inherit (hardware) devices;
+
           inherit (lib)
             attrNames
             hasAttr
+            length
             mapAttrs
             mkIf
+            optional
             ;
 
-          cfg = config.icedos;
-          applications = cfg.applications;
-          steam = applications.steam;
-          steamdeck = hasAttr "steamdeck" cfg.hardware.devices;
+          inherit (pkgs) steam;
+
+          inherit (applications.steam)
+            beta
+            cpuUsageWorkaround
+            downloadsWorkaround
+            extraPackages
+            ;
+
+          hasExtraPackages = length extraPackages != 0;
+          hasGamescope = hasAttr "gamescope" applications;
+          hasProtonLaunch = hasAttr "proton-launch" applications;
+          optionalGamescope = optional hasGamescope pkgs.gamescope;
+          optionalProtonLaunch = optional hasProtonLaunch pkgs.proton-launch;
+          session = hasAttr "session" applications.steam;
+          steamdeck = hasAttr "steamdeck" devices;
         in
         {
           home-manager.users = mapAttrs (user: _: {
             home = {
               file = {
-                # Enable steam beta
-                ".local/share/Steam/package/beta" = mkIf (steam.beta) {
+                ".local/share/Steam/package/beta" = mkIf beta {
                   force = true;
-                  text = if (hasAttr "steamdeck" cfg.hardware.devices) then "steamdeck_publicbeta" else "publicbeta";
+                  text = if steamdeck then "steamdeck_publicbeta" else "publicbeta";
                 };
 
-                # Enable slow steam downloads workaround
-                ".local/share/Steam/steam_dev.cfg" = mkIf (steam.downloadsWorkaround) {
+                ".local/share/Steam/steam_dev.cfg" = mkIf downloadsWorkaround {
                   force = true;
 
                   text = ''
@@ -63,21 +85,28 @@
               };
 
               packages =
-                mkIf (!steamdeck && !(hasAttr "gamescope" applications) && !(hasAttr "proton-launch" applications))
+                if (!hasGamescope && !hasProtonLaunch && !hasExtraPackages && !session) then
+                  [ steam ]
+                else if ((hasGamescope || hasProtonLaunch) && !session) then
                   [
-                    pkgs.steam
-                  ];
+                    (steam.override {
+                      extraPkgs = pkgs: extraPackages ++ optionalGamescope ++ optionalProtonLaunch;
+                    })
+                  ]
+                else
+                  [ ];
             };
-          }) cfg.users;
+          }) users;
 
-          programs.steam = mkIf steamdeck {
-            enable = true;
-            extest.enable = true;
+          programs.steam = {
+            enable = steamdeck || session;
+            extest.enable = steamdeck;
+            extraPackages = extraPackages ++ optionalGamescope ++ optionalProtonLaunch;
           };
 
-          systemd.tmpfiles.rules = mkIf steam.cpuUsageWorkaround (
+          systemd.tmpfiles.rules = mkIf cpuUsageWorkaround (
             map (user: "L+ /home/${user}/.local/share/Steam/steamapps/compatdata/0 - - - - /dev/null") (
-              attrNames cfg.users
+              attrNames users
             )
           );
         }
