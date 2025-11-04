@@ -1,6 +1,14 @@
-{ ... }:
+{ icedosLib, lib, ... }:
 
 {
+  options.icedos.applications.librewolf.bin =
+    let
+      inherit ((fromTOML (readFile ./config.toml)).icedos.applications.librewolf) bin;
+      inherit (icedosLib) mkBoolOption;
+      inherit (lib) readFile;
+    in
+    mkBoolOption { default = bin; };
+
   outputs.nixosModules =
     { ... }:
     [
@@ -12,17 +20,17 @@
           ...
         }:
         let
-          inherit (lib) mapAttrs mkIf;
-
-          cfg = config.icedos;
-          users = cfg.users;
-          package = pkgs.librewolf;
+          inherit (config.icedos) applications users;
+          inherit (applications) defaultBrowser;
+          inherit (applications.librewolf) bin;
+          inherit (lib) mapAttrs mkIf substring;
+          inherit (pkgs) librewolf librewolf-bin;
+          package = if bin then librewolf-bin else librewolf;
         in
         {
-          # Set as default browser for electron apps
           environment = {
             sessionVariables.DEFAULT_BROWSER = mkIf (
-              cfg.applications.defaultBrowser == "librewolf.desktop"
+              defaultBrowser == "librewolf.desktop"
             ) "${package}/bin/librewolf";
 
             systemPackages = [ package ];
@@ -49,7 +57,7 @@
 
             programs.librewolf.settings =
               let
-                firefoxVersion = lib.substring 0 5 pkgs.firefox.version;
+                firefoxVersion = substring 1 5 (if bin then librewolf-bin.version else librewolf.version);
               in
               {
                 "browser.download.autohideButton" = true;
