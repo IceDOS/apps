@@ -13,3 +13,27 @@ path = "/path/to/native.dll"
 id = "package-example"
 path = "/path/to/package/folder/"
 """
+
+[[icedos.applications.me3.profiles]]
+name = "nightreign-other"
+dependencies = [ "nightreign" ]
+config = """
+[[natives]]
+path = "/path/to/other-native.dll"
+
+[[packages]]
+id = "package-example"
+path = "/path/to/other-package/folder/"
+"""
+
+[[icedos.applications.me3.profiles]]
+name = "nightreign-extra"
+dependencies = [ "nightreign" "nightreign-other" ]
+config = """
+[[natives]]
+path = "/path/to/extra-native.dll"
+
+[[packages]]
+id = "package-example"
+path = "/path/to/extra-package/folder/"
+"""
