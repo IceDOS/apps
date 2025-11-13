@@ -1,8 +1,22 @@
-{ ... }:
+{ lib, ... }:
 
-{
+let
+  inherit (builtins) fetchurl toFile;
+  inherit (lib) importJSON;
+
+  shaderFileName = "FSR.glsl";
+  shaderGist = importJSON (fetchurl "https://api.github.com/gists/82219c545228d70c5604f865ce0b0ce5");
+  shader = shaderGist.files.${shaderFileName}.content;
+in {
+  inputs = {
+    celluloid-shder = {
+      url = "path://${toFile shaderFileName shader}";
+      flake = false;
+    };
+  };
+
   outputs.nixosModules =
-    { ... }:
+    { inputs, ... }:
     [
       (
         {
@@ -21,6 +35,10 @@
             home.file.".config/celluloid" = {
               source = ./config;
               recursive = true;
+            };
+
+            home.file.".config/celluloid/shaders/FSR.glsl" = {
+                source = inputs.celluloid-shder;
             };
 
             dconf.settings = {
