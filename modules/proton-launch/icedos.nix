@@ -125,6 +125,10 @@
 
                     shift 2
                     ;;
+                  --sdl-x11)
+                    SDL_VIDEODRIVER="x11"
+                    shift
+                    ;;
                   --no-gamemode)
                     GAMEMODE=""
                     shift
@@ -179,6 +183,7 @@
               PROTON_USE_NTSYNC \
               PROTON_USE_WOW64 \
               SCB_GAMESCOPE_ARGS \
+              SDL_VIDEODRIVER \
               SteamDeck
 
               [[ "$MANGOAPP" != "" && "$GAMESCOPE" != "" ]] && MANGOHUD=""
