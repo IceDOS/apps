@@ -9,11 +9,14 @@
   outputs.nixosModules =
     { inputs, ... }:
     [
-      {
-        environment.systemPackages = [
-          inputs.ambiled.packages."x86_64-linux".default
-        ];
-      }
+      (
+        { pkgs, ... }:
+        {
+          environment.systemPackages = [
+            inputs.ambiled.packages.${pkgs.stdenv.system}.default
+          ];
+        }
+      )
     ];
 
   meta.name = "ambiled";

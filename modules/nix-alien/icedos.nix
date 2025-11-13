@@ -9,13 +9,16 @@
   outputs.nixosModules =
     { inputs, ... }:
     [
-      {
-        environment.systemPackages = [
-          inputs.nix-alien.packages."x86_64-linux".nix-alien
-        ];
+      (
+        { pkgs, ... }:
+        {
+          environment.systemPackages = [
+            inputs.nix-alien.packages.${pkgs.stdenv.system}.nix-alien
+          ];
 
-        programs.nix-ld.enable = true;
-      }
+          programs.nix-ld.enable = true;
+        }
+      )
     ];
 
   meta.name = "nix-alien";
