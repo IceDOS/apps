@@ -16,6 +16,8 @@
     {
       users = mkSubmoduleAttrsOption { default = { }; } {
         autoSave = mkStrOption { default = "off"; };
+        colorTheme = mkStrOption { default = ""; };
+        fontSize = mkNumberOption { default = 14; };
         formatOnPaste = mkBoolOption { default = true; };
         formatOnSave = mkBoolOption { default = true; };
         zoomLevel = mkNumberOption { default = 1.0; };
@@ -86,6 +88,7 @@
                   editor = {
                     fontFamily = "'JetBrainsMono Nerd Font', 'Droid Sans Mono', 'monospace', monospace";
                     fontLigatures = true;
+                    fontSize = codium.fontSize;
                     formatOnPaste = codium.formatOnPaste;
                     formatOnSave = codium.formatOnSave;
                     minimap.enabled = false;
@@ -131,6 +134,7 @@
                   terminal.integrated = {
                     cursorBlinking = true;
                     cursorStyle = "line";
+                    fontSize = codium.fontSize;
                     smoothScrolling = true;
                   };
 
@@ -142,7 +146,7 @@
                   };
 
                   workbench = {
-                    colorTheme = "One Dark Pro Darker";
+                    colorTheme = codium.colorTheme;
                     iconTheme = "material-icon-theme";
                     list.smoothScrolling = true;
                     startupEditor = "none";
