@@ -144,7 +144,7 @@
                 inlay_hints.enabled = true;
                 journal.hour_format = "hour24";
                 notification_panel.button = false;
-                relative_line_numbers = true;
+                relative_line_numbers = "enabled";
                 show_whitespaces = "boundary";
                 tabs.git_status = true;
 
