@@ -17,6 +17,8 @@
           cfg = config.icedos;
         in
         {
+          fonts.packages = with pkgs; [ meslo-lgs-nf ];
+
           home-manager.users = mapAttrs (user: _: {
             programs.zsh.enable = true;
 
