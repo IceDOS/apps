@@ -6,7 +6,7 @@ autosave = false
 extensions = []
 extraPackages = []
 fhs = false
-fontSize = 16
+fontSize = 14
 formatOnSave = false
 vim = false
 
