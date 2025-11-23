@@ -84,11 +84,19 @@
 
                   Install.WantedBy =
                     [ ]
-                    ++ optional (hasAttr "hyprland" cfg.desktop) "hyprland-session.target"
-                    ++ optional (hasAttr "gnome" cfg.desktop) "gnome-session.target";
+                    ++ optional (hasAttr "cosmic" cfg.desktop) "cosmic-session.target"
+                    ++ optional (hasAttr "gnome" cfg.desktop) "gnome-session.target"
+                    ++ optional (hasAttr "hyprland" cfg.desktop) "hyprland-session.target";
 
                   Service = {
-                    ExecStart = with pkgs; "${writeShellScript "sd-inhibitor" (readFile ./sd-inhibitor.sh)}";
+                    ExecStart = with pkgs; "${writeShellScript "sd-inhibitor" ''
+                      base_path="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+                      nix_system_path="/run/current-system/sw/bin"
+                      nix_user_path="''${HOME}/.nix-profile/bin"
+                      export PATH="''${base_path}:''${nix_system_path}:''${nix_user_path}:$PATH"
+
+                      ${readFile ./sd-inhibitor.sh}
+                    ''}";
                     Nice = "-20";
                     Restart = "on-failure";
                     StartLimitBurst = 60;
