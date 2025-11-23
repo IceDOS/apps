@@ -1,5 +1,5 @@
 [icedos.applications]
-extraPackages = ["beekeeper-studio"]
-insecurePackages = ["beekeeper-studio-5.2.12"]
-defaultBrowser = "zen.desktop"
-defaultEditor = "dev.zed.Zed.desktop"
+defaultBrowser = ""
+defaultEditor = ""
+extraPackages = []
+insecurePackages = []
