@@ -138,5 +138,13 @@ in
       )
     ];
 
-  meta.name = "wolf";
+  meta = {
+    name = "wolf";
+
+    dependencies = [
+      {
+        modules = [ "docker" ];
+      }
+    ];
+  };
 }

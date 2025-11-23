@@ -1,15 +1,23 @@
-{ icedosLib, ... }:
+{ icedosLib, lib, ... }:
 
 {
   options.icedos.applications =
     let
       inherit (icedosLib) mkStrOption mkStrListOption;
+      inherit (lib) readFile;
+
+      inherit ((fromTOML (readFile ./config.toml)).icedos.applications)
+        defaultBrowser
+        defaultEditor
+        extraPackages
+        insecurePackages
+        ;
     in
     {
-      defaultBrowser = mkStrOption { default = ""; };
-      defaultEditor = mkStrOption { default = ""; };
-      extraPackages = mkStrListOption { default = [ ]; };
-      insecurePackages = mkStrListOption { default = [ ]; };
+      defaultBrowser = mkStrOption { default = defaultBrowser; };
+      defaultEditor = mkStrOption { default = defaultEditor; };
+      extraPackages = mkStrListOption { default = extraPackages; };
+      insecurePackages = mkStrListOption { default = insecurePackages; };
     };
 
   outputs.nixosModules =
@@ -56,5 +64,25 @@
       )
     ];
 
-  meta.name = "default";
+  meta = {
+    name = "default";
+
+    dependencies = [
+      {
+        modules = [
+          "bash"
+          "direnv"
+          "git"
+          "kitty"
+          "nh"
+          "nix"
+          "nix-health"
+          "nixfmt"
+          "ssh"
+          "toolset"
+          "zsh"
+        ];
+      }
+    ];
+  };
 }
