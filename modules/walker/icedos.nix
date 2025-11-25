@@ -32,6 +32,8 @@
           package = pkgs.walker;
         in
         {
+          environment.sessionVariables.COSMIC_DATA_CONTROL_ENABLED = 1;
+
           environment.systemPackages = with pkgs; [
             package
             wl-clipboard
