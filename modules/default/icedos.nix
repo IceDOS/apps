@@ -50,7 +50,6 @@
               efibootmgr # Edit EFI entries
               killall # Tool to kill all programs matching process name
               ntfs3g # Support NTFS drives
-              neovim # CLI text editor
               p7zip # 7zip
               unrar # Support opening rar files
               unzip # An extraction utility
@@ -73,7 +72,6 @@
           "bash"
           "direnv"
           "git"
-          "kitty"
           "nh"
           "nix"
           "nix-health"
@@ -81,6 +79,15 @@
           "ssh"
           "toolset"
           "zsh"
+        ];
+      }
+    ];
+
+    optionalDependencies = [
+      {
+        modules = [
+          "kitty"
+          "neovim"
         ];
       }
     ];
