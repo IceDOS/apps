@@ -35,7 +35,6 @@
               PROTON_ENABLE_WAYLAND=0
               PROTON_PREFER_SDL=1
               PROTON_USE_WOW64=0
-              SDL="--backend sdl"
               SteamDeck=0
 
               ${
@@ -138,13 +137,12 @@
                     MANGOAPP=""
                     shift
                     ;;
-                  --no-sdl)
-                    SDL=""
-                    PROTON_PREFER_SDL=0
-                    shift
-                    ;;
                   --no-ntsync)
                     PROTON_USE_NTSYNC=0
+                    shift
+                    ;;
+                  --no-proton-sdl)
+                    PROTON_PREFER_SDL=0
                     shift
                     ;;
                   --wayland)
@@ -171,7 +169,7 @@
                 esac
               done
 
-              SCB_GAMESCOPE_ARGS="$DEFAULT_HEIGHT $DEFAULT_REFRESH_RATE $DEFAULT_WIDTH $GAMESCOPE_ARGS $MANGOAPP $SDL"
+              SCB_GAMESCOPE_ARGS="$DEFAULT_HEIGHT $DEFAULT_REFRESH_RATE $DEFAULT_WIDTH $GAMESCOPE_ARGS $MANGOAPP"
 
               export \
               DXVK_FRAME_RATE \
