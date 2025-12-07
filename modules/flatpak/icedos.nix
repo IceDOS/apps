@@ -1,7 +1,7 @@
 { icedosLib, lib, ... }:
 
 {
-  inputs.nix-flatpak.url = "github:gmodena/nix-flatpak/";
+  inputs.nix-flatpak.url = "github:gmodena/nix-flatpak";
 
   options.icedos.applications.flatpak.packages =
     let
