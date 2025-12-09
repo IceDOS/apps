@@ -33,18 +33,16 @@ stdenvNoCC.mkDerivation (
   in
   {
     pname = "harmony-music";
-    version = "1.12.1";
-    versionPrefix = "26";
+    version = "1.12.2";
 
     src = fetchurl {
       url =
         let
           version = final.version;
-          versionPrefix = final.versionPrefix;
         in
-        "https://github.com/anandnet/Harmony-Music/releases/download/v${version}/harmonymusic-${version}+${versionPrefix}-linux.deb";
+        "https://github.com/anandnet/Harmony-Music/releases/download/v${version}/harmonymusic-${version}.deb";
 
-      hash = "sha256-gy96qRXlXdL2iuHxEGR2RBFnRYA5z3yvZhLxIPhAVhk=";
+      hash = "sha256-QtJWWr2HH21GeCQLlk/EY7ndF2mr6phTqSua6FwdBp8=";
     };
 
     buildInputs =
