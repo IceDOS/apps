@@ -13,15 +13,9 @@
         }:
 
         {
-          environment.systemPackages =
-            let
-              inherit (pkgs) ddev mkcert ngrok;
-            in
-            [
-              ddev
-              mkcert
-              ngrok
-            ];
+          environment.systemPackages = with pkgs; [
+            ddev
+          ];
 
           virtualisation.docker.enable = true;
 
@@ -50,7 +44,6 @@
                       bin = "${pkgs.writeShellScript command ''
                         ${ddev} poweroff
                         ${ddev} start
-                        ${ddev} share
                         ${ddev} mailpit
                       ''}";
                       command = command;
