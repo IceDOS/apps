@@ -1,7 +1,8 @@
 [icedos.applications.wolf]
+branch = "stable"
 stateFolder = "/etc/wolf"
-extraVolumes = ["/etc:/host-etc:ro"]
-extraPackages = ["cemu"]
+extraVolumes = []
+extraOptions = []
+extraPackages = []
 
 [icedos.applications.wolf.extraEnvironmentFlags]
-WOLF_RENDER_NODE = "/dev/dri/renderD129"
