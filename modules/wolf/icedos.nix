@@ -1,21 +1,27 @@
 { lib, icedosLib, ... }:
 
-let
-  defaultStateFolder = "/etc/wolf";
-in
 {
   options.icedos.applications.wolf =
     let
-      inherit (lib) mkOption;
+      inherit (lib) mkOption readFile;
       inherit (icedosLib) mkStrOption mkStrListOption;
+
+      inherit ((fromTOML (readFile ./config.toml)).icedos.applications.wolf)
+        branch
+        extraEnvironmentFlags
+        extraOptions
+        extraPackages
+        extraVolumes
+        stateFolder
+        ;
     in
     {
-      branch = mkStrOption { default = "stable"; };
-      extraEnvironmentFlags = mkOption { default = { }; };
-      extraOptions = mkStrListOption { default = [ ]; };
-      extraPackages = mkStrListOption { default = [ ]; };
-      extraVolumes = mkStrListOption { default = [ ]; };
-      stateFolder = mkStrOption { default = defaultStateFolder; };
+      branch = mkStrOption { default = branch; };
+      extraEnvironmentFlags = mkOption { default = extraEnvironmentFlags; };
+      extraOptions = mkStrListOption { default = extraOptions; };
+      extraPackages = mkStrListOption { default = extraPackages; };
+      extraVolumes = mkStrListOption { default = extraVolumes; };
+      stateFolder = mkStrOption { default = stateFolder; };
     };
 
   outputs.nixosModules =
@@ -24,7 +30,6 @@ in
       (
         {
           config,
-          lib,
           pkgs,
           ...
         }:
@@ -35,7 +40,6 @@ in
           virtualisation = {
             oci-containers =
               let
-                inherit (lib) optional;
                 inherit (wolf) branch stateFolder;
               in
               {
@@ -61,13 +65,12 @@ in
                   // wolf.extraEnvironmentFlags;
 
                   volumes = [
+                    "${stateFolder}:${stateFolder}"
                     "/dev:/dev"
-                    "/etc/wolf:/etc/wolf"
                     "/run/udev:/run/udev"
                     "/tmp/sockets:/tmp/sockets"
                     "/var/run/docker.sock:/var/run/docker.sock"
-                  ]
-                  ++ optional (stateFolder != defaultStateFolder) "${stateFolder}:${stateFolder}";
+                  ];
                 };
               };
           };
@@ -77,12 +80,13 @@ in
               inherit (builtins) attrNames toJSON readDir;
               inherit (lib) concatStringsSep flatten;
               inherit (pkgs) jq toml-cli;
-              inherit (wolf) extraPackages extraVolumes;
+              inherit (wolf) extraPackages extraVolumes stateFolder;
 
               defaultVolumes = [
                 "/nix/store:/nix/store:ro"
                 "/run/current-system/sw/bin:/host-apps/system:ro"
                 "/run/opengl-driver:/run/opengl-driver:ro"
+                "/var/run/wolf/wolf.sock:/var/run/wolf/wolf.sock"
               ];
 
               extraPackagesVolumes = flatten (
@@ -104,9 +108,8 @@ in
               volumes = defaultVolumes ++ extraPackagesVolumes ++ extraVolumes ++ userPackagesVolumes;
             in
             ''
-              CONFIG="/etc/wolf/cfg/config.toml"
-
-              APPS=$(${tomlBin} get "$CONFIG" apps | ${jqBin} length)
+              CONFIG="${stateFolder}/cfg/config.toml"
+              PROFILES=$(${tomlBin} get "$CONFIG" profiles | ${jqBin} length)
               TMP_FOLDER="$(mktemp -d -t -p /tmp/icedos wolf-extra-volumes-XXXXXXX-0 | xargs echo)/"
 
               if [[ ! -e "$CONFIG" ]]; then
@@ -116,10 +119,14 @@ in
               cd "$TMP_FOLDER"
               cat "$CONFIG" > tmp
 
-              for i in $(seq 0 $((APPS - 1))); do
-                ${tomlBin} set tmp apps[$i].runner.mounts '[${concatStringsSep "," (map toJSON volumes)}]' > tmp2
-                sed -i 's/^\s*mounts = "\[\(.*\)\]"$/mounts = [\1]/; /^\s*mounts = / s/\\"/\"/g' tmp2
-                cp tmp2 tmp
+              for i in $(seq 0 $((PROFILES - 1))); do
+                APPS=$(${tomlBin} get "$CONFIG" profiles[$i].apps | ${jqBin} length)
+
+                for x in $(seq 0 $((APPS - 1))); do
+                  ${tomlBin} set tmp profiles[$i].apps[$x].runner.mounts '[${concatStringsSep "," (map toJSON volumes)}]' > tmp2
+                  sed -i 's/^\s*mounts = "\[\(.*\)\]"$/mounts = [\1]/; /^\s*mounts = / s/\\"/\"/g' tmp2
+                  cp tmp2 tmp
+                done
               done
 
               cat tmp > "$CONFIG"
