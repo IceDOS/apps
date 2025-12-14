@@ -1,11 +1,7 @@
 { icedosLib, lib, ... }:
 
 {
-  inputs.nix-flatpak = {
-    url = "github:gmodena/nix-flatpak";
-    inputs.nixpkgs.follows = "nixpkgs";
-    inputs.home-manager.follows = "home-manager";
-  };
+  inputs.nix-flatpak.url = "github:gmodena/nix-flatpak";
 
   options.icedos.applications.flatpak.packages =
     let
