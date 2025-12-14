@@ -37,6 +37,8 @@
               PROTON_USE_WOW64=0
               SteamDeck=0
 
+              [[ "$WINEDLLOVERRIDES" == "" ]] && WINEDLLOVERRIDES="d3d12=n,b;dbghelp=n,b;dinput8=n,b;dsound=n,b;dxgi=n,b;version=n,b;winhttp=n,b;wininet=n,b;winmm=n,b"
+
               ${
                 if (hasAttr "mangohud" cfg.applications) then
                   ''
@@ -128,6 +130,10 @@
                     SDL_VIDEODRIVER="x11"
                     shift
                     ;;
+                  --no-dll-overrides)
+                    WINEDLLOVERRIDES=""
+                    shift
+                    ;;
                   --no-gamemode)
                     GAMEMODE=""
                     shift
@@ -182,7 +188,8 @@
               PROTON_USE_WOW64 \
               SCB_GAMESCOPE_ARGS \
               SDL_VIDEODRIVER \
-              SteamDeck
+              SteamDeck \
+              WINEDLLOVERRIDES
 
               [[ "$MANGOAPP" != "" && "$GAMESCOPE" != "" ]] && MANGOHUD=""
 
