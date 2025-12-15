@@ -77,6 +77,7 @@
           "nix-health"
           "nixfmt"
           "ssh"
+          "sudo-rs"
           "toolset"
           "zsh"
         ];
