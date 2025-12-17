@@ -77,7 +77,6 @@
           "nix-health"
           "nixfmt"
           "ssh"
-          "sudo-rs"
           "toolset"
           "zsh"
         ];
@@ -89,6 +88,7 @@
         modules = [
           "kitty"
           "neovim"
+          "sudo-rs"
         ];
       }
     ];
