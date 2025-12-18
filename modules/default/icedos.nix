@@ -34,14 +34,13 @@
         let
           inherit (lib)
             foldl'
-            lists
             splitString
             ;
 
           cfg = config.icedos;
 
           pkgMapper =
-            pkgList: lists.map (pkgName: foldl' (acc: cur: acc.${cur}) pkgs (splitString "." pkgName)) pkgList;
+            pkgList: map (pkgName: foldl' (acc: cur: acc.${cur}) pkgs (splitString "." pkgName)) pkgList;
         in
         {
           environment.systemPackages =
