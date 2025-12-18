@@ -1,5 +1,6 @@
 {
   build ? "amd64",
+  compiledWith ? "clang-pgo",
   fetchurl,
   stdenvNoCC,
 }:
@@ -7,16 +8,47 @@
 let
   name = pname;
   pname = "eden";
-  version = "0.0.3";
+  version = "0.0.4-rc3";
 
   edenAppimage = fetchurl {
-    url = "https://github.com/eden-emulator/Releases/releases/download/v${version}/Eden-Linux-v${version}-${build}.AppImage";
+    url = "https://git.eden-emu.dev/eden-emu/eden/releases/download/v${version}/Eden-Linux-v${version}-${build}-${compiledWith}.AppImage";
+
     hash =
       {
-        amd64 = "sha256-P2Qy1VdSvKXvPNJKzzIzLxMumS5BQ79bOC0FTgFHMiw=";
-        legacy = "sha256-/FQT22Effl/Q1sWv0tdbXAKQOky+aju19CPBTv+cHNY=";
-        rog-ally = "sha256-eTM+vx9L7GjYUD4c4IyU1wVn5dib/pnMDHKJiS5+m7U=";
-        steamdeck = "sha256-8EB1X/kkx3hOTzbJC0geOH/YpH1wFY5MyxkoKYwXmF4=";
+        aarch64 =
+          {
+            clang-pgo = "sha256-TlhO8YELRiVno+IHLtsHraIjhzkixfQIMvqhsU+aHak=";
+            gcc-standard = "sha256-xXCtHq/7Mtl1XFAD2uSGCJYWPp1bYuPkyaUa5PmnVaw=";
+          }
+          .${compiledWith};
+
+        amd64 =
+          {
+            clang-pgo = "sha256-nV2y75tqVJ+OunTN3TF8K7JyssE4vApY9Vn4Fh5IczY=";
+            gcc-standard = "sha256-G+sTFtw8cVO/Vj1aSSS07Uy6GQXoQDufrbvoskz9cqg=";
+          }
+          .${compiledWith};
+
+        legacy =
+          {
+            clang-pgo = "sha256-l5WEVwt9CaBGJY5yeGRbHL1CNFHQXnw4TlM2aoyVCSw=";
+            gcc-standard = "sha256-rhQpZgZ3+TzQud+KNd0tN7HDUxN6jd5fmGpIeZfOdXA=";
+          }
+          .${compiledWith};
+
+        rog-ally =
+          {
+            clang-pgo = "sha256-YWOoVji4Z2h/HRswAP8vPt6KmAUPORPW2XibBrf0gKk=";
+            gcc-standard = "sha256-DNNgfdGNpAdrfrBpjlKhxo3JW+WZgmTjAOhCLjWCgc4=";
+          }
+          .${compiledWith};
+
+        steamdeck =
+          {
+            clang-pgo = "sha256-SK2Q+NNeGq7EOjyYE4KEfiFK1TD9v4uNyh5KtFkzm/A=";
+            gcc-standard = "sha256-fPoTuZwUaH0qLnMy1yzCAboj1ZYU4rgDwqtdYNpD8RA=";
+          }
+          .${compiledWith};
       }
       .${build};
   };
@@ -30,29 +62,25 @@ stdenvNoCC.mkDerivation {
     let
       appImagePath = "$out/lib/eden.AppImage";
       appName = "dev.eden_emu.eden";
-      edenBin = "$out/bin/eden";
-      edenLibRun = "$out/lib/AppRun";
       desktopFile = "${appName}.desktop";
       desktopFilePath = "$out/share/applications/${desktopFile}";
       icon = "${appName}.svg";
       iconPath = "$out/share/applications/${icon}";
     in
     ''
-      mkdir -p $out/lib $out/bin $out/share/applications
+      mkdir -p $out/lib
 
       cp ${edenAppimage} ${appImagePath}
       chmod +x ${appImagePath}
       ${appImagePath} --appimage-extract
       rm ${appImagePath}
-      mv AppDir/* $out/lib
-      rm -r AppDir squashfs-root
+      rm AppDir/lib
+      mv AppDir/* $out
 
-      ln -s $out/lib/${desktopFile} ${desktopFilePath}
-      ln -s $out/lib/${icon} ${iconPath}
+      mkdir -p $out/share/applications
+      ln -s $out/${desktopFile} ${desktopFilePath}
+      ln -s $out/${icon} ${iconPath}
 
       substituteInPlace ${desktopFilePath} --replace-fail "${appName}" "${iconPath}"
-
-      ln -s ${edenLibRun} ${edenBin}
-      chmod +x ${edenBin}
     '';
 }

@@ -81,7 +81,6 @@
 
           inherit (lib)
             foldl'
-            lists
             mapAttrs
             mkIf
             splitString
@@ -90,7 +89,7 @@
           inherit (pkgs) nil nixd zed-editor-fhs;
 
           pkgMapper =
-            pkgList: lists.map (pkgName: foldl' (acc: cur: acc.${cur}) pkgs (splitString "." pkgName)) pkgList;
+            pkgList: map (pkgName: foldl' (acc: cur: acc.${cur}) pkgs (splitString "." pkgName)) pkgList;
         in
         {
           environment.variables.EDITOR = mkIf (defaultEditor == "dev.zed.Zed.desktop") "zeditor -n -w";
