@@ -100,7 +100,6 @@
 
           programs.steam = {
             enable = steamdeck || session;
-            extest.enable = steamdeck;
             extraPackages = extraPackages ++ optionalGamescope ++ optionalProtonLaunch;
           };
 
