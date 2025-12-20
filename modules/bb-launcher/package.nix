@@ -16,13 +16,13 @@
 
 stdenv.mkDerivation rec {
   pname = "bb-launcher";
-  version = "9.01";
+  version = "13.00";
 
   src = fetchFromGitHub {
     owner = "rainmakerv3";
     repo = "BB_Launcher";
     rev = "Release${version}";
-    hash = "sha256-tcOCq/dq6KQV59ZUsD0aWwSFqjJyuv9+Fi3TDXuD6Nk=";
+    hash = "sha256-DKvMAk45B6LSVZoR85jpbOq2jT1nsQ0LUwdWAEQ6jwk=";
     fetchSubmodules = true;
   };
 
@@ -31,16 +31,22 @@ stdenv.mkDerivation rec {
     qt6.wrapQtAppsHook
   ];
 
-  buildInputs = [
-    libX11
-    libXext
-    libXcursor
-    libXrandr
-    libXi
-    libXinerama
-    libXxf86vm
-    wayland
-    wayland-protocols
-    qt6.qtbase
-  ];
+  buildInputs =
+    let
+      inherit (qt6) qtbase qtquick3d qtwebview;
+    in
+    [
+      libX11
+      libXcursor
+      libXext
+      libXi
+      libXinerama
+      libXrandr
+      libXxf86vm
+      qtbase
+      qtquick3d
+      qtwebview
+      wayland
+      wayland-protocols
+    ];
 }
