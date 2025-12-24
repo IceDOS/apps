@@ -29,14 +29,31 @@
           ...
         }:
         let
-          inherit (config.icedos.applications) defaultBrowser;
+          inherit (config.icedos) applications;
+          inherit (applications) defaultBrowser;
+          inherit (applications.helium) profiles;
           inherit (pkgs.nur.repos.Ev357) helium;
-          inherit (lib) mkIf;
+          inherit (lib) length mkIf;
+
+          package =
+            if ((length profiles) == 0) then
+              helium
+            else
+              pkgs.runCommand "helium" { } ''
+                mkdir -p $out/bin
+
+                echo "${helium}/bin/helium --profile-directory=Default \$@" > $out/bin/helium
+                chmod +x $out/bin/helium
+
+                ln -s ${helium}/share $out
+              '';
         in
         {
           environment = {
-            sessionVariables.DEFAULT_BROWSER = mkIf (defaultBrowser == "helium.desktop") "${helium}/bin/helium";
-            systemPackages = [ helium ];
+            sessionVariables.DEFAULT_BROWSER = mkIf (
+              defaultBrowser == "helium.desktop"
+            ) "${package}/bin/helium";
+            systemPackages = [ package ];
           };
         }
       )
