@@ -3,17 +3,18 @@
   fetchurl,
   gcc,
   libGL,
+  openssl_3,
   stdenvNoCC,
   steam-run-free,
 }:
 
 stdenvNoCC.mkDerivation (final: {
   pname = "me3";
-  version = "0.9.0";
+  version = "0.10.1";
 
   src = fetchurl {
     url = "https://github.com/garyttierney/me3/releases/download/v${final.version}/me3-linux-amd64.tar.gz";
-    sha256 = "sha256-2U4fqvmfvQZ3/G6/HpiR1hACmiOjHr+cYs5wxD/49y8=";
+    sha256 = "sha256-VhTuk0SxuAKrGEQlxewhlFP1znuJrj52zYo3VoTFAH0=";
   };
 
   nativeBuildInputs =
@@ -23,6 +24,7 @@ stdenvNoCC.mkDerivation (final: {
     [
       autoPatchelfHook
       lib
+      openssl_3
     ];
 
   sourceRoot = "bin";
