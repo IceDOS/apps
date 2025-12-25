@@ -31,11 +31,6 @@ in
           inherit (config.icedos) users;
         in
         {
-          environment.systemPackages = with pkgs; [
-            (writeShellScriptBin "celluloid-hdr" "ENABLE_HDR_WSI=1 celluloid --mpv-profile=HDR $@")
-            celluloid
-          ];
-
           home-manager.users = lib.mapAttrs (user: _: {
             home.file.".config/celluloid/celluloid.conf".source = ./celluloid.conf;
             home.file.".config/celluloid/shaders/FSR.glsl".source = inputs.celluloid-shader;
