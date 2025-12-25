@@ -32,7 +32,6 @@ in
         in
         {
           environment.systemPackages = with pkgs; [
-            (writeShellScriptBin "celluloid-hdr" "ENABLE_HDR_WSI=1 celluloid --mpv-profile=HDR $@")
             celluloid
           ];
 
