@@ -1,79 +1,56 @@
 {
-  SDL2,
-  autoPatchelfHook,
-  build ? "native",
+  build ? "x86_64_v3",
   fetchurl,
-  ffmpeg,
-  kdePackages,
-  libusb1,
-  libva,
-  qt6,
   stdenvNoCC,
-  unzip,
 }:
 
-stdenvNoCC.mkDerivation (final: {
+let
+  name = pname;
   pname = "citron";
-  version = "0.7.1";
+  version = "0.12.25";
+  commitHash = "01c042048";
 
-  hash =
-    {
-      compat = "sha256-L844iTIHhOb0wJZSE5s5MyTXDrjQdJ0KOobPQGap29M=";
-      native = "sha256-wLwHrOIhHNeKTicH+Gzr16rZhnibOEFYjNcoFuY0zNs=";
-      steamdeck = "sha256-DoJGqw6XKylI87cjWNGX9/51RIxFhWbwHW718edRQvg=";
-    }
-    .${build};
+  citronAppimage = fetchurl {
+    url = "https://git.citron-emu.org/Citron/Emulator/releases/download/${version}/citron_stable-${commitHash}-linux-${build}.AppImage";
 
-  src = fetchurl {
-    inherit (final) hash;
-    url = "https://git.citron-emu.org/api/v4/projects/1/packages/generic/Citron/${final.version}/citron_linux_${build}.zip";
+    hash =
+      {
+        aarch64 = "sha256-b5k+I40ZIxY5yjlOPTWLhe4+kW/JU8Xh5TnuEoeZFHk=";
+        x86_64 = "sha256-2HhsSm4yavFlXt4q5UrLw209HzQFtQwbRhSwX3FLpPs=";
+        x86_64_v3 = "sha256-G0yX6ZP6f9nDY41VS8k/UVduoTsZLFrAduA5mOD3OmY=";
+      }
+      .${build};
   };
-
-  runtimeLibs =
-    let
-      inherit (qt6) qtbase qtmultimedia;
-    in
-    [
-      SDL2
-      ffmpeg
-      libusb1
-      libva
-      qtbase
-      qtmultimedia
-    ];
-
-  nativeBuildInputs =
-    let
-      inherit (kdePackages) wrapQtAppsHook;
-    in
-    [
-      autoPatchelfHook
-      wrapQtAppsHook
-    ]
-    ++ final.runtimeLibs;
+in
+stdenvNoCC.mkDerivation {
+  inherit name;
 
   dontUnpack = true;
 
   installPhase =
     let
-      inherit (final) pname;
+      appImagePath = "$out/lib/citron.AppImage";
+      appName = "org.citron_emu.citron";
+      desktopFile = "${appName}.desktop";
+      desktopFilePath = "$out/share/applications/${desktopFile}";
+      icon = "${appName}.svg";
+      iconPath = "$out/share/applications/${icon}";
     in
     ''
+      mkdir -p $out/lib
+
+      cp ${citronAppimage} ${appImagePath}
+      chmod +x ${appImagePath}
+      ${appImagePath} --appimage-extract
+      rm ${appImagePath}
+      rm AppDir/lib
+      mv AppDir/* $out
+
       mkdir -p $out/share/applications
-      ${unzip}/bin/unzip $src -d $out
 
-      for f in "$out/bin"/*; do
-        chmod +x "$f"
-      done
+      ln -s $out/${desktopFile} ${desktopFilePath}
+      ln -s $out/${icon} ${iconPath}
 
-      cat > $out/share/applications/${pname}.desktop <<EOF
-      [Desktop Entry]
-      Name=Citron
-      Exec=${pname}
-      Icon=applications-games
-      Type=Application
-      Categories=Utility;
-      Terminal=false
-      EOF
+      substituteInPlace ${desktopFilePath} --replace-fail "${appName}" "${iconPath}"
     '';
-})
+}
