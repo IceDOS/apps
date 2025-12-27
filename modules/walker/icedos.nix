@@ -3,7 +3,8 @@
   inputs = {
     elephant = {
       override = true;
-      url = "github:abenz1267/elephant";
+      # url = "github:abenz1267/elephant";
+      url = "github:jbms/elephant/fix-vendor-hash"; # Use temporarily to fix build issues
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
@@ -27,8 +28,15 @@
           ...
         }:
         let
-          inherit (config.icedos) users;
-          inherit (lib) mapAttrs readFile replaceStrings;
+          inherit (config.icedos) desktop users;
+
+          inherit (lib)
+            hasAttr
+            mapAttrs
+            optional
+            readFile
+            replaceStrings
+            ;
 
           walkerBin = inputs.walker.packages.${pkgs.stdenv.system}.default;
         in
@@ -56,32 +64,47 @@
             ];
           };
 
-          home-manager.users = mapAttrs (user: _: {
-            systemd.user.services.walker = {
-              Unit.Description = "Walker - Application Runner";
-              Install.WantedBy = [ "graphical-session.target" ];
+          home-manager.users = mapAttrs (
+            user: _:
+            let
+              generateTargetArray =
+                base:
+                base
+                ++ optional (hasAttr "cosmic" desktop) "cosmic-session.target"
+                ++ optional (hasAttr "gnome" desktop) "gnome-session.target"
+                ++ optional (hasAttr "hyprland" desktop) "hyprland-session.target";
+            in
+            {
+              systemd.user.services.walker = {
+                Unit = {
+                  Description = "Walker - Application Runner";
+                  After = generateTargetArray [ "graphical-session.target" ];
+                  PartOf = "graphical-session.target";
+                };
 
-              Service = {
-                ExecStart = "${pkgs.writeShellScriptBin "walker-service" ''
-                  base_path="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-                  nix_system_path="/run/current-system/sw/bin"
-                  nix_user_path="''${HOME}/.nix-profile/bin"
-                  export PATH="''${base_path}:''${nix_system_path}:''${nix_user_path}:$PATH"
+                Install.WantedBy = generateTargetArray [ ];
 
-                  elephant &
+                Service = {
+                  ExecStart = "${pkgs.writeShellScriptBin "walker-service" ''
+                    base_path="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+                    nix_system_path="/run/current-system/sw/bin"
+                    nix_user_path="''${HOME}/.nix-profile/bin"
+                    export PATH="''${base_path}:''${nix_system_path}:''${nix_user_path}:$PATH"
 
-                  while :; do
-                    walker --gapplication-service || echo 'walker crashed unexpectedly!'
-                  done
-                ''}/bin/walker-service";
+                    elephant &
 
-                Nice = "-20";
-                Restart = "on-failure";
-                StartLimitIntervalSec = 60;
-                StartLimitBurst = 60;
+                    while :; do
+                      walker --gapplication-service || echo 'walker crashed unexpectedly!'
+                    done
+                  ''}/bin/walker-service";
+
+                  Nice = "-20";
+                  Restart = "on-failure";
+                  StartLimitBurst = 60;
+                };
               };
-            };
-          }) users;
+            }
+          ) users;
 
           environment.systemPackages =
             let
