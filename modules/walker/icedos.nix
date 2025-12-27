@@ -27,8 +27,15 @@
           ...
         }:
         let
-          inherit (config.icedos) users;
-          inherit (lib) mapAttrs readFile replaceStrings;
+          inherit (config.icedos) desktop users;
+
+          inherit (lib)
+            hasAttr
+            mapAttrs
+            optional
+            readFile
+            replaceStrings
+            ;
 
           walkerBin = inputs.walker.packages.${pkgs.stdenv.system}.default;
         in
@@ -58,8 +65,17 @@
 
           home-manager.users = mapAttrs (user: _: {
             systemd.user.services.walker = {
-              Unit.Description = "Walker - Application Runner";
-              Install.WantedBy = [ "graphical-session.target" ];
+              Unit = {
+                Description = "Walker - Application Runner";
+                After = "graphical-session.target";
+                PartOf = "graphical-session.target";
+              };
+
+              Install.WantedBy =
+                [ ]
+                ++ optional (hasAttr "cosmic" desktop) "cosmic-session.target"
+                ++ optional (hasAttr "gnome" desktop) "gnome-session.target"
+                ++ optional (hasAttr "hyprland" desktop) "hyprland-session.target";
 
               Service = {
                 ExecStart = "${pkgs.writeShellScriptBin "walker-service" ''
@@ -77,7 +93,6 @@
 
                 Nice = "-20";
                 Restart = "on-failure";
-                StartLimitIntervalSec = 60;
                 StartLimitBurst = 60;
               };
             };
