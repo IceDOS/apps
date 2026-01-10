@@ -20,7 +20,10 @@
           fonts.packages = with pkgs; [ meslo-lgs-nf ];
 
           home-manager.users = mapAttrs (user: _: {
-            programs.zsh.enable = true;
+            programs.zsh = {
+              enable = true;
+              dotDir = "${config.home-manager.users.${user}.xdg.configHome}/zsh";
+            };
 
             home.file = {
               ".config/zsh/p10k.zsh".source =
