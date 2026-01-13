@@ -56,8 +56,10 @@
 
                   inherit (config.icedos.applications.me3) profiles;
                   inherit (pkgs) me3;
-                  homeWindowsBinPath = ".local/share/me3/windows-bin";
-                  windowsBinPath = "${me3}/share/me3/windows-bin";
+
+                  sharePath = "share/me3";
+                  homeWindowsBinPath = ".local/${sharePath}/windows-bin";
+                  windowsBinPath = "${me3}/${sharePath}/win64";
                 in
                 {
                   "${homeWindowsBinPath}/me3-launcher.exe".source = "${windowsBinPath}/me3-launcher.exe";
@@ -93,7 +95,7 @@
                     }
                   ) profiles
                 );
-            }) (listToAttrs (icedosLib.getNormalUsers { inherit (config.users) users; }));
+            }) (cfg.users);
         }
       )
     ];
