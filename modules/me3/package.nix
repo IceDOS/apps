@@ -33,16 +33,19 @@ stdenvNoCC.mkDerivation (final: {
     let
       inherit (final) pname;
       binPath = "$out/bin";
-      me3BinPath = "${binPath}/me3-bin";
+      me3Unwrapped = "${binPath}/me3-unwrapped";
       me3WrapperPath = "${binPath}/me3";
-      windowsBinPath = "$out/share/${pname}/windows-bin";
+      windowsBinPath = "$out/share/${pname}/win64";
     in
     ''
       mkdir -p ${binPath} ${windowsBinPath}
-      mv ${pname} ${me3BinPath}
+
+      mv ${pname} ${me3Unwrapped}
+      chmod +x ${me3Unwrapped}
+
       mv win64/* ${windowsBinPath}
 
-      echo "export LD_LIBRARY_PATH=${libGL}/lib; ${steam-run-free}/bin/steam-run ${me3BinPath} \"\$@\"" > ${me3WrapperPath}
+      echo "export LD_LIBRARY_PATH=${libGL}/lib; ${steam-run-free}/bin/steam-run ${me3Unwrapped} \"\$@\"" > ${me3WrapperPath}
       chmod +x ${me3WrapperPath}
     '';
 })
