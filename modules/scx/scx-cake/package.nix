@@ -11,21 +11,21 @@
 
 rustPlatform.buildRustPackage rec {
   pname = "scx-cake";
-  version = "unstable-2025-12-27";
+  version = "unstable-2026-01-13";
 
   src = fetchFromGitHub {
     owner = "RitzDaCat";
     repo = "scx_cake";
-    rev = "e9a4938a385c4bee6d3b352af292c351acc983e2";
-    hash = "sha256-WvdGTN2/Vs2v7VWlO3s60DdS2SCkf9do4nzIC5M4XXg=";
+    rev = "213dc994fbdbf0d5da787b296e9bed1d094ad3cb";
+    hash = "sha256-ctgx1AWYJ4bV1YMzJGM1w2feM1nHcGjTRrJ+bKLZeZg=";
   };
 
-  RUSTFLAGS="-C target-cpu=native";
+  RUSTFLAGS = "-C target-cpu=native";
 
   cargoLock = {
     lockFile = ./Cargo.lock;
     outputHashes = {
-      "scx_cargo-1.0.26" = "sha256-28UegaoknG5AJZ/n8huYTvkQDuKWi9sMvNQ5peWaoQE=";
+      "scx_cargo-1.0.26" = "sha256-WYVPpwNM3CNRzv25nZ30zmh0HUDG4Ua4vqZrJ8EQ5SM=";
     };
   };
 
