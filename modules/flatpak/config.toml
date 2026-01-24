@@ -1,2 +1,2 @@
 [icedos.applications.flatpak]
-packages = [ "com.github.tchx84.Flatseal", "io.github.kolunmi.Bazaar" ] # e.g. for a beta package "flathub-beta:com.stremio.Stremio"
+packages = [] # e.g. for a beta package "flathub-beta:com.stremio.Stremio"
