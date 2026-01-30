@@ -8,7 +8,7 @@
 let
   name = pname;
   pname = "eden";
-  version = "0.1.0";
+  version = "0.1.1";
 
   edenAppimage = fetchurl {
     url = "https://git.eden-emu.dev/eden-emu/eden/releases/download/v${version}/Eden-Linux-v${version}-${build}-${compiledWith}.AppImage";
@@ -17,36 +17,36 @@ let
       {
         aarch64 =
           {
-            clang-pgo = "sha256-KDYSvNknaApwDQXflb/Y1zhjWKhZsBOSfYRQPRCJI0M=";
-            gcc-standard = "sha256-KEIAc6rHUU90kcoIUhLWkylGenRWPI7qFc5fQNyRPyg=";
+            clang-pgo = "sha256-6iU5RV5gogxpJUFwWi0p2y4r8IRvAcuxSwcpCIWsG6E=";
+            gcc-standard = "sha256-WzwWpxJm1UzSI2IgpjwFzJ/9Z5DgivxtQLhfyFquHZ4=";
           }
           .${compiledWith};
 
         amd64 =
           {
-            clang-pgo = "sha256-+1lBCtlau8ttdy2olhNvlir/bn/sSpUz+6Ofo+GZ0dg=";
-            gcc-standard = "sha256-0QOGVTSildzRHcFNL15j2alDK6/DUHiFUKHS/JifZEE=";
+            clang-pgo = "sha256-g7x10zM/55z2avdETcpRJ56O1oN8cndbzl9UAiOJZF8=";
+            gcc-standard = "sha256-B3iU8SmwI44hUmbfFuSKQWriemulIXoRJF0atBfioeg=";
           }
           .${compiledWith};
 
         legacy =
           {
-            clang-pgo = "sha256-kgzfHSinWcwTJk+HZwz5FvNNOzUG3iExcQYb2qxfnN4=";
-            gcc-standard = "sha256-7RIXJDNH5dVG7cT4TadrzoFWijt2K/Jy7vFffj0/F10=";
+            clang-pgo = "sha256-sArRWvGMEdgJ3JfL/aPXbKbwQS/CE8DSoQS1qu27zsw=";
+            gcc-standard = "sha256-QXMPtplqhtS8qgVnXFpcILRLOCNynVBvvZKDR3FwpJI=";
           }
           .${compiledWith};
 
         rog-ally =
           {
-            clang-pgo = "sha256-UsGMjjJTdB4hzeSyIrN6aAgrckExgcxKVrdZz5mkhqo=";
-            gcc-standard = "sha256-ubnfRGREw/W1OjoMN9vjEXCDjFmNdU9P1hGfxR2Tmt8=";
+            clang-pgo = "sha256-F0dVNkaiDTR/f8T8A2x7Id5pA+vr9EnU9njEERObcPw=";
+            gcc-standard = "sha256-UI0kYWaAZLFGuATcL6GqSajov0ahy4tPNpf2o/EMst0=";
           }
           .${compiledWith};
 
         steamdeck =
           {
-            clang-pgo = "sha256-n8xlLPoRxxHwlICf2QYU7iLVxq2EnRwG1de7gLwdOOY=";
-            gcc-standard = "sha256-XmYGtyIX8Rq/ugZdhHyZget9UghUZar4abtYVZtSDvU=";
+            clang-pgo = "sha256-TSqAXu6nZElt6jTyy7NCU6YGmhwlWvucEzDuB5wNShM=";
+            gcc-standard = "sha256-XV/Tl/jx1iEypJN+qx9llyZ8gVQVlyoA4FqJ5HsGBsY=";
           }
           .${compiledWith};
       }
