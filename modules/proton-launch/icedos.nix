@@ -1,10 +1,15 @@
 { icedosLib, ... }:
 
 {
+  inputs.scopebuddy = {
+    url = "github:HikariKnight/ScopeBuddy";
+    inputs.nixpkgs.follows = "nixpkgs";
+  };
+
   options.icedos.applications.proton-launch = icedosLib.mkBoolOption { default = true; };
 
   outputs.nixosModules =
-    { ... }:
+    { inputs, ... }:
     [
       (
         {
@@ -203,7 +208,7 @@
           nixpkgs.overlays = [
             (final: super: {
               inherit proton-launch;
-              scopebuddy = final.callPackage ./lib/scopebuddy.nix { };
+              scopebuddy = inputs.scopebuddy.packages.${pkgs.stdenv.system}.default;
             })
           ];
         }
