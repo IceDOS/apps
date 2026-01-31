@@ -71,8 +71,6 @@
           "bash"
           "direnv"
           "git"
-          "nh"
-          "nix"
           "nix-health"
           "nixfmt"
           "ssh"
