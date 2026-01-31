@@ -75,6 +75,7 @@
 
           inherit (config.icedos) applications users;
           inherit (applications.helium) profiles;
+          inherit (pkgs.nur.repos.Ev357) helium;
         in
         {
           environment.systemPackages = map (
@@ -91,7 +92,7 @@
 
                 value = {
                   exec = profile.exec;
-                  icon = profile.icon;
+                  icon = if (profile.icon == "") then "${helium}/share/icons/hicolor/256x256/apps/helium.png" else profile.icon;
                   name = profile.name;
                   terminal = false;
                   type = "Application";
