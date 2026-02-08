@@ -1,17 +1,27 @@
-{ icedosLib, ... }:
+{ icedosLib, lib, ... }:
 
 {
 
   options.icedos.applications.shadps4.customBuild =
     let
+      inherit (lib) readFile;
+
+      inherit ((fromTOML (readFile ./config.toml)).icedos.applications.shadps4.customBuild)
+        enable
+        hash
+        owner
+        repo
+        tag
+        ;
+
       inherit (icedosLib) mkBoolOption mkStrOption;
     in
     {
-      enable = mkBoolOption { default = false; };
-      hash = mkStrOption { default = "sha256-mxLv1IUHDQWUOvoapaueZO76+bCNsZK5IHuJ6rjF0aE="; };
-      owner = mkStrOption { default = "shadps4-emu"; };
-      repo = mkStrOption { default = "shadps4"; };
-      tag = mkStrOption { default = "Pre-release-shadPS4-2025-09-08-133f4b9"; };
+      enable = mkBoolOption { default = enable; };
+      hash = mkStrOption { default = hash; };
+      owner = mkStrOption { default = owner; };
+      repo = mkStrOption { default = repo; };
+      tag = mkStrOption { default = tag; };
     };
 
   outputs.nixosModules =
