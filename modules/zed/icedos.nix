@@ -79,17 +79,8 @@
             vim
             ;
 
-          inherit (lib)
-            foldl'
-            mapAttrs
-            mkIf
-            splitString
-            ;
-
+          inherit (lib) mapAttrs mkIf;
           inherit (pkgs) nil nixd zed-editor-fhs;
-
-          pkgMapper =
-            pkgList: map (pkgName: foldl' (acc: cur: acc.${cur}) pkgs (splitString "." pkgName)) pkgList;
         in
         {
           environment.variables.EDITOR = mkIf (defaultEditor == "dev.zed.Zed.desktop") "zeditor -n -w";
@@ -109,7 +100,7 @@
                 "toml"
               ];
 
-              extraPackages = pkgMapper extraPackages;
+              extraPackages = icedosLib.pkgMapper extraPackages;
               package = mkIf fhs zed-editor-fhs;
 
               userSettings = {
