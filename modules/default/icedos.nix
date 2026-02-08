@@ -26,21 +26,12 @@
       (
         {
           config,
-          lib,
           pkgs,
           ...
         }:
 
         let
-          inherit (lib)
-            foldl'
-            splitString
-            ;
-
           cfg = config.icedos;
-
-          pkgMapper =
-            pkgList: map (pkgName: foldl' (acc: cur: acc.${cur}) pkgs (splitString "." pkgName)) pkgList;
         in
         {
           environment.systemPackages =
@@ -54,7 +45,7 @@
               unzip # An extraction utility
               wget # Terminal downloader
             ]
-            ++ (pkgMapper cfg.applications.extraPackages);
+            ++ (icedosLib.pkgMapper cfg.applications.extraPackages);
 
           nixpkgs.config.permittedInsecurePackages = cfg.applications.insecurePackages;
           programs.nano.enable = false;
