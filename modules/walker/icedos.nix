@@ -1,25 +1,9 @@
 { ... }:
+
 {
-  inputs = {
-    elephant = {
-      override = true;
-      # url = "github:abenz1267/elephant";
-      url = "github:jbms/elephant/fix-vendor-hash"; # Use temporarily to fix build issues
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
-
-    walker = {
-      url = "github:abenz1267/walker";
-      inputs.nixpkgs.follows = "nixpkgs";
-      inputs.elephant.follows = "elephant";
-    };
-  };
-
   outputs.nixosModules =
-    { inputs, ... }:
+    { ... }:
     [
-      inputs.walker.nixosModules.default
-
       (
         {
           config,
@@ -37,33 +21,8 @@
             readFile
             replaceStrings
             ;
-
-          walkerBin = inputs.walker.packages.${pkgs.stdenv.system}.default;
         in
         {
-          programs.walker = {
-            enable = true;
-
-            config = {
-              force_keyboard_focus = true;
-              theme = "theme";
-            };
-
-            themes."theme".style =
-              replaceStrings [ "1f1f28" "54546d" "f2ecbc" ] [ "1D1D20" "2E2E32" "EAEAEF" ]
-                (readFile "${walkerBin.src}/resources/themes/default/style.css");
-          };
-
-          services.elephant = {
-            enable = true;
-
-            providers = [
-              "desktopapplications"
-              "clipboard"
-              "symbols"
-            ];
-          };
-
           home-manager.users = mapAttrs (
             user: _:
             let
@@ -75,10 +34,25 @@
                 ++ optional (hasAttr "hyprland" desktop) "hyprland-session.target";
             in
             {
+              home.file = {
+                ".config/walker/config.toml".text =
+                  replaceStrings [ "force_keyboard_focus = false" ] [ "force_keyboard_focus = true" ]
+                    (readFile "${pkgs.walker.src}/resources/config.toml");
+
+                ".config/walker/themes/theme/style.css".text =
+                  replaceStrings [ "1f1f28" "54546d" "f2ecbc" ] [ "1D1D20" "2E2E32" "EAEAEF" ]
+                    (readFile "${pkgs.walker.src}/resources/themes/default/style.css");
+              };
+
               systemd.user.services.walker = {
                 Unit = {
                   Description = "Walker - Application Runner";
-                  After = generateTargetArray [ "graphical-session.target" ];
+
+                  After = generateTargetArray [
+                    "graphical-session.target"
+                    "elephant.service"
+                  ];
+
                   PartOf = "graphical-session.target";
                 };
 
@@ -108,9 +82,12 @@
 
           environment.systemPackages =
             let
-              inherit (pkgs) writeShellScriptBin;
+              inherit (pkgs) elephant walker writeShellScriptBin;
             in
             [
+              elephant
+              walker
+
               (writeShellScriptBin "walker-applications" ''
                 walker -t theme -m desktopapplications
               '')
