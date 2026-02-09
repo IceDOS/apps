@@ -1,10 +1,15 @@
-{ icedosLib, ... }:
+{ icedosLib, lib, ... }:
 
 {
-  options.icedos.applications.scx = {
-    extraArgs = icedosLib.mkStrListOption { default = [ ]; };
-    scheduler = icedosLib.mkStrOption { default = "lavd"; };
-  };
+  options.icedos.applications.scx =
+    let
+      inherit (lib) readFile;
+      inherit ((fromTOML (readFile ./config.toml)).icedos.applications.scx) extraArgs scheduler;
+    in
+    {
+      extraArgs = icedosLib.mkStrListOption { default = extraArgs; };
+      scheduler = icedosLib.mkStrOption { default = scheduler; };
+    };
 
   outputs.nixosModules =
     { ... }:
