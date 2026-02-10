@@ -20,7 +20,10 @@
           environment.systemPackages = [ pkgs.btop ];
 
           home-manager.users = mapAttrs (user: _: {
-            home.file.".config/btop/btop.conf".source = ./btop.conf;
+            home.file.".config/btop/btop.conf" = {
+              force = true;
+              source = ./btop.conf;
+            };
           }) cfg.users;
         }
       )
