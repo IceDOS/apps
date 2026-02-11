@@ -13,7 +13,7 @@
         { pkgs, ... }:
         {
           environment.systemPackages = [
-            inputs.prefixer.packages.${pkgs.system}.default
+            inputs.prefixer.packages.${pkgs.stdenv.hostPlatform.system}.default
           ];
         }
       )
