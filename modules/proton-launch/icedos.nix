@@ -42,7 +42,7 @@
               PROTON_USE_WOW64=0
               SteamDeck=0
 
-              [[ "$WINEDLLOVERRIDES" == "" ]] && WINEDLLOVERRIDES="d3d12=n,b;dbghelp=n,b;dinput8=n,b;dsound=n,b;dxgi=n,b;version=n,b;winhttp=n,b;wininet=n,b;winmm=n,b"
+              WINEDLLOVERRIDES="d3d12=n,b;dbghelp=n,b;dinput8=n,b;dsound=n,b;dwrite=n,b;dxgi=n,b;version=n,b;winhttp=n,b;wininet=n,b;winmm=n,b;$WINEDLLOVERRIDES"
 
               ${
                 if (hasAttr "mangohud" cfg.applications) then
