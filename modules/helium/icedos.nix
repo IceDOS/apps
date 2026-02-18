@@ -4,12 +4,15 @@
   options.icedos.applications.helium =
     let
       inherit (icedosLib)
+        mkBoolOption
         mkStrListOption
         mkStrOption
         mkSubmoduleListOption
         ;
     in
     {
+      drmSupportUsingGoogleChrome = mkBoolOption { default = false; };
+
       profiles = mkSubmoduleListOption { default = [ ]; } {
         exec = mkStrOption { };
         icon = mkStrOption { default = ""; };
@@ -29,11 +32,12 @@
           ...
         }:
         let
-          inherit (config.icedos) applications;
+          inherit (config.icedos) applications users;
           inherit (applications) defaultBrowser;
-          inherit (applications.helium) profiles;
-          inherit (pkgs.nur.repos.Ev357) helium;
-          inherit (lib) length mkIf;
+          inherit (applications.helium) drmSupportUsingGoogleChrome profiles;
+          inherit (pkgs) google-chrome nur;
+          inherit (nur.repos.Ev357) helium;
+          inherit (lib) length mapAttrs mkIf;
 
           package =
             if ((length profiles) == 0) then
@@ -53,8 +57,18 @@
             sessionVariables.DEFAULT_BROWSER = mkIf (
               defaultBrowser == "helium.desktop"
             ) "${package}/bin/helium";
+
             systemPackages = [ package ];
           };
+
+          home-manager.users = mkIf drmSupportUsingGoogleChrome (
+            mapAttrs (user: _: {
+              home.file = {
+                ".config/net.imput.helium/WidevineCdm/latest-component-updated-widevine-cdm".text =
+                  ''{"Path":"${google-chrome}/share/google/chrome/WidevineCdm"}'';
+              };
+            }) users
+          );
         }
       )
 
@@ -92,7 +106,13 @@
 
                 value = {
                   exec = profile.exec;
-                  icon = if (profile.icon == "") then "${helium}/share/icons/hicolor/256x256/apps/helium.png" else profile.icon;
+
+                  icon =
+                    if (profile.icon == "") then
+                      "${helium}/share/icons/hicolor/256x256/apps/helium.png"
+                    else
+                      profile.icon;
+
                   name = profile.name;
                   terminal = false;
                   type = "Application";
