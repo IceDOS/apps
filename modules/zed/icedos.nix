@@ -123,7 +123,6 @@
                 buffer_font_family = "JetBrainsMono Nerd Font";
                 buffer_font_size = fontSize;
                 collaboration_panel.button = false;
-                features.edit_prediction_provider = "none";
                 format_on_save = if formatOnSave then "on" else "off";
 
                 indent_guides = {
