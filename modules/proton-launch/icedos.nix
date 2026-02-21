@@ -36,11 +36,14 @@
 
           proton-launch = (
             pkgs.writeShellScriptBin "proton-launch" ''
+              LD_BIND_NOW=0
               PROTON_ENABLE_HIDRAW=0
               PROTON_ENABLE_WAYLAND=0
               PROTON_NO_ESYNC=0
               PROTON_PREFER_SDL=1
               PROTON_USE_WOW64=0
+              STAGING_SHARED_MEMORY=0
+              STAGING_WRITECOPY=0
               SteamDeck=0
 
               WINEDLLOVERRIDES="d3d12=n,b;dbghelp=n,b;dinput8=n,b;dsound=n,b;dwrite=n,b;dxgi=n,b;version=n,b;winhttp=n,b;wininet=n,b;winmm=n,b;$WINEDLLOVERRIDES"
@@ -132,8 +135,17 @@
 
                     shift 2
                     ;;
+                  --ld-bind-now)
+                    LD_BIND_NOW=1
+                    shift
+                    ;;
                   --sdl-x11)
                     SDL_VIDEODRIVER="x11"
+                    shift
+                    ;;
+                  --staging-copy)
+                    STAGING_SHARED_MEMORY=1
+                    STAGING_WRITECOPY=1
                     shift
                     ;;
                   --no-dll-overrides)
@@ -189,6 +201,7 @@
 
               export \
               DXVK_FRAME_RATE \
+              LD_BIND_NOW \
               PROTON_ENABLE_HDR \
               PROTON_ENABLE_HIDRAW \
               PROTON_ENABLE_WAYLAND \
@@ -199,6 +212,8 @@
               PROTON_USE_WOW64 \
               SCB_GAMESCOPE_ARGS \
               SDL_VIDEODRIVER \
+              STAGING_SHARED_MEMORY \
+              STAGING_WRITECOPY \
               SteamDeck \
               WINEDLLOVERRIDES
 
