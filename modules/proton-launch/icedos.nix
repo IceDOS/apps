@@ -38,6 +38,7 @@
             pkgs.writeShellScriptBin "proton-launch" ''
               PROTON_ENABLE_HIDRAW=0
               PROTON_ENABLE_WAYLAND=0
+              PROTON_NO_ESYNC=0
               PROTON_PREFER_SDL=1
               PROTON_USE_WOW64=0
               SteamDeck=0
@@ -139,6 +140,10 @@
                     WINEDLLOVERRIDES=""
                     shift
                     ;;
+                  --no-esync)
+                    PROTON_NO_ESYNC=1
+                    shift
+                    ;;
                   --no-gamemode)
                     GAMEMODE=""
                     shift
@@ -188,6 +193,7 @@
               PROTON_ENABLE_HIDRAW \
               PROTON_ENABLE_WAYLAND \
               PROTON_FSR4_UPGRADE \
+              PROTON_NO_ESYNC \
               PROTON_PREFER_SDL \
               PROTON_USE_NTSYNC \
               PROTON_USE_WOW64 \
