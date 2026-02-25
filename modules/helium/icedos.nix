@@ -61,6 +61,12 @@
             systemPackages = [ package ];
           };
 
+          # CJK fonts are needed until this issue is fixed https://github.com/NixOS/nixpkgs/issues/463615
+          fonts.packages = with pkgs; [
+            noto-fonts-cjk-sans
+            noto-fonts-cjk-serif
+          ];
+
           home-manager.users = mkIf drmSupportUsingGoogleChrome (
             mapAttrs (user: _: {
               home.file = {
