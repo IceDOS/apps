@@ -10,11 +10,11 @@
 
 stdenvNoCC.mkDerivation (final: {
   pname = "me3";
-  version = "0.10.1";
+  version = "0.11.0";
 
   src = fetchurl {
     url = "https://github.com/garyttierney/me3/releases/download/v${final.version}/me3-linux-amd64.tar.gz";
-    sha256 = "sha256-VhTuk0SxuAKrGEQlxewhlFP1znuJrj52zYo3VoTFAH0=";
+    sha256 = "sha256-D+sJD3EN0AhUwWPmmJp7a9kVMEEQfHxoQb96OtTtjZc=";
   };
 
   nativeBuildInputs =
