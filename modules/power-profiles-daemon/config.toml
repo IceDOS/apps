@@ -1,0 +1,2 @@
+[icedos.applications.power-profiles-daemon]
+profile = "balanced" # Find values by running powerprofilesctl
