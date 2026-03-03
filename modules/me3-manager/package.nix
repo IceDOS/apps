@@ -14,11 +14,11 @@
 stdenvNoCC.mkDerivation (
   final:
   let
-    version = "1.4.3";
+    version = "1.4.4";
 
     me3Manager = fetchurl {
-      url = "https://github.com/2Pz/me3-manager/releases/download/${version}/Me3_Manager_1.4.3_Linux.AppImage";
-      sha256 = "sha256-fnV1rqEfZhlbnndms1Fw0tH1WHd6qa6s8dMj8tEiVxg=";
+      url = "https://github.com/2Pz/me3-manager/releases/download/${version}/Me3_Manager_${version}_Linux.AppImage";
+      sha256 = "sha256-a6O/Ymo5HZnRtd9LcBrZhzE3LerR4W+sT8UrXlrTmXg=";
     };
   in
   {
