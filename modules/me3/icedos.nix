@@ -1,6 +1,11 @@
 { icedosLib, ... }:
 
 {
+  inputs.me3 = {
+    url = "github:fn3x/me3";
+    inputs.nixpkgs.follows = "nixpkgs";
+  };
+
   options.icedos.applications.me3.profiles =
     let
       inherit (icedosLib) mkSubmoduleListOption mkStrOption mkStrListOption;
@@ -12,7 +17,7 @@
     };
 
   outputs.nixosModules =
-    { ... }:
+    { inputs, ... }:
     [
       (
         {
@@ -22,80 +27,58 @@
           ...
         }:
         {
-          nixpkgs.overlays = [
-            (final: super: {
-              me3 = final.callPackage ./package.nix { };
-            })
+          environment.systemPackages = [
+            inputs.me3.packages.${pkgs.stdenv.hostPlatform.system}.default
           ];
-
-          environment.systemPackages =
-            let
-              inherit (pkgs) me3;
-            in
-            [
-              me3
-            ];
 
           home-manager.users =
             let
-              inherit (lib) listToAttrs mapAttrs;
-              cfg = config.icedos;
+              inherit (icedosLib) abortIf;
+
+              inherit (lib)
+                mapAttrs
+                concatMapStringsSep
+                filter
+                foldl'
+                head
+                length
+                ;
+
+              inherit (config.icedos) applications users;
+              inherit (applications.me3) profiles;
             in
             mapAttrs (user: _: {
-              home.file =
-                let
-                  inherit (icedosLib) abortIf;
+              home.file = foldl' (acc: atrrset: acc // atrrset) { } (
+                map (
+                  profile:
+                  let
+                    filterProfiles = name: profiles: (filter (profile: profile.name == name) profiles);
+                    duplicateProfiles = length (filterProfiles profile.name profiles);
+                    getProfileByName = name: head (filter (p: p.name == name) profiles);
 
-                  inherit (lib)
-                    concatMapStringsSep
-                    filter
-                    foldl'
-                    head
-                    length
-                    ;
+                    dependencies = concatMapStringsSep "\n" (
+                      depName: (getProfileByName depName).config
+                    ) profile.dependencies;
 
-                  inherit (config.icedos.applications.me3) profiles;
-                  inherit (pkgs) me3;
-
-                  sharePath = "share/me3";
-                  homeWindowsBinPath = ".local/${sharePath}/windows-bin";
-                  windowsBinPath = "${me3}/${sharePath}/win64";
-                in
-                {
-                  "${homeWindowsBinPath}/me3-launcher.exe".source = "${windowsBinPath}/me3-launcher.exe";
-                  "${homeWindowsBinPath}/me3_mod_host.dll".source = "${windowsBinPath}/me3_mod_host.dll";
-                }
-                // foldl' (acc: atrrset: acc // atrrset) { } (
-                  map (
-                    profile:
-                    let
-                      filterProfiles = name: profiles: (filter (profile: profile.name == name) profiles);
-                      duplicateProfiles = length (filterProfiles profile.name cfg.applications.me3.profiles);
-                      getProfileByName = name: head (filter (p: p.name == name) profiles);
-
-                      dependencies = concatMapStringsSep "\n" (
-                        depName: (getProfileByName depName).config
-                      ) profile.dependencies;
-
-                      config =
-                        if
-                          (abortIf (duplicateProfiles > 1)
-                            ''${toString duplicateProfiles} me3 profiles named "${profile.name}" detected - profile names have to be unique!''
-                          )
-                        then
-                          profile.config
-                        else
-                          "";
-                    in
-                    {
-                      ".config/me3/profiles/${profile.name}.me3".text = ''
-                        ${dependencies}
-                        ${config}
-                      '';
-                    }
-                  ) profiles
-                );
-            }) (cfg.users);
+                    config =
+                      if
+                        (abortIf (duplicateProfiles > 1)
+                          ''${toString duplicateProfiles} me3 profiles named "${profile.name}" detected - profile names have to be unique!''
+                        )
+                      then
+                        profile.config
+                      else
+                        "";
+                  in
+                  {
+                    ".config/me3/profiles/${profile.name}.me3".text = ''
+                      ${dependencies}
+                      ${config}
+                    '';
+                  }
+                ) profiles
+              );
+            }) users;
         }
       )
     ];
