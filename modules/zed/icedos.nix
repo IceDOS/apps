@@ -90,6 +90,8 @@
             nixd
           ];
 
+          programs.nix-ld.enable = mkIf (!fhs) true;
+
           home-manager.users = mapAttrs (user: _: {
             programs.zed-editor = {
               enable = true;
