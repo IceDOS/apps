@@ -23,7 +23,7 @@
 
         command = command;
 
-        help = "download provided url using aria2c utizing 16 connections";
+        help = "download provided url using aria2c utilizing 16 connections";
       }
     )
   ];

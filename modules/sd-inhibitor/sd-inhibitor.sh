@@ -25,7 +25,7 @@ while true; do
   LAST_INHIBIT="$inhibit"
   reason="failed: $cpu$disk$network$pipewire"
 
-  echo "ihibiting $inhibit, $reason"
+  echo "inhibiting $inhibit, $reason"
   systemd-inhibit --what="$inhibit" --why="$reason" --who="sd-inhibitor" sh -c "while :; do sleep 1; done" &
   PID="$!"
 done

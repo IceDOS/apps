@@ -18,9 +18,9 @@ in
       mkIf (watcher.enable) [
         (pkgs.writeShellScriptBin "cpu-watcher" ''
           UTILIZATION="$((100-$(vmstat 1 2|tail -1|awk '{print $15}')))"
-          CPU_THRESOLD=${toString (watcher.threshold)}
+          CPU_THRESHOLD=${toString (watcher.threshold)}
 
-          if (( UTILIZATION > CPU_THRESOLD )) then
+          if (( UTILIZATION > CPU_THRESHOLD )) then
               printf true
           else
               printf false

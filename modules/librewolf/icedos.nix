@@ -67,7 +67,7 @@
                   "Mozilla/5.0 (X11; Linux x86_64; rv:${firefoxVersion}) Gecko/20100101 Firefox/${firefoxVersion}";
                 "identity.fxaccounts.enabled" = true;
                 "image.jxl.enabled" = true; # Enable JPEG XL support
-                "media.ffmpeg.vaapi.enabled" = true; # Enable VA-API hard accelaration
+                "media.ffmpeg.vaapi.enabled" = true; # Enable VA-API hardware acceleration
                 "middlemouse.paste" = false;
                 "privacy.resistFingerprinting" = false;
                 "svg.context-properties.content.enabled" = true;
