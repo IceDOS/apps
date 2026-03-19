@@ -40,8 +40,8 @@
               enable = true;
 
               settings = {
-                user.email = "${users.${user}.email}";
-                user.name = "${users.${user}.username}";
+                user.email = users.${user}.email;
+                user.name = users.${user}.username;
               };
             };
           }) cfg.users;

@@ -54,7 +54,7 @@
               };
 
               "org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/nautilus" =
-                mkIf (lib.hasAttr "gnome" cfg.desktop)
+                mkIf (lib.hasAttr "desktop" cfg && lib.hasAttr "gnome" cfg.desktop)
                   {
                     binding = "<Super>e";
                     command = "nautilus .";
@@ -62,7 +62,7 @@
                   };
 
               "org/gnome/settings-daemon/plugins/media-keys".custom-keybindings =
-                mkIf (lib.hasAttr "gnome" cfg.desktop)
+                mkIf (lib.hasAttr "desktop" cfg && lib.hasAttr "gnome" cfg.desktop)
                   [ "/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/nautilus/" ];
             };
 

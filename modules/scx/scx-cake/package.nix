@@ -20,8 +20,6 @@ rustPlatform.buildRustPackage rec {
     hash = "sha256-ctgx1AWYJ4bV1YMzJGM1w2feM1nHcGjTRrJ+bKLZeZg=";
   };
 
-  RUSTFLAGS = "-C target-cpu=native";
-
   cargoLock = {
     lockFile = ./Cargo.lock;
     outputHashes = {
@@ -48,6 +46,7 @@ rustPlatform.buildRustPackage rec {
     BPF_CLANG = lib.getExe llvmPackages.clang;
 
     RUSTFLAGS = lib.concatStringsSep " " [
+      "-C target-cpu=native"
       "-C relocation-model=pic"
       "-C link-args=-lelf"
       "-C link-args=-lz"

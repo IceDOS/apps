@@ -84,9 +84,9 @@
 
                   Install.WantedBy =
                     [ ]
-                    ++ optional (hasAttr "cosmic" cfg.desktop) "cosmic-session.target"
-                    ++ optional (hasAttr "gnome" cfg.desktop) "gnome-session.target"
-                    ++ optional (hasAttr "hyprland" cfg.desktop) "hyprland-session.target";
+                    ++ optional (hasAttr "desktop" cfg && hasAttr "cosmic" cfg.desktop) "cosmic-session.target"
+                    ++ optional (hasAttr "desktop" cfg && hasAttr "gnome" cfg.desktop) "gnome-session.target"
+                    ++ optional (hasAttr "desktop" cfg && hasAttr "hyprland" cfg.desktop) "hyprland-session.target";
 
                   Service = {
                     ExecStart = with pkgs; "${writeShellScript "sd-inhibitor" ''
