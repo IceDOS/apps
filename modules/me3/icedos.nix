@@ -48,7 +48,7 @@
               inherit (applications.me3) profiles;
             in
             mapAttrs (user: _: {
-              home.file = foldl' (acc: atrrset: acc // atrrset) { } (
+              home.file = foldl' (acc: attrset: acc // attrset) { } (
                 map (
                   profile:
                   let

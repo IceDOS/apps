@@ -96,7 +96,7 @@
                         shift
                         ;;
                       *)
-                        echo -e "$(coloredString $RED "error"): uknown arg \"$1\" \n"
+                        echo -e "$(coloredString $RED "error"): unknown arg \"$1\" \n"
                         printHelp
                         exit 1
                     esac
