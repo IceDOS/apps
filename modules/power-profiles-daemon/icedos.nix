@@ -21,16 +21,17 @@
         }:
 
         let
-          inherit (config.icedos) applications desktop users;
+          cfg = config.icedos;
+          inherit (cfg) applications users;
           inherit (applications.power-profiles-daemon) profile;
           inherit (lib) hasAttr mapAttrs optional;
 
           generateTargetArray =
             base:
             base
-            ++ optional (hasAttr "cosmic" desktop) "cosmic-session.target"
-            ++ optional (hasAttr "gnome" desktop) "gnome-session.target"
-            ++ optional (hasAttr "hyprland" desktop) "hyprland-session.target";
+            ++ optional (hasAttr "desktop" cfg && hasAttr "cosmic" cfg.desktop) "cosmic-session.target"
+            ++ optional (hasAttr "desktop" cfg && hasAttr "gnome" cfg.desktop) "gnome-session.target"
+            ++ optional (hasAttr "desktop" cfg && hasAttr "hyprland" cfg.desktop) "hyprland-session.target";
         in
         {
           services.power-profiles-daemon.enable = true;

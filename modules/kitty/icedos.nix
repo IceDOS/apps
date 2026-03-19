@@ -47,7 +47,7 @@
               themeFile = "OneDark-Pro";
             };
 
-            wayland.windowManager.hyprland.settings.bind = mkIf (hasAttr "hyprland" cfg.desktop) [
+            wayland.windowManager.hyprland.settings.bind = mkIf (hasAttr "desktop" cfg && hasAttr "hyprland" cfg.desktop) [
               "$mainMod, X, exec, kitty"
             ];
 

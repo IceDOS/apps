@@ -12,7 +12,9 @@
           ...
         }:
         let
-          inherit (config.icedos) desktop users;
+          cfg = config.icedos;
+
+          inherit (cfg) users;
 
           inherit (lib)
             hasAttr
@@ -29,9 +31,9 @@
               generateTargetArray =
                 base:
                 base
-                ++ optional (hasAttr "cosmic" desktop) "cosmic-session.target"
-                ++ optional (hasAttr "gnome" desktop) "gnome-session.target"
-                ++ optional (hasAttr "hyprland" desktop) "hyprland-session.target";
+                ++ optional (hasAttr "desktop" cfg && hasAttr "cosmic" cfg.desktop) "cosmic-session.target"
+                ++ optional (hasAttr "desktop" cfg && hasAttr "gnome" cfg.desktop) "gnome-session.target"
+                ++ optional (hasAttr "desktop" cfg && hasAttr "hyprland" cfg.desktop) "hyprland-session.target";
             in
             {
               home.file = {
