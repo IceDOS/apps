@@ -41,15 +41,9 @@ in
 
             dconf.settings = {
               "io/github/celluloid-player/celluloid" = {
-                mpv-config-file = "file:///home/${user}/.config/celluloid/celluloid.conf";
-              };
-
-              "io/github/celluloid-player/celluloid" = {
-                mpv-config-enable = true;
-              };
-
-              "io/github/celluloid-player/celluloid" = {
                 always-append-to-playlist = true;
+                mpv-config-enable = true;
+                mpv-config-file = "file:///home/${user}/.config/celluloid/celluloid.conf";
               };
             };
           }) users;
