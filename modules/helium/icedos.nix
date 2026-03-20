@@ -37,20 +37,29 @@
           inherit (applications.helium) drmSupportUsingGoogleChrome profiles;
           inherit (pkgs) google-chrome nur;
           inherit (nur.repos.Ev357) helium;
-          inherit (lib) length mapAttrs mkIf;
 
-          package =
-            if ((length profiles) == 0) then
-              helium
-            else
-              pkgs.runCommand "helium" { } ''
-                mkdir -p $out/bin
+          inherit (lib)
+            concatStringsSep
+            length
+            mapAttrs
+            mkIf
+            optional
+            ;
 
-                echo "${helium}/bin/helium --profile-directory=Default \$@" > $out/bin/helium
-                chmod +x $out/bin/helium
+          flags = concatStringsSep " " (
+            [ "--enable-features=AcceleratedVideoEncoder" ]
+            ++ optional ((length profiles) != 0) "--profile-directory=Default"
+          );
 
-                ln -s ${helium}/share $out
-              '';
+          package = pkgs.runCommand "helium" { } ''
+            mkdir -p $out/bin
+
+            echo '#!/bin/sh' > $out/bin/helium
+            echo "${helium}/bin/helium ${flags} \$@" >> $out/bin/helium
+            chmod +x $out/bin/helium
+
+            ln -s ${helium}/share $out
+          '';
         in
         {
           environment = {
