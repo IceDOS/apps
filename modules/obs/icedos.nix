@@ -1,10 +1,22 @@
-{ icedosLib, ... }:
+{ icedosLib, lib, ... }:
 
 {
-  options.icedos.applications.obs = {
-    plugins = icedosLib.mkStrListOption { default = [ ]; };
-    virtualCamera = icedosLib.mkBoolOption { default = false; };
-  };
+  options.icedos.applications.obs =
+    let
+      inherit (icedosLib) mkBoolOption mkStrListOption;
+
+      inherit
+        (
+          (fromTOML (lib.readFile ./config.toml)).icedos.applications.obs
+        )
+        plugins
+        virtualCamera
+        ;
+    in
+    {
+      plugins = mkStrListOption { default = plugins; };
+      virtualCamera = mkBoolOption { default = virtualCamera; };
+    };
 
   outputs.nixosModules =
     { ... }:

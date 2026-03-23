@@ -1,5 +1,6 @@
 {
   icedosLib,
+  lib,
   ...
 }:
 
@@ -12,15 +13,27 @@
         mkStrOption
         mkSubmoduleAttrsOption
         ;
+
+      inherit
+        (
+          (fromTOML (lib.readFile ./config.toml)).icedos.applications.codium.users.username
+        )
+        autoSave
+        colorTheme
+        fontSize
+        formatOnPaste
+        formatOnSave
+        zoomLevel
+        ;
     in
     {
       users = mkSubmoduleAttrsOption { default = { }; } {
-        autoSave = mkStrOption { default = "off"; };
-        colorTheme = mkStrOption { default = ""; };
-        fontSize = mkNumberOption { default = 14; };
-        formatOnPaste = mkBoolOption { default = true; };
-        formatOnSave = mkBoolOption { default = true; };
-        zoomLevel = mkNumberOption { default = 1.0; };
+        autoSave = mkStrOption { default = autoSave; };
+        colorTheme = mkStrOption { default = colorTheme; };
+        fontSize = mkNumberOption { default = fontSize; };
+        formatOnPaste = mkBoolOption { default = formatOnPaste; };
+        formatOnSave = mkBoolOption { default = formatOnSave; };
+        zoomLevel = mkNumberOption { default = zoomLevel; };
       };
     };
 

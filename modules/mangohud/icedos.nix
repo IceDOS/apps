@@ -1,11 +1,24 @@
-{ icedosLib, ... }:
+{ icedosLib, lib, ... }:
 
 {
-  options.icedos.applications.mangohud = {
-    fontSize = icedosLib.mkNumberOption { default = 18; };
-    fpsLimit = icedosLib.mkStrOption { default = "0"; };
-    position = icedosLib.mkStrOption { default = "bottom-right"; };
-  };
+  options.icedos.applications.mangohud =
+    let
+      inherit (icedosLib) mkNumberOption mkStrOption;
+
+      inherit
+        (
+          (fromTOML (lib.readFile ./config.toml)).icedos.applications.mangohud
+        )
+        fontSize
+        fpsLimit
+        position
+        ;
+    in
+    {
+      fontSize = mkNumberOption { default = fontSize; };
+      fpsLimit = mkStrOption { default = fpsLimit; };
+      position = mkStrOption { default = position; };
+    };
 
   outputs.nixosModules =
     { ... }:

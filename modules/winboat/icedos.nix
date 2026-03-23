@@ -1,7 +1,16 @@
-{ icedosLib, ... }:
+{ icedosLib, lib, ... }:
 
 {
-  options.icedos.applications.winboat.autostart = icedosLib.mkBoolOption { default = false; };
+  options.icedos.applications.winboat.autostart =
+    let
+      inherit
+        (
+          (fromTOML (lib.readFile ./config.toml)).icedos.applications.winboat
+        )
+        autostart
+        ;
+    in
+    icedosLib.mkBoolOption { default = autostart; };
 
   outputs.nixosModules =
     { ... }:
