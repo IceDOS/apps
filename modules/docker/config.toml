@@ -1,5 +1,5 @@
 [icedos.applications.docker]
-requireSudo = true # CAUTION: Disabling this gives every user root priviledges!
+requireSudo = true # CAUTION: Disabling this gives every user root privileges!
 
 [icedos.applications.docker.daemonSettings]
 fixed-cidr-v6 = "fd00::/80"
