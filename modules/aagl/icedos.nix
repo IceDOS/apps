@@ -17,8 +17,5 @@
       }
     ];
 
-  meta = {
-    name = "aagl";
-    depends = [ ];
-  };
+  meta.name = "aagl";
 }

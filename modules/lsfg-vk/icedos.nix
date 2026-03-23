@@ -21,8 +21,5 @@
       )
     ];
 
-  meta = {
-    name = "lsfg-vk";
-    depends = [ ];
-  };
+  meta.name = "lsfg-vk";
 }

@@ -20,15 +20,18 @@
 
           home-manager.users = mapAttrs (user: _: {
             systemd.user.services.input-remapper-autoload-fix = {
-              Unit.Description = "Input Remapper Autoload Fix";
+              Unit = {
+                Description = "Input Remapper Autoload Fix";
+                StartLimitIntervalSec = 60;
+                StartLimitBurst = 60;
+              };
+
               Install.WantedBy = [ "graphical-session.target" ];
 
               Service = {
                 ExecStart = "${pkgs.input-remapper}/bin/input-remapper-control --command autoload";
                 Nice = "-20";
                 Restart = "on-failure";
-                StartLimitIntervalSec = 60;
-                StartLimitBurst = 60;
               };
             };
 
