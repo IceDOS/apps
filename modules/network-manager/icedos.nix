@@ -1,7 +1,16 @@
-{ icedosLib, ... }:
+{ icedosLib, lib, ... }:
 
 {
-  options.icedos.applications.network-manager.applet = icedosLib.mkBoolOption { default = false; };
+  options.icedos.applications.network-manager.applet =
+    let
+      inherit
+        (
+          (fromTOML (lib.readFile ./config.toml)).icedos.applications.network-manager
+        )
+        applet
+        ;
+    in
+    icedosLib.mkBoolOption { default = applet; };
 
   outputs.nixosModules =
     { ... }:

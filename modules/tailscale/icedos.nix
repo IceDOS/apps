@@ -1,7 +1,16 @@
-{ icedosLib, ... }:
+{ icedosLib, lib, ... }:
 
 {
-  options.icedos.applications.tailscale.enableTrayscale = icedosLib.mkBoolOption { default = false; };
+  options.icedos.applications.tailscale.enableTrayscale =
+    let
+      inherit
+        (
+          (fromTOML (lib.readFile ./config.toml)).icedos.applications.tailscale
+        )
+        enableTrayscale
+        ;
+    in
+    icedosLib.mkBoolOption { default = enableTrayscale; };
 
   outputs.nixosModules =
     { ... }:

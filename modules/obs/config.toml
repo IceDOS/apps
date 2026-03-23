@@ -1,2 +1,3 @@
 [icedos.applications.obs]
-virtualCamera = true
+plugins = []
+virtualCamera = false

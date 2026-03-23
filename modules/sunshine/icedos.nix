@@ -1,7 +1,16 @@
-{ icedosLib, ... }:
+{ icedosLib, lib, ... }:
 
 {
-  options.icedos.applications.sunshine.autoStart = icedosLib.mkBoolOption { default = false; };
+  options.icedos.applications.sunshine.autoStart =
+    let
+      inherit
+        (
+          (fromTOML (lib.readFile ./config.toml)).icedos.applications.sunshine
+        )
+        autoStart
+        ;
+    in
+    icedosLib.mkBoolOption { default = autoStart; };
 
   outputs.nixosModules =
     { ... }:

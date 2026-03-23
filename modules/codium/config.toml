@@ -3,8 +3,8 @@ defaultEditor = "codium.desktop"
 
 [icedos.applications.codium.users.username]
 autoSave = "off" # Options: 'off', 'afterDelay', 'onFocusChange', 'onWindowChange'
-colorTheme = "One Dark Pro Flat"
+colorTheme = ""
 fontSize = 14
 formatOnPaste = true
 formatOnSave = true
-zoomLevel = 1.5
+zoomLevel = 1.0
