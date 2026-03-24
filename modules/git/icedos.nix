@@ -43,6 +43,8 @@
                 user.email = users.${user}.email;
                 user.name = users.${user}.username;
               };
+
+              signing.format = null; # Fallback for system version lower than 25.05
             };
           }) cfg.users;
 
@@ -135,7 +137,7 @@
                   done
                 ''}";
 
-                help = ''-c <commit_hash> -d <destination_directory>'';
+                help = "-c <commit_hash> -d <destination_directory>";
               }
             )
           ];
