@@ -9,8 +9,8 @@
   options.icedos.applications.me3.profiles =
     let
       inherit (icedosLib) mkSubmoduleListOption mkStrOption mkStrListOption;
-      inherit (lib) elemAt readFile;
-      profileDefaults = elemAt 0 (fromTOML (readFile ./profiles.toml));
+      inherit (lib) head readFile;
+      profileDefaults = head (fromTOML (readFile ./profiles.toml));
     in
     mkSubmoduleListOption { default = [ ]; } {
       config = mkStrOption { default = profileDefaults.config; };
