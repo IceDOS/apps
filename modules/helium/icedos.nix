@@ -1,23 +1,32 @@
-{ icedosLib, ... }:
+{ icedosLib, lib, ... }:
 
 {
   options.icedos.applications.helium =
     let
+      inherit ((fromTOML (lib.fileContents ./config.toml)).icedos.applications.helium)
+        drmSupportUsingGoogleChrome
+        profiles
+        ;
+
       inherit (icedosLib)
         mkBoolOption
         mkStrListOption
         mkStrOption
         mkSubmoduleListOption
         ;
+
+      inherit (lib) elemAt;
+
+      profileDefaults = elemAt 0 profiles;
     in
     {
-      drmSupportUsingGoogleChrome = mkBoolOption { default = false; };
+      drmSupportUsingGoogleChrome = mkBoolOption { default = drmSupportUsingGoogleChrome; };
 
       profiles = mkSubmoduleListOption { default = [ ]; } {
         exec = mkStrOption { };
-        icon = mkStrOption { default = ""; };
-        name = mkStrOption { default = ""; };
-        sites = mkStrListOption { default = [ ]; };
+        icon = mkStrOption { default = profileDefaults.icon; };
+        name = mkStrOption { default = profileDefaults.name; };
+        sites = mkStrListOption { default = profileDefaults.sites; };
       };
     };
 

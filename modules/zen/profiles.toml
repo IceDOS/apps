@@ -1,0 +1,6 @@
+default = false
+icon = ""
+name = ""
+privacy = false
+pwa = false
+sites = []

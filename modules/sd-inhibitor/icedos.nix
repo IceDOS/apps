@@ -1,4 +1,4 @@
-{ icedosLib, ... }:
+{ icedosLib, lib, ... }:
 
 {
   options.icedos.applications.sd-inhibitor.users =
@@ -9,29 +9,50 @@
         mkStrListOption
         mkSubmoduleAttrsOption
         ;
+
+      inherit
+        ((fromTOML (lib.fileContents ./config.toml)).icedos.users.username.applications.sd-inhibitor)
+        watchers
+        ;
     in
     mkSubmoduleAttrsOption { default = { }; } {
       watchers = {
-        cpu = {
-          enable = mkBoolOption { default = true; };
-          threshold = mkNumberOption { default = 60; };
-        };
+        cpu =
+          let
+            inherit (watchers.cpu) enable threshold;
+          in
+          {
+            enable = mkBoolOption { default = enable; };
+            threshold = mkNumberOption { default = threshold; };
+          };
 
-        disk = {
-          enable = mkBoolOption { default = true; };
-          threshold = mkNumberOption { default = 10; };
-        };
+        disk =
+          let
+            inherit (watchers.disk) enable threshold;
+          in
+          {
+            enable = mkBoolOption { default = enable; };
+            threshold = mkNumberOption { default = threshold; };
+          };
 
-        network = {
-          enable = mkBoolOption { default = true; };
-          threshold = mkNumberOption { default = 1000000; };
-        };
+        network =
+          let
+            inherit (watchers.network) enable threshold;
+          in
+          {
+            enable = mkBoolOption { default = enable; };
+            threshold = mkNumberOption { default = threshold; };
+          };
 
-        pipewire = {
-          enable = mkBoolOption { default = true; };
-          inputsToIgnore = mkStrListOption { default = [ ]; };
-          outputsToIgnore = mkStrListOption { default = [ ]; };
-        };
+        pipewire =
+          let
+            inherit (watchers.pipewire) enable inputsToIgnore outputsToIgnore;
+          in
+          {
+            enable = mkBoolOption { default = enable; };
+            inputsToIgnore = mkStrListOption { default = inputsToIgnore; };
+            outputsToIgnore = mkStrListOption { default = outputsToIgnore; };
+          };
       };
     };
 
@@ -80,6 +101,8 @@
                     Description = "service to inhibit idle, sleep and shutdown based on device usage limits";
                     After = "graphical-session.target";
                     PartOf = "graphical-session.target";
+                    StartLimitIntervalSec = 60;
+                    StartLimitBurst = 60;
                   };
 
                   Install.WantedBy =
@@ -89,17 +112,18 @@
                     ++ optional (hasAttr "desktop" cfg && hasAttr "hyprland" cfg.desktop) "hyprland-session.target";
 
                   Service = {
-                    ExecStart = with pkgs; "${writeShellScript "sd-inhibitor" ''
-                      base_path="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-                      nix_system_path="/run/current-system/sw/bin"
-                      nix_user_path="''${HOME}/.nix-profile/bin"
-                      export PATH="''${base_path}:''${nix_system_path}:''${nix_user_path}:$PATH"
+                    ExecStart =
+                      with pkgs;
+                      "${writeShellScript "sd-inhibitor" ''
+                        base_path="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+                        nix_system_path="/run/current-system/sw/bin"
+                        nix_user_path="''${HOME}/.nix-profile/bin"
+                        export PATH="''${base_path}:''${nix_system_path}:''${nix_user_path}:$PATH"
 
-                      ${readFile ./sd-inhibitor.sh}
-                    ''}";
+                        ${readFile ./sd-inhibitor.sh}
+                      ''}";
                     Nice = "-20";
                     Restart = "on-failure";
-                    StartLimitBurst = 60;
                   };
                 };
           }) cfg.users;

@@ -3,11 +3,14 @@
 {
   options.icedos.applications.docker =
     let
-      docker = (fromTOML (lib.fileContents ./config.toml)).icedos.applications.docker;
+      inherit ((fromTOML (lib.fileContents ./config.toml)).icedos.applications.docker)
+        daemonSettings
+        requireSudo
+        ;
     in
     {
-      daemonSettings = lib.mkOption { default = { }; };
-      requireSudo = icedosLib.mkBoolOption { default = docker.requireSudo; };
+      daemonSettings = lib.mkOption { default = daemonSettings; };
+      requireSudo = icedosLib.mkBoolOption { default = requireSudo; };
     };
 
   outputs.nixosModules =
