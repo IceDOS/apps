@@ -43,6 +43,8 @@
 
                 After = generateTargetArray [ "graphical-session.target" ];
                 PartOf = "graphical-session.target";
+                StartLimitIntervalSec = 60;
+                StartLimitBurst = 60;
               };
 
               Install.WantedBy = generateTargetArray [ ];
@@ -59,7 +61,6 @@
 
                 Nice = "-20";
                 Restart = "on-failure";
-                StartLimitBurst = 60;
               };
             };
           }) users;
