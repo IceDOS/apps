@@ -2,6 +2,3 @@
 requireSudo = true # CAUTION: Disabling this gives every user root privileges!
 
 [icedos.applications.docker.daemonSettings]
-fixed-cidr-v6 = "fd00::/80"
-ipv6 = true
-live-restore = true

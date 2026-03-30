@@ -1,4 +1,4 @@
-{ icedosLib, ... }:
+{ icedosLib, lib, ... }:
 
 {
   inputs.me3 = {
@@ -9,11 +9,13 @@
   options.icedos.applications.me3.profiles =
     let
       inherit (icedosLib) mkSubmoduleListOption mkStrOption mkStrListOption;
+      inherit (lib) elemAt readFile;
+      profileDefaults = elemAt 0 (fromTOML (readFile ./profiles.toml));
     in
     mkSubmoduleListOption { default = [ ]; } {
-      config = mkStrOption { default = ""; };
-      dependencies = mkStrListOption { default = [ ]; };
-      name = mkStrOption { default = ""; };
+      config = mkStrOption { default = profileDefaults.config; };
+      dependencies = mkStrListOption { default = profileDefaults.dependencies; };
+      name = mkStrOption { default = profileDefaults.name; };
     };
 
   outputs.nixosModules =

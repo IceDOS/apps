@@ -4,11 +4,15 @@
   options.icedos.applications.kitty =
     let
       inherit (icedosLib) mkBoolOption mkNumberOption;
-      kitty = (fromTOML (lib.fileContents ./config.toml)).icedos.applications.kitty;
+
+      inherit ((fromTOML (lib.fileContents ./config.toml)).icedos.applications.kitty)
+        fontSize
+        hideDecorations
+        ;
     in
     {
-      fontSize = mkNumberOption { default = kitty.fontSize; };
-      hideDecorations = mkBoolOption { default = kitty.hideDecorations; };
+      fontSize = mkNumberOption { default = fontSize; };
+      hideDecorations = mkBoolOption { default = hideDecorations; };
     };
 
   outputs.nixosModules =
@@ -47,9 +51,11 @@
               themeFile = "OneDark-Pro";
             };
 
-            wayland.windowManager.hyprland.settings.bind = mkIf (hasAttr "desktop" cfg && hasAttr "hyprland" cfg.desktop) [
-              "$mainMod, X, exec, kitty"
-            ];
+            wayland.windowManager.hyprland.settings.bind =
+              mkIf (hasAttr "desktop" cfg && hasAttr "hyprland" cfg.desktop)
+                [
+                  "$mainMod, X, exec, kitty"
+                ];
 
             dconf.settings = mkIf (hasAttr "desktop" cfg && hasAttr "gnome" cfg.desktop) {
               "org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/kitty" = {

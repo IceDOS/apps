@@ -12,5 +12,5 @@ threshold = 1_000_000 # Network usage to inhibit lock in bytes/s
 
 [icedos.users.username.applications.sd-inhibitor.watchers.pipewire]
 enable = true
-inputsToIgnore = ["Noise Canceling source", "Peak detect", "cava"]
-outputsToIgnore = ["Discord", "Element"]
+inputsToIgnore = []
+outputsToIgnore = []
