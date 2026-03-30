@@ -19,17 +19,20 @@
         ;
 
       inherit (lib) head readFile;
-      profileDefaults = head profiles;
     in
     {
       drmSupportUsingGoogleChrome = mkBoolOption { default = drmSupportUsingGoogleChrome; };
 
-      profiles = mkSubmoduleListOption { default = [ ]; } {
-        exec = mkStrOption { };
-        icon = mkStrOption { default = profileDefaults.icon; };
-        name = mkStrOption { default = profileDefaults.name; };
-        sites = mkStrListOption { default = profileDefaults.sites; };
-      };
+      profiles =
+        let
+          inherit (head profiles) icon name sites;
+        in
+        mkSubmoduleListOption { default = [ ]; } {
+          exec = mkStrOption { };
+          icon = mkStrOption { default = icon; };
+          name = mkStrOption { default = name; };
+          sites = mkStrListOption { default = sites; };
+        };
     };
 
   outputs.nixosModules =

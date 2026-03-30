@@ -3,6 +3,10 @@
 {
   options.icedos.applications.zen =
     let
+      inherit ((fromTOML (readFile ./profiles.toml)).icedos.applications.zen)
+        profiles
+        ;
+
       inherit (icedosLib)
         mkBoolOption
         mkStrListOption
@@ -10,20 +14,23 @@
         mkSubmoduleListOption
         ;
 
-      inherit (lib) readFile;
-      profileDefaults = fromTOML (readFile ./profiles.toml);
+      inherit (lib) head readFile;
     in
     {
 
-      profiles = mkSubmoduleListOption { default = [ ]; } {
-        default = mkBoolOption { default = profileDefaults.default; };
-        exec = mkStrOption { };
-        icon = mkStrOption { default = profileDefaults.icon; };
-        name = mkStrOption { default = profileDefaults.name; };
-        privacy = mkBoolOption { default = profileDefaults.privacy; };
-        pwa = mkBoolOption { default = profileDefaults.pwa; };
-        sites = mkStrListOption { default = profileDefaults.sites; };
-      };
+      profiles =
+        let
+          inherit (head profiles) default icon name privacy pwa sites;
+        in
+        mkSubmoduleListOption { default = [ ]; } {
+          default = mkBoolOption { default = default; };
+          exec = mkStrOption { };
+          icon = mkStrOption { default = icon; };
+          name = mkStrOption { default = name; };
+          privacy = mkBoolOption { default = privacy; };
+          pwa = mkBoolOption { default = pwa; };
+          sites = mkStrListOption { default = sites; };
+        };
     };
 
   inputs.zen = {
