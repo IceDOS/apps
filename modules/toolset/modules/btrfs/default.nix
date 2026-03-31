@@ -10,6 +10,8 @@
         command = "btrfs-zstd";
       in
       {
+        inherit command;
+
         bin = "${pkgs.writeShellScript command ''
           if [[ "$1" == "" ]]; then
             echo "error: specify path as an argument"
@@ -18,7 +20,7 @@
 
           sudo "${pkgs.btrfs-progs}/bin/btrfs" filesystem defrag -czstd -r -v "$@"
         ''}";
-        command = command;
+
         help = "compress btrfs path using zstd";
       }
     )

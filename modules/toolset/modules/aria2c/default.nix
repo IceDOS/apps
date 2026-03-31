@@ -10,6 +10,8 @@
         command = "download";
       in
       {
+        inherit command;
+
         bin = "${pkgs.writeShellScript command ''
           if [[ "$1" == "" ]]; then
             echo "error: specify url as an argument"
@@ -20,8 +22,6 @@
 
           "${pkgs.aria2}/bin/aria2c" -j 16 -s 16 "$@"
         ''}";
-
-        command = command;
 
         help = "download provided url using aria2c utilizing 16 connections";
       }

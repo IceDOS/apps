@@ -9,6 +9,8 @@ in
 {
   icedos.applications.toolset.commands = [
     {
+      inherit command;
+
       bin = "${pkgs.writeShellScript command ''
         case "$1" in
           "")
@@ -24,7 +26,6 @@ in
         esac
       ''}";
 
-      command = command;
       help = "reboot ignoring inhibitors and users, uefi supported by appending it as an argument";
     }
   ];
