@@ -5,10 +5,7 @@
     let
       inherit (icedosLib) mkBoolOption mkStrListOption;
 
-      inherit
-        (
-          (fromTOML (lib.readFile ./config.toml)).icedos.applications.obs
-        )
+      inherit ((fromTOML (lib.readFile ./config.toml)).icedos.applications.obs)
         plugins
         virtualCamera
         ;

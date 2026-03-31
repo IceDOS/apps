@@ -34,5 +34,5 @@
       )
     ];
 
-    meta.name = "gnome-control-center";
+  meta.name = "gnome-control-center";
 }

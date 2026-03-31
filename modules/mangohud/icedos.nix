@@ -5,10 +5,7 @@
     let
       inherit (icedosLib) mkNumberOption mkStrOption;
 
-      inherit
-        (
-          (fromTOML (lib.readFile ./config.toml)).icedos.applications.mangohud
-        )
+      inherit ((fromTOML (lib.readFile ./config.toml)).icedos.applications.mangohud)
         fontSize
         fpsLimit
         position

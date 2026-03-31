@@ -20,7 +20,6 @@
         {
           config,
           lib,
-          pkgs,
           ...
         }:
 
@@ -29,7 +28,6 @@
           cfg = config.icedos;
         in
         {
-          environment.systemPackages = [ pkgs.distrobox ];
           virtualisation.docker = {
             enable = true;
             daemon.settings = cfg.applications.docker.daemonSettings;
