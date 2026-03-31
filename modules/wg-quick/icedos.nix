@@ -44,6 +44,8 @@
                 command = "wg-config";
               in
               {
+                inherit command;
+
                 bin = "${pkgs.writeShellScript command ''
                   sudo bash -c '
                     set -e
@@ -63,7 +65,7 @@
                     rm "$1"
                   ' -- $@
                 ''}";
-                command = command;
+
                 help = "add wireguard config to /etc/wireguard";
               }
             )

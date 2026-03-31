@@ -17,8 +17,8 @@
                 command = "du";
               in
               {
+                inherit command;
                 bin = "${pkgs.writeShellScript command ''${pkgs.ncdu}/bin/ncdu "$@"''}";
-                command = command;
                 help = "see disk usage on current folder or provided path";
               }
             )

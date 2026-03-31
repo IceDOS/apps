@@ -22,8 +22,8 @@
                 command = "nixf";
               in
               {
+                inherit command;
                 bin = "${pkgs.writeShellScript command ''find "''${1:-.}" -type f -name "*.nix" -exec "${package}/bin/nixfmt" {} \;''}";
-                command = command;
                 help = "format all nix files of current or provided directory";
               }
             )
