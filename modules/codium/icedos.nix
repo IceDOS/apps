@@ -14,10 +14,7 @@
         mkSubmoduleAttrsOption
         ;
 
-      inherit
-        (
-          (fromTOML (lib.readFile ./config.toml)).icedos.applications.codium.users.username
-        )
+      inherit ((fromTOML (lib.readFile ./config.toml)).icedos.applications.codium.users.username)
         autoSave
         colorTheme
         fontSize

@@ -20,7 +20,14 @@
 
       profiles =
         let
-          inherit (head profiles) default icon name privacy pwa sites;
+          inherit (head profiles)
+            default
+            icon
+            name
+            privacy
+            pwa
+            sites
+            ;
         in
         mkSubmoduleListOption { default = [ ]; } {
           default = mkBoolOption { default = default; };
