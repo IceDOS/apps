@@ -6,6 +6,7 @@
       inherit (icedosLib)
         mkBoolOption
         mkNumberOption
+        mkNumberListOption
         mkStrListOption
         mkSubmoduleAttrsOption
         ;
@@ -53,6 +54,16 @@
             inputsToIgnore = mkStrListOption { default = inputsToIgnore; };
             outputsToIgnore = mkStrListOption { default = outputsToIgnore; };
           };
+
+        ports =
+          let
+            inherit (watchers.ports) enable inboundPorts outboundPorts;
+          in
+          {
+            enable = mkBoolOption { default = enable; };
+            inboundPorts = mkNumberListOption { default = inboundPorts; };
+            outboundPorts = mkNumberListOption { default = outboundPorts; };
+          };
       };
     };
 
@@ -95,7 +106,13 @@
                 watchers = cfg.applications.sd-inhibitor.users.${user}.watchers;
               in
               mkIf
-                (watchers.cpu.enable || watchers.disk.enable || watchers.network.enable || watchers.pipewire.enable)
+                (
+                  watchers.cpu.enable
+                  || watchers.disk.enable
+                  || watchers.network.enable
+                  || watchers.pipewire.enable
+                  || watchers.ports.enable
+                )
                 {
                   Unit = {
                     Description = "service to inhibit idle, sleep and shutdown based on device usage limits";
