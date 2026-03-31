@@ -70,6 +70,7 @@
                     export PATH="''${base_path}:''${nix_system_path}:''${nix_user_path}:$PATH"
 
                     elephant &
+                    wl-clip-persist --clipboard regular &
 
                     while :; do
                       walker --gapplication-service || echo 'walker crashed unexpectedly!'
@@ -85,11 +86,17 @@
 
           environment.systemPackages =
             let
-              inherit (pkgs) elephant walker writeShellScriptBin;
+              inherit (pkgs)
+                elephant
+                walker
+                wl-clip-persist
+                writeShellScriptBin
+                ;
             in
             [
               elephant
               walker
+              wl-clip-persist
 
               (writeShellScriptBin "walker-applications" ''
                 walker -t theme -m desktopapplications
