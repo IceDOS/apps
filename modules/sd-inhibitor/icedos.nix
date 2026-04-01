@@ -114,13 +114,20 @@
                   || watchers.ports.enable
                 )
                 {
-                  Unit = {
-                    Description = "service to inhibit idle, sleep and shutdown based on device usage limits";
-                    After = "graphical-session.target";
-                    PartOf = "graphical-session.target";
-                    StartLimitIntervalSec = 60;
-                    StartLimitBurst = 60;
-                  };
+                  Unit =
+                    let
+                      sessionTargets =
+                        [ ]
+                        ++ optional (hasAttr "desktop" cfg && hasAttr "cosmic" cfg.desktop) "cosmic-session.target"
+                        ++ optional (hasAttr "desktop" cfg && hasAttr "gnome" cfg.desktop) "gnome-session.target"
+                        ++ optional (hasAttr "desktop" cfg && hasAttr "hyprland" cfg.desktop) "hyprland-session.target";
+                    in
+                    {
+                      Description = "service to inhibit idle, sleep and shutdown based on device usage limits";
+                      After = [ "graphical-session.target" ] ++ sessionTargets;
+                      StartLimitIntervalSec = 60;
+                      StartLimitBurst = 60;
+                    };
 
                   Install.WantedBy =
                     [ ]
