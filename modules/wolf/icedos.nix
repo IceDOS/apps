@@ -133,6 +133,8 @@
               rm -rf "$TMP_FOLDER"
             '';
 
+          systemd.services.docker-wolf.serviceConfig.RestartSec = 10;
+
           services.udev.extraRules = ''
             # Moonlight / NVIDIA GameStream virtual Xbox controller
             SUBSYSTEMS=="input", \
