@@ -54,7 +54,7 @@
           inherit (pkgs) steam;
           inherit (applications.steam) beta cpuUsageWorkaround downloadsWorkaround;
 
-          extraPackages = pkgMapper applications.steam.extraPackages;
+          extraPackages = pkgMapper pkgs applications.steam.extraPackages;
           hasExtraPackages = length extraPackages != 0;
           hasGamescope = hasAttr "gamescope" applications;
           hasProtonLaunch = hasAttr "proton-launch" applications;
