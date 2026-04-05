@@ -16,13 +16,13 @@
 
 stdenv.mkDerivation rec {
   pname = "bb-launcher";
-  version = "13.03";
+  version = "14.05";
 
   src = fetchFromGitHub {
     owner = "rainmakerv3";
     repo = "BB_Launcher";
     rev = "Release${version}";
-    hash = "sha256-H+8pWl6r+K0k98V/qRiklhc7hdPBUOASEySNUnKCyWA=";
+    hash = "sha256-/BP7QQYa3ATEoZvJSKRRvUAhqQOtmw59rzqPlOo+nTs=";
     fetchSubmodules = true;
   };
 
