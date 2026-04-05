@@ -102,7 +102,7 @@
                 "toml"
               ];
 
-              extraPackages = icedosLib.pkgMapper extraPackages;
+              extraPackages = icedosLib.pkgMapper pkgs extraPackages;
               package = mkIf fhs zed-editor-fhs;
 
               userSettings = {

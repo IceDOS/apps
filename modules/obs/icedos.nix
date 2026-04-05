@@ -19,7 +19,7 @@
     { ... }:
     [
       (
-        { config, icedosLib, ... }:
+        { config, icedosLib, pkgs, ... }:
         {
           programs.obs-studio =
             let
@@ -29,7 +29,7 @@
             {
               enable = true;
               enableVirtualCamera = obs.virtualCamera;
-              plugins = pkgMapper obs.plugins;
+              plugins = pkgMapper pkgs obs.plugins;
             };
         }
       )
