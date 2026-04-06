@@ -7,7 +7,6 @@
       (
         {
           config,
-          pkgs,
           lib,
           ...
         }:
@@ -17,12 +16,12 @@
           cfg = config.icedos;
         in
         {
-          environment.systemPackages = [ pkgs.btop ];
-
           home-manager.users = mapAttrs (user: _: {
-            home.file.".config/btop/btop.conf" = {
-              force = true;
+            programs.btop.enable = true;
+
+            xdg.configFile."btop/btop.conf" = {
               source = ./btop.conf;
+              force = true;
             };
           }) cfg.users;
         }

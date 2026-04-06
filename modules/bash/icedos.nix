@@ -17,7 +17,7 @@
         in
         {
           home-manager.users = mapAttrs (user: _: {
-            home.file.".bashrc".text = ""; # Avoid file not found errors
+            programs.bash.enable = true;
           }) cfg.users;
 
           security.sudo.extraConfig = "Defaults pwfeedback"; # Show asterisks when typing sudo password
