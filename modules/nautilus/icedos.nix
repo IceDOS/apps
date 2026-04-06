@@ -13,7 +13,13 @@
         }:
 
         let
-          inherit (lib) mapAttrs makeSearchPathOutput mkIf;
+          inherit (lib)
+            hasAttr
+            mapAttrs
+            makeSearchPathOutput
+            mkIf
+            ;
+
           cfg = config.icedos;
         in
         {
@@ -54,16 +60,16 @@
               };
 
               "org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/nautilus" =
-                mkIf (lib.hasAttr "desktop" cfg && lib.hasAttr "gnome" cfg.desktop)
+                mkIf (hasAttr "desktop" cfg && hasAttr "gnome" cfg.desktop)
                   {
                     binding = "<Super>e";
                     command = "nautilus .";
                     name = "Nautilus";
                   };
 
-              "org/gnome/settings-daemon/plugins/media-keys".custom-keybindings =
-                mkIf (lib.hasAttr "desktop" cfg && lib.hasAttr "gnome" cfg.desktop)
-                  [ "/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/nautilus/" ];
+              "org/gnome/settings-daemon/plugins/media-keys".custom-keybindings = mkIf (
+                hasAttr "desktop" cfg && hasAttr "gnome" cfg.desktop
+              ) [ "/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/nautilus/" ];
             };
 
             home.file = {
