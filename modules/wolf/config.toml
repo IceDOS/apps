@@ -1,8 +1,8 @@
 [icedos.applications.wolf]
-branch = "stable"
-stateFolder = "/etc/wolf"
-extraVolumes = []
 extraOptions = []
 extraPackages = []
+extraVolumes = []
+image = ""
+stateFolder = "/etc/wolf"
 
 [icedos.applications.wolf.extraEnvironmentFlags]
