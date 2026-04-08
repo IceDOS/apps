@@ -49,15 +49,15 @@
               systemd.user.services.walker = {
                 Unit = {
                   Description = "Walker - Application Runner";
-
-                  After = generateTargetArray [
-                    "graphical-session.target"
-                    "elephant.service"
-                  ];
-
+                  After = generateTargetArray [ "graphical-session.target" ];
                   PartOf = "graphical-session.target";
                   StartLimitIntervalSec = 60;
                   StartLimitBurst = 60;
+
+                  # Restart walker (and elephant subprocess) when system packages change,
+                  # so new desktop entries are picked up. The store path changes when
+                  # environment.systemPackages changes, triggering sd-switch to restart.
+                  X-Restart-Triggers = [ "${config.system.path}" ];
                 };
 
                 Install.WantedBy = generateTargetArray [ ];
