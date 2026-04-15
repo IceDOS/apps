@@ -1,11 +1,6 @@
 { icedosLib, lib, ... }:
 
 {
-  inputs.me3 = {
-    url = "github:fn3x/me3";
-    inputs.nixpkgs.follows = "nixpkgs";
-  };
-
   options.icedos.applications.me3.profiles =
     let
       inherit ((fromTOML (readFile ./profiles.toml)).icedos.applications.me3)
@@ -25,7 +20,8 @@
     };
 
   outputs.nixosModules =
-    { inputs, ... }:
+    { ... }:
+
     [
       (
         {
@@ -35,9 +31,7 @@
           ...
         }:
         {
-          environment.systemPackages = [
-            inputs.me3.packages.${pkgs.stdenv.hostPlatform.system}.default
-          ];
+          environment.systemPackages = with pkgs; [ me3 ];
 
           home-manager.users =
             let
