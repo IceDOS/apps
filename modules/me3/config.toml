@@ -1,0 +1,16 @@
+[icedos.applications.me3.games.__sample]
+profileVersion = ""
+savefile = ""
+start_online = false
+disable_arxan = false
+patch_mem = false
+supports = []
+natives = []
+packages = []
+
+[[icedos.applications.me3.games.__sample.profiles]]
+name = ""
+config = ""
+dependencies = []
+natives = []
+packages = []
