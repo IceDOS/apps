@@ -1,17 +1,11 @@
-{
-  pkgs,
-  ...
-}:
+{ ... }:
 
-let
-  command = "reboot";
-in
 {
   icedos.applications.toolset.commands = [
     {
-      inherit command;
+      command = "reboot";
 
-      bin = "${pkgs.writeShellScript command ''
+      script = ''
         case "$1" in
           "")
             systemctl reboot -i
@@ -24,7 +18,7 @@ in
             exit 1
             ;;
         esac
-      ''}";
+      '';
 
       help = "reboot ignoring inhibitors and users, uefi supported by appending it as an argument";
     }

@@ -39,26 +39,25 @@
             iptables
           ];
 
-          icedos.applications.toolset.commands = [
-            (
-              let
-                command = "clear-winboat";
-                docker = "${pkgs.docker}/bin/docker";
-              in
+          icedos.applications.toolset.commands =
+            let
+              docker = "${pkgs.docker}/bin/docker";
+            in
+            [
               {
-                inherit command;
+                command = "clear-winboat";
 
-                bin = "${pkgs.writeShellScript command ''
+                script = ''
+                  exec 2>/dev/null
                   ${docker} stop WinBoat
                   ${docker} rm WinBoat
                   ${docker} volume rm winboat_data
                   rm -rf ~/.winboat
-                ''} 2> /dev/null";
+                '';
 
                 help = "purge all winboat files for a clean installation";
               }
-            )
-          ];
+            ];
 
           systemd.services.docker.serviceConfig.ExecStartPost =
             let

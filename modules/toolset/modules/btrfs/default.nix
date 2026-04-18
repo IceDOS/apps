@@ -5,24 +5,19 @@
 
 {
   icedos.applications.toolset.commands = [
-    (
-      let
-        command = "btrfs-zstd";
-      in
-      {
-        inherit command;
+    {
+      command = "btrfs-zstd";
 
-        bin = "${pkgs.writeShellScript command ''
-          if [[ "$1" == "" ]]; then
-            echo "error: specify path as an argument"
-            exit 1
-          fi
+      script = ''
+        if [[ "$1" == "" ]]; then
+          echo "error: specify path as an argument"
+          exit 1
+        fi
 
-          sudo "${pkgs.btrfs-progs}/bin/btrfs" filesystem defrag -czstd -r -v "$@"
-        ''}";
+        sudo "${pkgs.btrfs-progs}/bin/btrfs" filesystem defrag -czstd -r -v "$@"
+      '';
 
-        help = "compress btrfs path using zstd";
-      }
-    )
+      help = "compress btrfs path using zstd";
+    }
   ];
 }

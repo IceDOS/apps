@@ -5,26 +5,21 @@
 
 {
   icedos.applications.toolset.commands = [
-    (
-      let
-        command = "download";
-      in
-      {
-        inherit command;
+    {
+      command = "download";
 
-        bin = "${pkgs.writeShellScript command ''
-          if [[ "$1" == "" ]]; then
-            echo "error: specify url as an argument"
-            echo "usage: icedos download [OPTIONS] [URI | MAGNET | TORRENT_FILE | METALINK_FILE]..."
-            echo "help: icedos download -h"
-            exit 1
-          fi
+      script = ''
+        if [[ "$1" == "" ]]; then
+          echo "error: specify url as an argument"
+          echo "usage: icedos download [OPTIONS] [URI | MAGNET | TORRENT_FILE | METALINK_FILE]..."
+          echo "help: icedos download -h"
+          exit 1
+        fi
 
-          "${pkgs.aria2}/bin/aria2c" -j 16 -s 16 "$@"
-        ''}";
+        "${pkgs.aria2}/bin/aria2c" -j 16 -s 16 "$@"
+      '';
 
-        help = "download provided url using aria2c utilizing 16 connections";
-      }
-    )
+      help = "download provided url using aria2c utilizing 16 connections";
+    }
   ];
 }
