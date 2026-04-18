@@ -1,6 +1,15 @@
-{ ... }:
+{ lib, ... }:
 
 {
+  options.icedos.applications.zsh =
+    let
+      inherit (lib) mkOption readFile;
+      inherit ((fromTOML (readFile ./config.toml)).icedos.applications.zsh) aliases;
+    in
+    {
+      aliases = mkOption { default = aliases; };
+    };
+
   outputs.nixosModules =
     { ... }:
     [
@@ -13,8 +22,8 @@
         }:
 
         let
+          inherit (config.icedos) applications users;
           inherit (lib) mapAttrs;
-          cfg = config.icedos;
         in
         {
           fonts.packages = with pkgs; [ meslo-lgs-nf ];
@@ -31,7 +40,7 @@
 
               ".config/zsh/p10k-theme.zsh".source = ./p10k-theme.zsh;
             };
-          }) cfg.users;
+          }) users;
 
           programs.zsh = {
             enable = true;
@@ -58,6 +67,8 @@
               [[ ! -f ~/.config/zsh/p10k-theme.zsh ]] || source ~/.config/zsh/p10k-theme.zsh
               unsetopt PROMPT_SP
             '';
+
+            shellAliases = applications.zsh.aliases;
           };
 
           users.defaultUserShell = pkgs.zsh;
