@@ -19,3 +19,7 @@ outputsToIgnore = []
 enable = true
 inboundPorts = []
 outboundPorts = []
+
+[icedos.users.username.applications.sd-inhibitor.watchers.gpu]
+enable = true
+threshold = 60 # GPU usage to inhibit lock in percentage (max across all detected GPUs)

@@ -64,6 +64,15 @@
             inboundPorts = mkNumberListOption { default = inboundPorts; };
             outboundPorts = mkNumberListOption { default = outboundPorts; };
           };
+
+        gpu =
+          let
+            inherit (watchers.gpu) enable threshold;
+          in
+          {
+            enable = mkBoolOption { default = enable; };
+            threshold = mkNumberOption { default = threshold; };
+          };
       };
     };
 
@@ -112,6 +121,7 @@
                   || watchers.network.enable
                   || watchers.pipewire.enable
                   || watchers.ports.enable
+                  || watchers.gpu.enable
                 )
                 {
                   Unit =
