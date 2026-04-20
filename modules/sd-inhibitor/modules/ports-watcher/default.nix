@@ -28,11 +28,23 @@ in
       in
       mkIf (watcher.enable && hasPorts) [
         (pkgs.writeShellScriptBin "ports-watcher" ''
-          if [ "$(ss -t state established state time-wait '( ${filter} )' | tail -n +2)" ]; then
+          # Stage 1: connection-oriented — TCP ESTAB/TIME-WAIT or UDP with connect().
+          if [ "$(ss -tu state established state time-wait '( ${filter} )' | tail -n +2)" ]; then
             printf true
-          else
-            printf false
+            exit
           fi
+
+          # Stage 2: connectionless UDP — Wolf et al. bind() without connect(),
+          # so sockets stay UNCONN; only transient Send-Q/Recv-Q reveals traffic.
+          for _ in $(seq 1 33); do
+            if ss -uan '( ${filter} )' | awk 'NR>1 && ($2+$3>0) {f=1} END{exit !f}'; then
+              printf true
+              exit
+            fi
+            sleep 0.03
+          done
+
+          printf false
         '')
       ];
   }) cfg.users;

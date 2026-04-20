@@ -1,35 +1,50 @@
-command -v cpu-watcher &>/dev/null && CPU_WATCHER="true"
-command -v gpu-watcher &>/dev/null && GPU_WATCHER="true"
-command -v disk-watcher &>/dev/null && DISK_WATCHER="true"
-command -v network-watcher &>/dev/null && NETWORK_WATCHER="true"
-command -v pipewire-watcher &>/dev/null && PIPEWIRE_WATCHER="true"
-command -v ports-watcher &>/dev/null && PORTS_WATCHER="true"
+watchers=()
+for w in cpu gpu disk network pipewire ports; do
+  command -v "$w-watcher" &>/dev/null && watchers+=("$w")
+done
 
-while true; do
-  [[ "$CPU_WATCHER" == "true" && `cpu-watcher` = "true" ]] && cpu="cpu " || cpu=""
-  [[ "$GPU_WATCHER" == "true" && `gpu-watcher` = "true" ]] && gpu="gpu " || gpu=""
-  [[ "$DISK_WATCHER" == "true" && `disk-watcher` = "true" ]] && disk="disk " || disk=""
-  [[ "$NETWORK_WATCHER" == "true" && `network-watcher` = "true" ]] && network="network " || network=""
-  [[ "$PIPEWIRE_WATCHER" == "true" && `pipewire-watcher` = "true" ]] && pipewire="pipewire " || pipewire=""
-  [[ "$PORTS_WATCHER" == "true" && `ports-watcher` = "true" ]] && ports="ports" || ports=""
-  [[ "$cpu" == "" && "$gpu" == "" && "$disk" == "" && "$network" == "" && "$pipewire" == "" && "$ports" == "" ]] && passed="true" || passed=""
+PID=""
+LAST_STATE=""
 
-  # Skip when all watchers pass and no inhibitor is active
-  [[ "$passed" == "true" && "$PID" == "" ]] && continue
-  [[ "$passed" == "true" ]] && echo "killing inhibitor: $PID" && kill -9 "$PID" && PID="" && LAST_INHIBIT="" && continue
+release() {
+  if [[ -n "$PID" ]]; then
+    kill "$PID" 2>/dev/null
+    wait "$PID" 2>/dev/null
+  fi
+  PID=""
+}
 
-  inhibit="sleep:shutdown"
+trap 'release; exit 0' TERM INT
 
-  # inhibit idle if pipewire has active inputs, outputs
-  [ "$pipewire" != "" ] && inhibit="idle:$inhibit"
+while :; do
+  firing=()
+  for w in "${watchers[@]}"; do
+    [[ "$("$w-watcher")" == "true" ]] && firing+=("$w")
+  done
 
-  [ "$LAST_INHIBIT" == "$inhibit" ] && continue
-  kill -9 "$PID" &>/dev/null && PID=""
+  if ((${#firing[@]} == 0)); then
+    if [[ -n "$PID" ]]; then
+      echo "releasing inhibitor: $PID"
+      release
+      LAST_STATE=""
+    fi
+    sleep 1
+    continue
+  fi
 
-  LAST_INHIBIT="$inhibit"
-  reason="failed: $cpu$gpu$disk$network$pipewire$ports"
+  what="sleep:shutdown"
+  # inhibit idle only while pipewire has active streams
+  [[ " ${firing[*]} " == *" pipewire "* ]] && what="idle:$what"
+  why="failed: ${firing[*]}"
+  state="$what|$why"
 
-  echo "inhibiting $inhibit, $reason"
-  systemd-inhibit --what="$inhibit" --why="$reason" --who="sd-inhibitor" sh -c "while :; do sleep 1; done" &
-  PID="$!"
+  if [[ "$state" != "$LAST_STATE" ]]; then
+    release
+    echo "inhibiting $what, $why"
+    systemd-inhibit --what="$what" --why="$why" --who="sd-inhibitor" sleep infinity &
+    PID=$!
+    LAST_STATE="$state"
+  fi
+
+  sleep 1
 done

@@ -55,11 +55,11 @@ in
             return false
           end
 
-          local function hasValue (val, tab)
-            for index, value in ipairs(tab) do
-                if string.find(val, value) then
-                    return true
-                end
+          local function hasValue(val, tab)
+            for _, value in ipairs(tab) do
+              if string.find(val, value, 1, true) then
+                return true
+              end
             end
             return false
           end
@@ -68,13 +68,10 @@ in
             for node in nodeManager:iterate() do
               local mediaName = node.properties["media.name"]
               local mediaClass = node.properties["media.class"]
-              local skip = false
+              local ignored = (mediaClass == INPUT and hasValue(mediaName, INPUTS_TO_IGNORE))
+                or (mediaClass == OUTPUT and hasValue(mediaName, OUTPUTS_TO_IGNORE))
 
-              if ((mediaClass == INPUT and hasValue(mediaName, INPUTS_TO_IGNORE)) or (mediaClass == OUTPUT and hasValue(mediaName, OUTPUTS_TO_IGNORE))) then
-                skip = true
-              end
-
-              if (hasActiveLinks(node.bound_id, "link.input.node") or hasActiveLinks(node.bound_id, "link.output.node")) and skip == false then
+              if not ignored and (hasActiveLinks(node.bound_id, "link.input.node") or hasActiveLinks(node.bound_id, "link.output.node")) then
                 INHIBIT_LOCK = true
                 break
               end

@@ -17,48 +17,32 @@ in
       in
       mkIf (watcher.enable) [
         (pkgs.writeShellScriptBin "disk-watcher" ''
-          DISKS=($(lsblk -d -io NAME | tail -n +2))
-          READ_QUERY=".sysstat.hosts[].statistics[].disk[].MB_read"
-          WRITE_QUERY=".sysstat.hosts[].statistics[].disk[].MB_wrtn"
-          DISK_THRESHOLD=${toString (watcher.threshold)}
-
-          diskstats () {
-            iostat -d -m -z -o JSON "$1"
+          check_iostat() {
+            ${pkgs.sysstat}/bin/iostat -d -m -y -z 1 1 | awk -v t=${toString watcher.threshold} '
+              /^Device/ { data=1; next }
+              data && NF >= 4 && ($3+0 > t || $4+0 > t) { hit=1; exit }
+              END { exit !hit }
+            '
           }
 
-          read=()
-          written=()
-          for disk in "''${DISKS[@]}"
-          do
-            json="$(diskstats "$disk")"
-            read+=($(echo "$json" | jq "$READ_QUERY"))
-            written+=($(echo "$json" | jq "$WRITE_QUERY"))
-          done
+          # zpool iostat reports ZFS-level bandwidth, bypassing ARC/TXG
+          # buffering that hides activity from block-layer iostat.
+          check_zpool() {
+            command -v zpool &>/dev/null || return 1
+            zpool iostat -Hpy 1 1 | awk -v t=${toString watcher.threshold} '
+              NF >= 7 && (($6+0)/1048576 > t || ($7+0)/1048576 > t) { hit=1; exit }
+              END { exit !hit }
+            '
+          }
 
-          sleep 1
+          check_iostat & ip=$!
+          check_zpool & zp=$!
 
-          i=0
-          for disk in "''${DISKS[@]}"
-          do
-            json="$(diskstats "$disk")"
-            current_read=($(echo "$json" | jq "$READ_QUERY"))
-            current_written=($(echo "$json" | jq "$WRITE_QUERY"))
-
-            READ_PER_SECOND=$(( current_read - read[i] ))
-            WRITE_PER_SECOND=$(( current_written - written[i] ))
-
-            if (( READ_PER_SECOND > DISK_THRESHOLD )) || (( WRITE_PER_SECOND > DISK_THRESHOLD )); then
-              printf true
-              exit
-            fi
-            ((i++))
-          done
-
-          printf false
+          hit=false
+          wait "$ip" && hit=true
+          wait "$zp" && hit=true
+          echo "$hit"
         '')
-
-        pkgs.jq
-        pkgs.sysstat
       ];
   }) cfg.users;
 }

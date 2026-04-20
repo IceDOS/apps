@@ -17,15 +17,20 @@ in
       in
       mkIf (watcher.enable) [
         (pkgs.writeShellScriptBin "network-watcher" ''
-          NETWORK_THRESHOLD=${toString (watcher.threshold)}
-          INTERFACE=$(ip route | head -n 1 | grep -oP 'dev \K\S+')
-          NETWORK_USAGE=($(awk '{if(l1){print ($2-l1),($10-l2)} else{l1=$2; l2=$10;}}' \
-              <(grep "$INTERFACE" /proc/net/dev) <(sleep 1; grep "$INTERFACE" /proc/net/dev)))
+          iface=$(ip -o route show default | awk '{for(i=1;i<=NF;i++)if($i=="dev"){print $(i+1); exit}}')
+          [[ -z "$iface" ]] && { echo false; exit; }
 
-          if (( NETWORK_USAGE[0] > NETWORK_THRESHOLD )) || (( NETWORK_USAGE[1] > NETWORK_THRESHOLD )); then
-            printf true
+          sample() { awk -v i="$iface:" '$1==i {print $2, $10; exit}' /proc/net/dev; }
+
+          read -r rx1 tx1 < <(sample)
+          sleep 1
+          read -r rx2 tx2 < <(sample)
+
+          t=${toString watcher.threshold}
+          if (( rx2 - rx1 > t || tx2 - tx1 > t )); then
+            echo true
           else
-            printf false
+            echo false
           fi
         '')
       ];
