@@ -52,6 +52,7 @@
                   in
                   lib.mkMerge [
                     {
+                      background_alpha = lib.mkForce 0;
                       battery = hasBattery;
                       battery_icon = hasBattery;
                       battery_time = hasBattery;
@@ -80,7 +81,6 @@
                     }
 
                     (lib.mkIf (!(config.stylix.enable or false)) {
-                      background_alpha = 0;
                       cpu_color = normalColor;
                       cpu_load_color = loadColors;
                       engine_color = normalColor;
