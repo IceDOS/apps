@@ -1,13 +1,16 @@
-{ icedosLib, lib, ... }:
+{ lib, ... }:
 
 {
   options.icedos.applications.protonvpn-cli.country =
     let
-      inherit (icedosLib) mkStrOption;
-      inherit (lib) readFile;
+      inherit (lib) mkOption readFile types;
       inherit ((fromTOML (readFile ./config.toml)).icedos.applications.protonvpn-cli) country;
     in
-    mkStrOption { default = country; };
+    mkOption {
+      type = types.nonEmptyStr;
+      default = country;
+      description = "Country code for Proton VPN (required).";
+    };
 
   outputs.nixosModules =
     { ... }:
@@ -61,12 +64,7 @@
                     nix_user_path="''${HOME}/.nix-profile/bin"
                     export PATH="''${base_path}:''${nix_system_path}:''${nix_user_path}:$PATH"
 
-                    protonvpn connect --country ${
-                      let
-                        inherit (icedosLib) abortIf;
-                      in
-                      if (abortIf (country == "") "protonvpn cli country option has to be set!") then country else ""
-                    }
+                    protonvpn connect --country ${country}
 
                   ''}/bin/protonvpn-service";
 
