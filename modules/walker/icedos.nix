@@ -42,8 +42,68 @@
                     (readFile "${pkgs.walker.src}/resources/config.toml");
 
                 ".config/walker/themes/theme/style.css".text =
-                  replaceStrings [ "1f1f28" "54546d" "f2ecbc" ] [ "1D1D20" "2E2E32" "EAEAEF" ]
-                    (readFile "${pkgs.walker.src}/resources/themes/default/style.css");
+                  let
+                    stylixOn = config.stylix.enable or false;
+                    colors = config.lib.stylix.colors or { };
+                    popups = config.stylix.fonts.sizes.popups or 10;
+
+                    accentSlot = config.icedos.desktop.stylix.accentBase16Slot or "base0D";
+                    accentHex = if stylixOn then colors.${accentSlot} else "CBA6F7";
+
+                    scaleFontSize = origPx: toString (builtins.floor ((origPx * 1.0 * popups / 12) + 0.5));
+
+                    fontTargets = [
+                      "font-size: 12px"
+                      "font-size: 24px"
+                      "font-size: 28px"
+                    ];
+
+                    colorTargets = [
+                      "1f1f28"
+                      "54546d"
+                      "f2ecbc"
+                    ];
+
+                    colorReplacements =
+                      if stylixOn then
+                        [
+                          colors.base00
+                          colors.base02
+                          colors.base05
+                        ]
+                      else
+                        [
+                          "1D1D20"
+                          "2E2E32"
+                          "EAEAEF"
+                        ];
+
+                    fontReplacements =
+                      if stylixOn then
+                        [
+                          "font-size: ${scaleFontSize 12}px"
+                          "font-size: ${scaleFontSize 24}px"
+                          "font-size: ${scaleFontSize 28}px"
+                        ]
+                      else
+                        fontTargets;
+
+                    baseCss = replaceStrings (colorTargets ++ fontTargets) (
+                      colorReplacements ++ fontReplacements
+                    ) (readFile "${pkgs.walker.src}/resources/themes/default/style.css");
+
+                    # Tint the search input with the stylix accent slot. Appended so it
+                    # overrides the upstream .input background (lighter(@window_bg_color)).
+                    accentOverride = ''
+
+                      @define-color icedos_accent_color #${accentHex};
+
+                      .input {
+                        background: alpha(@icedos_accent_color, 0.18);
+                      }
+                    '';
+                  in
+                  baseCss + accentOverride;
               };
 
               systemd.user.services.walker = {

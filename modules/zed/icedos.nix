@@ -105,58 +105,63 @@
               extraPackages = icedosLib.pkgMapper pkgs extraPackages;
               package = mkIf fhs zed-editor-fhs;
 
-              userSettings = {
-                inherit
-                  (
+              userSettings = lib.mkMerge [
+                {
+                  inherit
+                    (
+                      lsp
+                      // {
+                        lsp.nil.initialization_options.formatting.command = [ "nixfmt" ];
+                      }
+                      // {
+                        inherit languages;
+                      }
+                    )
                     lsp
-                    // {
-                      lsp.nil.initialization_options.formatting.command = [ "nixfmt" ];
-                    }
-                    // {
-                      inherit languages;
-                    }
-                  )
-                  lsp
-                  languages
-                  ;
+                    languages
+                    ;
 
-                auto_update = false;
-                autosave = if autosave then "on" else "off";
-                buffer_font_family = "JetBrainsMono Nerd Font";
-                buffer_font_size = fontSize;
-                collaboration_panel.button = false;
-                format_on_save = if formatOnSave then "on" else "off";
+                  auto_update = false;
+                  autosave = if autosave then "on" else "off";
+                  collaboration_panel.button = false;
+                  format_on_save = if formatOnSave then "on" else "off";
 
-                indent_guides = {
-                  enabled = true;
-                  coloring = "indent_aware";
-                };
-
-                inlay_hints.enabled = true;
-                journal.hour_format = "hour24";
-                notification_panel.button = false;
-                relative_line_numbers = "enabled";
-                show_whitespaces = "boundary";
-                tabs.git_status = true;
-
-                terminal = {
-                  blinking = "on";
-                  copy_on_select = true;
-                  font_family = "JetBrainsMono Nerd Font";
-                  font_size = fontSize;
-                };
-
-                theme =
-                  let
-                    inherit (theme) dark light mode;
-                  in
-                  {
-                    inherit dark light mode;
+                  indent_guides = {
+                    enabled = true;
+                    coloring = "indent_aware";
                   };
 
-                ui_font_size = fontSize + 2;
-                vim_mode = vim;
-              };
+                  inlay_hints.enabled = true;
+                  journal.hour_format = "hour24";
+                  notification_panel.button = false;
+                  relative_line_numbers = "enabled";
+                  show_whitespaces = "boundary";
+                  tabs.git_status = true;
+
+                  terminal = {
+                    blinking = "on";
+                    copy_on_select = true;
+                  };
+
+                  vim_mode = vim;
+                }
+
+                (mkIf (!(config.stylix.enable or false)) {
+                  buffer_font_family = "JetBrainsMono Nerd Font";
+                  buffer_font_size = fontSize;
+                  terminal.font_family = "JetBrainsMono Nerd Font";
+                  terminal.font_size = fontSize;
+                  ui_font_size = fontSize + 2;
+
+                  theme =
+                    let
+                      inherit (theme) dark light mode;
+                    in
+                    {
+                      inherit dark light mode;
+                    };
+                })
+              ];
             };
           }) users;
         }

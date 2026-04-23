@@ -23,7 +23,35 @@
 
         let
           inherit (config.icedos) applications users;
-          inherit (lib) mapAttrs;
+          inherit (lib) mapAttrs readFile replaceStrings;
+
+          stylixOn = config.stylix.enable or false;
+          stylixColors = config.lib.stylix.colors or { };
+
+          p10kColorTargets = [
+            "local red='#FF5C57'"
+            "local yellow='#F3F99D'"
+            "local blue='#57C7FF'"
+            "local magenta='#FF6AC1'"
+            "local cyan='#9AEDFE'"
+            "local white='#F1F1F0'"
+          ];
+
+          p10kColorReplacements =
+            if stylixOn then
+              [
+                "local red='#${stylixColors.base08}'"
+                "local yellow='#${stylixColors.base0A}'"
+                "local blue='#${stylixColors.base0D}'"
+                "local magenta='#${stylixColors.base0E}'"
+                "local cyan='#${stylixColors.base0C}'"
+                "local white='#${stylixColors.base07}'"
+              ]
+            else
+              p10kColorTargets;
+
+          p10kThemeText =
+            replaceStrings p10kColorTargets p10kColorReplacements (readFile ./p10k-theme.zsh);
         in
         {
           fonts.packages = with pkgs; [ meslo-lgs-nf ];
@@ -38,7 +66,7 @@
               ".config/zsh/p10k.zsh".source =
                 "${pkgs.zsh-powerlevel10k}/share/zsh-powerlevel10k/powerlevel10k.zsh-theme";
 
-              ".config/zsh/p10k-theme.zsh".source = ./p10k-theme.zsh;
+              ".config/zsh/p10k-theme.zsh".text = p10kThemeText;
             };
           }) users;
 

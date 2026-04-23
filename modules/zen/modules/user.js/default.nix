@@ -1,6 +1,5 @@
 {
   config,
-  icedosLib,
   lib,
   pkgs,
   ...
@@ -14,85 +13,73 @@ let
     ;
 
   cfg = config.icedos;
-
-  accentColor = icedosLib.generateAccentColor {
-    accentColor = cfg.desktop.accentColor;
-    gnomeAccentColor = cfg.desktop.gnome.accentColor;
-    hasGnome = lib.hasAttr "gnome" cfg.desktop;
-  };
-
   firefoxVersion = substring 0 5 pkgs.firefox.version;
   zen = cfg.applications.zen;
+
+  baseSettings = {
+    "browser.download.always_ask_before_handling_new_types" = false;
+    "browser.newtabpage.enabled" = false;
+    "browser.search.separatePrivateDefault" = false;
+    "browser.shell.checkDefaultBrowser" = false;
+    "browser.startup.homepage" = "chrome://browser/content/blanktab.html";
+    "browser.toolbars.bookmarks.visibility" = "always";
+    "dom.webgpu.enabled" = true;
+    "general.autoScroll" = true;
+    "general.useragent.override" = "Mozilla/5.0 (X11; Linux x86_64; rv:${firefoxVersion}) Gecko/${firefoxVersion} Firefox/${firefoxVersion}";
+    "media.videocontrols.picture-in-picture.video-toggle.enabled" = false;
+    "middlemouse.paste" = false;
+    "mousewheel.default.delta_multiplier_x" = 250;
+    "mousewheel.with_shift.delta_multiplier_y" = 250;
+    "toolkit.scrollbox.verticalScrollDistance" = 2;
+    "zen.splitView.change-on-hover" = true;
+    "zen.theme.color-prefs.amoled" = true;
+    "zen.theme.color-prefs.use-workspace-colors" = false;
+    "zen.urlbar.behavior" = "float";
+    "zen.view.compact" = true;
+    "zen.view.compact.hide-tabbar" = true;
+    "zen.view.compact.hide-toolbar" = true;
+    "zen.view.show-newtab-button-border-top" = false;
+    "zen.view.sidebar-expanded.on-hover" = false;
+    "zen.view.use-single-toolbar" = false;
+    "zen.welcome-screen.seen" = true;
+  };
+
+  nonPrivacySettings = {
+    "privacy.clearOnShutdown.downloads" = false;
+    "privacy.clearOnShutdown.history" = false;
+  };
+
+  privacySettings = {
+    "browser.startup.page" = 1;
+    "browser.urlbar.suggest.history" = false;
+    "browser.urlbar.suggest.recentsearches" = false;
+    "pref.privacy.disable_button.cookie_exceptions" = false;
+    "privacy.clearOnShutdown_v2.historyFormDataAndDownloads" = false;
+    "privacy.history.custom" = true;
+    "privacy.sanitize.sanitizeOnShutdown" = true;
+    "signon.management.page.breach-alerts.enabled" = false;
+    "signon.rememberSignons" = false;
+  };
+
+  pwaSettings = {
+    "browser.toolbars.bookmarks.visibility" = "never";
+    "zen.tab-unloader.enabled" = false;
+    "zen.view.sidebar-expanded" = false;
+    "zen.view.compact.hide-tabbar" = false;
+  };
+
+  profileSettings =
+    profile:
+    baseSettings
+    // (if profile.privacy then privacySettings else nonPrivacySettings)
+    // (if profile.pwa then pwaSettings else { });
 in
 {
-  home-manager.users = mapAttrs (user: _: {
-    home.file = listToAttrs (
+  home-manager.users = mapAttrs (_: _: {
+    programs.zen-browser.profiles = listToAttrs (
       map (profile: {
-        name = ".zen/${profile.exec}/user.js";
-
-        value = {
-          text =
-            let
-              userJs = ''
-                user_pref("browser.download.always_ask_before_handling_new_types", false);
-                user_pref("browser.newtabpage.enabled", false);
-                user_pref("browser.search.separatePrivateDefault", false);
-                user_pref("browser.shell.checkDefaultBrowser", false);
-                user_pref("browser.startup.homepage", "chrome://browser/content/blanktab.html");
-                user_pref("browser.toolbars.bookmarks.visibility", "always");
-                user_pref("dom.webgpu.enabled", true);
-                user_pref("general.autoScroll", true);
-                user_pref("general.useragent.override", "Mozilla/5.0 (X11; Linux x86_64; rv:${firefoxVersion}) Gecko/${firefoxVersion} Firefox/${firefoxVersion}");
-                user_pref("media.videocontrols.picture-in-picture.video-toggle.enabled", false);
-                user_pref("middlemouse.paste", false);
-                user_pref("mousewheel.default.delta_multiplier_x", 250);
-                user_pref("mousewheel.with_shift.delta_multiplier_y", 250);
-                user_pref("toolkit.scrollbox.verticalScrollDistance", 2);
-                user_pref("zen.splitView.change-on-hover", true);
-                user_pref("zen.theme.accent-color", "${accentColor}");
-                user_pref("zen.theme.color-prefs.amoled", true);
-                user_pref("zen.theme.color-prefs.use-workspace-colors", false);
-                user_pref("zen.urlbar.behavior", "float");
-                user_pref("zen.view.compact", true);
-                user_pref("zen.view.compact.hide-tabbar", true);
-                user_pref("zen.view.compact.hide-toolbar", true);
-                user_pref("zen.view.show-newtab-button-border-top", false);
-                user_pref("zen.view.sidebar-expanded.on-hover", false);
-                user_pref("zen.view.use-single-toolbar", false);
-                user_pref("zen.welcome-screen.seen", true);
-
-                ${
-                  if (!profile.privacy) then
-                    ''
-                      user_pref("privacy.clearOnShutdown.downloads", false);
-                      user_pref("privacy.clearOnShutdown.history", false);
-                    ''
-                  else
-                    ''
-                      user_pref("browser.startup.page", 1);
-                      user_pref("browser.urlbar.suggest.history", false);
-                      user_pref("browser.urlbar.suggest.recentsearches", false);
-                      user_pref("pref.privacy.disable_button.cookie_exceptions", false);
-                      user_pref("privacy.clearOnShutdown_v2.historyFormDataAndDownloads", false);
-                      user_pref("privacy.history.custom", true);
-                      user_pref("privacy.sanitize.sanitizeOnShutdown", true);
-                      user_pref("signon.management.page.breach-alerts.enabled", false);
-                      user_pref("signon.rememberSignons", false);
-                    ''
-                }
-              '';
-            in
-            if (!profile.pwa) then
-              userJs
-            else
-              userJs
-              + ''
-                user_pref("browser.toolbars.bookmarks.visibility", "never");
-                user_pref("zen.tab-unloader.enabled", false);
-                user_pref("zen.view.sidebar-expanded", false);
-                user_pref("zen.view.compact.hide-tabbar", false);
-              '';
-        };
+        name = profile.exec;
+        value.settings = profileSettings profile;
       }) zen.profiles
     );
   }) cfg.users;
