@@ -7,15 +7,18 @@
 
 let
   inherit (lib)
-    concatImapStrings
     filter
+    imap0
     listToAttrs
+    map
     mapAttrs
+    mkIf
     ;
 
   cfg = config.icedos;
-  profiles = filter (profile: profile.pwa) zen.profiles;
   zen = cfg.applications.zen;
+  pwaProfiles = filter (profile: profile.pwa) zen.profiles;
+  stylixOn = config.stylix.enable or false;
 in
 {
   environment.systemPackages = map (
@@ -23,9 +26,9 @@ in
     pkgs.writeShellScriptBin profile.exec ''
       zen-beta --no-remote -P ${profile.exec} --name "${profile.exec}" ${toString profile.sites}
     ''
-  ) profiles;
+  ) pwaProfiles;
 
-  home-manager.users = mapAttrs (user: _: {
+  home-manager.users = mapAttrs (_: _: {
     xdg.desktopEntries = listToAttrs (
       map (profile: {
         name = profile.exec;
@@ -37,26 +40,21 @@ in
           terminal = false;
           type = "Application";
         };
-      }) profiles
+      }) pwaProfiles
     );
 
-    home.file.".zen/profiles.ini" = {
-      text = ''
-        ${concatImapStrings (i: profile: ''
-          [Profile${toString (i - 1)}]
-          Name=${profile.exec}
-          IsRelative=1
-          Path=${profile.exec}
-          ZenAvatarPath=chrome://browser/content/zen-avatars/avatar-63.svg
-          Default=${if (profile.default) then "1" else "0"}
-        '') zen.profiles}
+    programs.zen-browser.profiles = listToAttrs (
+      imap0 (i: profile: {
+        name = profile.exec;
+        value = {
+          id = i;
+          name = profile.exec;
+          path = profile.exec;
+          isDefault = profile.default;
+        };
+      }) zen.profiles
+    );
 
-        [General]
-        StartWithLastProfile=1
-        Version=2
-      '';
-
-      force = true;
-    };
+    stylix.targets.zen-browser.profileNames = mkIf stylixOn (map (p: p.exec) zen.profiles);
   }) cfg.users;
 }
