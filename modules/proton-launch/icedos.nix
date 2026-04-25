@@ -60,6 +60,15 @@
               }
 
               ${
+                if (hasAttr "power-profiles-daemon" cfg.applications) then
+                  ''
+                    GAME_PERFORMANCE="${pkgs.systemd}/bin/systemd-inhibit --why proton-launch-game-performance ${pkgs.power-profiles-daemon}/bin/powerprofilesctl launch -p performance -r proton-launch-game-performance --"
+                  ''
+                else
+                  ""
+              }
+
+              ${
                 if hasAttr "monitors" cfg.hardware && (length cfg.hardware.monitors) != 0 then
                   let
                     monitor = head (cfg.hardware.monitors);
@@ -160,6 +169,17 @@
                     GAMEMODE=""
                     shift
                     ;;
+                    ${
+                      if (hasAttr "power-profiles-daemon" cfg.applications) then
+                        ''
+                          --no-game-performance)
+                            GAME_PERFORMANCE=""
+                            shift
+                            ;;
+                        ''
+                      else
+                        ""
+                    }
                   --no-mangohud)
                     MANGOHUD=""
                     MANGOAPP=""
@@ -219,7 +239,7 @@
 
               [[ "$MANGOAPP" != "" && "$GAMESCOPE" != "" ]] && MANGOHUD=""
 
-              $MANGOHUD $GAMEMODE $GAMESCOPE "''${COMMAND[@]}"
+              $GAME_PERFORMANCE $MANGOHUD $GAMEMODE $GAMESCOPE "''${COMMAND[@]}"
             ''
           );
         in
