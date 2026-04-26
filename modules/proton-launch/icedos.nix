@@ -36,17 +36,19 @@
 
           proton-launch = (
             pkgs.writeShellScriptBin "proton-launch" ''
-              LD_BIND_NOW=0
+              DXVK_CONFIG_OPTS=""
+              DXVK_LOG_LEVEL=warn
               PROTON_ENABLE_HIDRAW=0
               PROTON_ENABLE_WAYLAND=0
               PROTON_NO_ESYNC=0
               PROTON_PREFER_SDL=1
               PROTON_USE_WOW64=0
-              STAGING_SHARED_MEMORY=0
-              STAGING_WRITECOPY=0
               SteamDeck=0
-
+              VKD3D_CONFIG_OPTS=""
+              VKD3D_DEBUG=warn
               WINEDLLOVERRIDES="d3d12=n,b;dbghelp=n,b;dinput8=n,b;dsound=n,b;dwrite=n,b;dxgi=n,b;version=n,b;winhttp=n,b;wininet=n,b;winmm=n,b;$WINEDLLOVERRIDES"
+              WINEFSYNC=1
+              mesa_glthread=true
 
               ${
                 if (hasAttr "mangohud" cfg.applications) then
@@ -100,6 +102,11 @@
                     PROTON_FSR4_UPGRADE=1
                     shift
                     ;;
+                  --fsr4-watermark)
+                    FSR4_WATERMARK=1
+                    MLFG_WATERMARK=1
+                    shift
+                    ;;
                   --hdr)
                     PROTON_ENABLE_HDR=1
                     shift
@@ -144,21 +151,28 @@
 
                     shift 2
                     ;;
-                  --ld-bind-now)
-                    LD_BIND_NOW=1
-                    shift
+                  --lod-bias)
+                    DXVK_CONFIG_OPTS="''${DXVK_CONFIG_OPTS:+$DXVK_CONFIG_OPTS;}d3d11.samplerLodBias = $2;d3d9.samplerLodBias = $2"
+                    shift 2
+                    ;;
+                  --max-frame-latency)
+                    DXVK_CONFIG_OPTS="''${DXVK_CONFIG_OPTS:+$DXVK_CONFIG_OPTS;}dxgi.maxFrameLatency = $2"
+                    shift 2
                     ;;
                   --sdl-x11)
                     SDL_VIDEODRIVER="x11"
                     shift
                     ;;
-                  --staging-copy)
-                    STAGING_SHARED_MEMORY=1
-                    STAGING_WRITECOPY=1
+                  --shader-all-cores)
+                    DXVK_ALL_CORES=1
                     shift
                     ;;
                   --no-dll-overrides)
                     WINEDLLOVERRIDES=""
+                    shift
+                    ;;
+                  --no-dxr)
+                    VKD3D_CONFIG_OPTS="''${VKD3D_CONFIG_OPTS:+$VKD3D_CONFIG_OPTS,}nodxr"
                     shift
                     ;;
                   --no-esync)
@@ -180,6 +194,10 @@
                       else
                         ""
                     }
+                  --no-gpl)
+                    DXVK_CONFIG_OPTS="''${DXVK_CONFIG_OPTS:+$DXVK_CONFIG_OPTS;}dxvk.enableGraphicsPipelineLibrary = False"
+                    shift
+                    ;;
                   --no-mangohud)
                     MANGOHUD=""
                     MANGOAPP=""
@@ -191,6 +209,10 @@
                     ;;
                   --no-proton-sdl)
                     PROTON_PREFER_SDL=0
+                    shift
+                    ;;
+                  --no-rebar-upload)
+                    VKD3D_CONFIG_OPTS="''${VKD3D_CONFIG_OPTS:+$VKD3D_CONFIG_OPTS,}no_upload_hvv"
                     shift
                     ;;
                   --wayland)
@@ -219,9 +241,16 @@
 
               SCB_GAMESCOPE_ARGS="$DEFAULT_HEIGHT $DEFAULT_REFRESH_RATE $DEFAULT_WIDTH $GAMESCOPE_ARGS $MANGOAPP"
 
+              [ -n "$DXVK_CONFIG_OPTS" ] && DXVK_CONFIG="$DXVK_CONFIG_OPTS"
+              [ -n "$VKD3D_CONFIG_OPTS" ] && VKD3D_CONFIG="$VKD3D_CONFIG_OPTS"
+
               export \
+              DXVK_ALL_CORES \
+              DXVK_CONFIG \
               DXVK_FRAME_RATE \
-              LD_BIND_NOW \
+              DXVK_LOG_LEVEL \
+              FSR4_WATERMARK \
+              MLFG_WATERMARK \
               PROTON_ENABLE_HDR \
               PROTON_ENABLE_HIDRAW \
               PROTON_ENABLE_WAYLAND \
@@ -232,10 +261,12 @@
               PROTON_USE_WOW64 \
               SCB_GAMESCOPE_ARGS \
               SDL_VIDEODRIVER \
-              STAGING_SHARED_MEMORY \
-              STAGING_WRITECOPY \
               SteamDeck \
-              WINEDLLOVERRIDES
+              VKD3D_CONFIG \
+              VKD3D_DEBUG \
+              WINEDLLOVERRIDES \
+              WINEFSYNC \
+              mesa_glthread
 
               [[ "$MANGOAPP" != "" && "$GAMESCOPE" != "" ]] && MANGOHUD=""
 
