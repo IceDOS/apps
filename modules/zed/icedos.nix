@@ -138,10 +138,18 @@
                   show_whitespaces = "boundary";
                   tabs.git_status = true;
 
-                  terminal = {
-                    blinking = "on";
-                    copy_on_select = true;
-                  };
+                  terminal =
+                    let
+                      stylixOn = config.stylix.enable or false;
+                    in
+                    {
+                      blinking = "on";
+                      copy_on_select = true;
+                      font_family =
+                        if stylixOn then config.stylix.fonts.monospace.name else "JetBrainsMono Nerd Font";
+                      font_size =
+                        if stylixOn then (config.stylix.fonts.sizes.terminal or 12) else fontSize;
+                    };
 
                   vim_mode = vim;
                 }
@@ -149,8 +157,6 @@
                 (mkIf (!(config.stylix.enable or false)) {
                   buffer_font_family = "JetBrainsMono Nerd Font";
                   buffer_font_size = fontSize;
-                  terminal.font_family = "JetBrainsMono Nerd Font";
-                  terminal.font_size = fontSize;
                   ui_font_size = fontSize + 2;
 
                   theme =
