@@ -50,8 +50,7 @@
             else
               p10kColorTargets;
 
-          p10kThemeText =
-            replaceStrings p10kColorTargets p10kColorReplacements (readFile ./p10k-theme.zsh);
+          p10kThemeText = replaceStrings p10kColorTargets p10kColorReplacements (readFile ./p10k-theme.zsh);
         in
         {
           fonts.packages = with pkgs; [ meslo-lgs-nf ];

@@ -88,9 +88,9 @@
                       else
                         fontTargets;
 
-                    baseCss = replaceStrings (colorTargets ++ fontTargets) (
-                      colorReplacements ++ fontReplacements
-                    ) (readFile "${pkgs.walker.src}/resources/themes/default/style.css");
+                    baseCss = replaceStrings (colorTargets ++ fontTargets) (colorReplacements ++ fontReplacements) (
+                      readFile "${pkgs.walker.src}/resources/themes/default/style.css"
+                    );
 
                     # Tint the search input with the stylix accent slot. Appended so it
                     # overrides the upstream .input background (lighter(@window_bg_color)).
