@@ -29,6 +29,12 @@
 
         let
           inherit (lib) mapAttrs;
+          inherit (icedosLib)
+            greenString
+            purpleString
+            redString
+            yellowString
+            ;
           cfg = config.icedos;
           users = cfg.applications.git.users;
         in
@@ -53,25 +59,16 @@
               command = "extract-commit";
 
               script = ''
-                GREEN='\e[32m'
-                PURPLE='\e[35m'
-                RED='\e[31m'
-                YELLOW='\e[33m'
-                NO_COLOR='\e[0m'
-
-                function coloredString() {
-                  echo -e "$1$2$NO_COLOR"
-                }
-
-                COMMIT_ARG_COLORED=$(coloredString $YELLOW "-c|--commit")
-                DESTINATION_ARG_COLORED=$(coloredString $YELLOW "-d|--destination")
+                COMMIT_ARG="${yellowString "-c|--commit"}"
+                DESTINATION_ARG="${yellowString "-d|--destination"}"
+                ERROR="${redString "error"}"
 
                 function printHelp() {
                   echo "Available arguments:"
-                  echo -e "> $COMMIT_ARG_COLORED: commit hash from which a file list will be generated"
-                  echo -e "> $DESTINATION_ARG_COLORED: path to copy generated file list to"
-                  echo -e "> $(coloredString $PURPLE "--fetch-files-from-commit"): fetch files content from commit, instead of current tree"
-                  echo -e "\n($(coloredString $GREEN !)) Yellow-colored arguments are required"
+                  echo -e "> $COMMIT_ARG: commit hash from which a file list will be generated"
+                  echo -e "> $DESTINATION_ARG: path to copy generated file list to"
+                  echo -e "> ${purpleString "--fetch-files-from-commit"}: fetch files content from commit, instead of current tree"
+                  echo -e "\n(${greenString "!"}) Yellow-colored arguments are required"
                 }
 
                 if [[ $# -le 1 ]]; then
@@ -94,20 +91,18 @@
                       shift
                       ;;
                     *)
-                      echo -e "$(coloredString $RED "error"): unknown arg \"$1\" \n"
+                      echo -e "$ERROR: unknown arg \"$1\" \n"
                       printHelp
                       exit 1
                   esac
                 done
 
-                ERROR_COLORED=$(coloredString $RED error)
-
-                [ "$COMMIT" == "" ] && echo -e "$ERROR_COLORED: $COMMIT_ARG_COLORED required" && exit 1
-                [ "$DESTINATION" == "" ] && echo -e "$ERROR_COLORED: $DESTINATION_ARG_COLORED required" && exit 1
+                [ "$COMMIT" == "" ] && echo -e "$ERROR: $COMMIT_ARG required" && exit 1
+                [ "$DESTINATION" == "" ] && echo -e "$ERROR: $DESTINATION_ARG required" && exit 1
 
                 FILES_TO_EXTRACT=$(git diff-tree --no-commit-id --name-only -r "$COMMIT" 2>/dev/null)
 
-                [ -z "''${FILES_TO_EXTRACT[@]}" ] && echo -e "$ERROR_COLORED: no files to extract, make sure the commit hash is correct and not empty" && exit 1
+                [ -z "''${FILES_TO_EXTRACT[@]}" ] && echo -e "$ERROR: no files to extract, make sure the commit hash is correct and not empty" && exit 1
 
                 mkdir -p "$DESTINATION"
 
@@ -123,7 +118,7 @@
                       ;;
                     *)
                       if [[ ! -e "$file" ]]; then
-                        echo -e "$ERROR_COLORED: failed to copy \"$file\", file is not present in current structure"
+                        echo -e "$ERROR: failed to copy \"$file\", file is not present in current structure"
                         continue
                       fi
 
