@@ -30,7 +30,8 @@
         let
           inherit (lib) mapAttrs;
           inherit (icedosLib)
-            greenString
+            dimGreenString
+            dimYellowString
             purpleString
             redString
             yellowString
@@ -59,16 +60,14 @@
               command = "extract-commit";
 
               script = ''
-                COMMIT_ARG="${yellowString "-c|--commit"}"
-                DESTINATION_ARG="${yellowString "-d|--destination"}"
                 ERROR="${redString "error"}"
 
                 function printHelp() {
                   echo "Available arguments:"
-                  echo -e "> $COMMIT_ARG: commit hash from which a file list will be generated"
-                  echo -e "> $DESTINATION_ARG: path to copy generated file list to"
+                  echo -e "> ${yellowString "-c|--commit"}: commit hash from which a file list will be generated"
+                  echo -e "> ${yellowString "-d|--destination"}: path to copy generated file list to"
                   echo -e "> ${purpleString "--fetch-files-from-commit"}: fetch files content from commit, instead of current tree"
-                  echo -e "\n(${greenString "!"}) Yellow-colored arguments are required"
+                  echo -e "\n(${dimGreenString "!"}) Yellow-colored arguments are required"
                 }
 
                 if [[ $# -le 1 ]]; then
@@ -97,8 +96,8 @@
                   esac
                 done
 
-                [ "$COMMIT" == "" ] && echo -e "$ERROR: $COMMIT_ARG required" && exit 1
-                [ "$DESTINATION" == "" ] && echo -e "$ERROR: $DESTINATION_ARG required" && exit 1
+                [ "$COMMIT" == "" ] && echo -e "$ERROR: ${dimYellowString "-c|--commit"} required" && exit 1
+                [ "$DESTINATION" == "" ] && echo -e "$ERROR: ${dimYellowString "-d|--destination"} required" && exit 1
 
                 FILES_TO_EXTRACT=$(git diff-tree --no-commit-id --name-only -r "$COMMIT" 2>/dev/null)
 

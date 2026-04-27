@@ -145,10 +145,8 @@
                     {
                       blinking = "on";
                       copy_on_select = true;
-                      font_family =
-                        if stylixOn then config.stylix.fonts.monospace.name else "JetBrainsMono Nerd Font";
-                      font_size =
-                        if stylixOn then (config.stylix.fonts.sizes.terminal or 12) else fontSize;
+                      font_family = if stylixOn then config.stylix.fonts.monospace.name else "JetBrainsMono Nerd Font";
+                      font_size = if stylixOn then (config.stylix.fonts.sizes.terminal or 12) else fontSize;
                     };
 
                   vim_mode = vim;

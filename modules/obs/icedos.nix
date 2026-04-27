@@ -19,7 +19,13 @@
     { ... }:
     [
       (
-        { config, icedosLib, pkgs, ... }:
+        {
+          config,
+          icedosLib,
+          pkgs,
+          ...
+        }:
+
         {
           programs.obs-studio =
             let

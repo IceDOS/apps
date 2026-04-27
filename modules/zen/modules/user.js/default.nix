@@ -25,7 +25,10 @@ let
     "browser.toolbars.bookmarks.visibility" = "always";
     "dom.webgpu.enabled" = true;
     "general.autoScroll" = true;
-    "general.useragent.override" = "Mozilla/5.0 (X11; Linux x86_64; rv:${firefoxVersion}) Gecko/${firefoxVersion} Firefox/${firefoxVersion}";
+
+    "general.useragent.override" =
+      "Mozilla/5.0 (X11; Linux x86_64; rv:${firefoxVersion}) Gecko/${firefoxVersion} Firefox/${firefoxVersion}";
+
     "media.videocontrols.picture-in-picture.video-toggle.enabled" = false;
     "middlemouse.paste" = false;
     "mousewheel.default.delta_multiplier_x" = 250;
