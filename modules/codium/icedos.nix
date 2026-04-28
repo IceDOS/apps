@@ -40,6 +40,7 @@
       (
         {
           config,
+          icedosLib,
           lib,
           pkgs,
           ...
@@ -51,6 +52,10 @@
           osConfig = config;
         in
         {
+          icedos.applications.codium.users = icedosLib.genUserDefaults {
+            users = config.icedos.users;
+          };
+
           environment.variables.EDITOR = mkIf (
             cfg.applications.defaultEditor == "codium.desktop"
           ) "codium -n -w";
@@ -166,7 +171,7 @@
                         fontSize = codium.fontSize;
                       };
                       terminal.integrated.fontSize = codium.fontSize;
-                      workbench.colorTheme = codium.colorTheme;
+                      workbench.colorTheme = mkIf (codium.colorTheme != "") codium.colorTheme;
                     })
                   ];
                 };

@@ -30,6 +30,7 @@
           inherit (icedosLib)
             dimGreenString
             dimYellowString
+            genUserDefaults
             purpleString
             redString
             yellowString
@@ -38,10 +39,16 @@
           users = config.icedos.applications.git.users;
         in
         {
+          icedos.applications.git.users = genUserDefaults {
+            users = config.icedos.users;
+          };
+
           home-manager.sharedModules = [
             (
               { config, ... }:
-
+              let
+                gitUser = users.${config.home.username};
+              in
               {
                 home.packages = [ pkgs.lazygit ];
 
@@ -49,8 +56,8 @@
                   enable = true;
 
                   settings = {
-                    user.email = users.${config.home.username}.email;
-                    user.name = users.${config.home.username}.username;
+                    user.email = lib.mkIf (gitUser.email != "") gitUser.email;
+                    user.name = lib.mkIf (gitUser.username != "") gitUser.username;
                   };
 
                   signing.format = null; # Fallback for system version lower than 25.05
