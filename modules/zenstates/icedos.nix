@@ -3,7 +3,8 @@
 {
   options.icedos.applications.zenstates.serviceArgs =
     let
-      inherit ((fromTOML (lib.readFile ./config.toml)).icedos.applications.zenstates) serviceArgs;
+      inherit (lib) readFile;
+      inherit ((fromTOML (readFile ./config.toml)).icedos.applications.zenstates) serviceArgs;
     in
     icedosLib.mkStrOption { default = serviceArgs; };
 

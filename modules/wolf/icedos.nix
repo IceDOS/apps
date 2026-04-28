@@ -119,7 +119,7 @@
           systemd.services.docker-wolf.preStart =
             let
               inherit (builtins) attrNames readDir toJSON;
-              inherit (icedosLib) getNormalUsers;
+              inherit (icedosLib.users) getNormal;
               inherit (lib) concatStringsSep flatten makeBinPath;
               inherit (wolf) extraPackages extraVolumes stateFolder;
 
@@ -149,7 +149,7 @@
                     in
                     "${home}/.nix-profile/bin:/host-apps/${name}:ro"
                   )
-                  (getNormalUsers {
+                  (getNormal {
                     inherit (config.users) users;
                   });
 

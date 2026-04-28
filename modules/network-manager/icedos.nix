@@ -3,7 +3,9 @@
 {
   options.icedos.applications.network-manager.applet =
     let
-      inherit ((fromTOML (lib.readFile ./config.toml)).icedos.applications.network-manager)
+      inherit (lib) readFile;
+
+      inherit ((fromTOML (readFile ./config.toml)).icedos.applications.network-manager)
         applet
         ;
     in

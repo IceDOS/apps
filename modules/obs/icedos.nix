@@ -3,9 +3,10 @@
 {
   options.icedos.applications.obs =
     let
+      inherit (lib) readFile;
       inherit (icedosLib) mkBoolOption mkStrListOption;
 
-      inherit ((fromTOML (lib.readFile ./config.toml)).icedos.applications.obs)
+      inherit ((fromTOML (readFile ./config.toml)).icedos.applications.obs)
         plugins
         virtualCamera
         ;
@@ -29,13 +30,13 @@
         {
           programs.obs-studio =
             let
-              inherit (icedosLib) pkgMapper;
+              inherit (icedosLib.pkgs) mapper;
               obs = config.icedos.applications.obs;
             in
             {
               enable = true;
               enableVirtualCamera = obs.virtualCamera;
-              plugins = pkgMapper pkgs obs.plugins;
+              plugins = mapper pkgs obs.plugins;
             };
         }
       )

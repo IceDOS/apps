@@ -3,7 +3,8 @@
 {
   options.icedos.applications.wg-quick.interfaces =
     let
-      inherit ((fromTOML (lib.readFile ./config.toml)).icedos.applications.wg-quick) interfaces;
+      inherit (lib) readFile;
+      inherit ((fromTOML (readFile ./config.toml)).icedos.applications.wg-quick) interfaces;
     in
     icedosLib.mkStrListOption { default = interfaces; };
 
@@ -14,12 +15,12 @@
         {
           config,
           lib,
-          pkgs,
           ...
         }:
 
         let
           inherit (lib) listToAttrs;
+          inherit (icedosLib.bash) genHelpFlags;
           interfaces = config.icedos.applications.wg-quick.interfaces;
         in
         {
@@ -38,13 +39,12 @@
               command = "wg-config";
 
               script = ''
+                if [[ ${genHelpFlags { }} ]]; then
+                  die "provide config file location as an argument"
+                fi
+
                 sudo bash -c '
                   set -e
-
-                  if [[ "$1" == "" ]]; then
-                    echo "error: provide config file location as an argument"
-                    exit 1
-                  fi
 
                   newFile="/etc/wireguard/''$(basename "$1")"
 

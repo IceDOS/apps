@@ -45,7 +45,7 @@
               unzip # An extraction utility
               wget # Terminal downloader
             ]
-            ++ (icedosLib.pkgMapper pkgs cfg.applications.extraPackages);
+            ++ (icedosLib.pkgs.mapper pkgs cfg.applications.extraPackages);
 
           nixpkgs.config.permittedInsecurePackages = cfg.applications.insecurePackages;
           programs.nano.enable = false;

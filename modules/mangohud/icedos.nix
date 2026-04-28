@@ -4,8 +4,9 @@
   options.icedos.applications.mangohud =
     let
       inherit (icedosLib) mkNumberOption mkStrOption;
+      inherit (lib) readFile;
 
-      inherit ((fromTOML (lib.readFile ./config.toml)).icedos.applications.mangohud)
+      inherit ((fromTOML (readFile ./config.toml)).icedos.applications.mangohud)
         fontSize
         fpsLimit
         position
@@ -28,13 +29,14 @@
         }:
 
         let
+          inherit (lib) hasAttr;
           cfg = config.icedos;
         in
         {
           home-manager.sharedModules = [
             (
               let
-                steamdeck = lib.hasAttr "steamdeck" cfg.hardware.devices;
+                steamdeck = hasAttr "steamdeck" cfg.hardware.devices;
               in
               {
                 programs.mangohud = {
@@ -42,6 +44,7 @@
 
                   settings =
                     let
+                      inherit (lib) mkMerge mkForce mkIf;
                       hasBattery = cfg.hardware.devices.laptop || steamdeck;
                       mangohud = cfg.applications.mangohud;
                       normalColor = "F9F9F9";
@@ -49,9 +52,9 @@
                       reversedLoadColors = "DC6A73,D09965,${normalColor}";
                       loadValues = "70,90";
                     in
-                    lib.mkMerge [
+                    mkMerge [
                       {
-                        background_alpha = lib.mkForce 0;
+                        background_alpha = mkForce 0;
                         battery = hasBattery;
                         battery_icon = hasBattery;
                         battery_time = hasBattery;
@@ -79,7 +82,7 @@
                         vsync = 1;
                       }
 
-                      (lib.mkIf (!(config.stylix.enable or false)) {
+                      (mkIf (!(config.stylix.enable or false)) {
                         cpu_color = normalColor;
                         cpu_load_color = loadColors;
                         engine_color = normalColor;

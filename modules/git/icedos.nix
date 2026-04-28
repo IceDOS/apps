@@ -27,10 +27,10 @@
         }:
 
         let
-          inherit (icedosLib)
+          inherit (icedosLib.users) genDefaults;
+          inherit (icedosLib.bash)
             dimGreenString
             dimYellowString
-            genUserDefaults
             purpleString
             redString
             yellowString
@@ -39,7 +39,7 @@
           users = config.icedos.applications.git.users;
         in
         {
-          icedos.applications.git.users = genUserDefaults {
+          icedos.applications.git.users = genDefaults {
             users = config.icedos.users;
           };
 
@@ -55,10 +55,14 @@
                 programs.git = {
                   enable = true;
 
-                  settings = {
-                    user.email = lib.mkIf (gitUser.email != "") gitUser.email;
-                    user.name = lib.mkIf (gitUser.username != "") gitUser.username;
-                  };
+                  settings =
+                    let
+                      inherit (lib) mkIf;
+                    in
+                    {
+                      user.email = mkIf (gitUser.email != "") gitUser.email;
+                      user.name = mkIf (gitUser.username != "") gitUser.username;
+                    };
 
                   signing.format = null; # Fallback for system version lower than 25.05
                 };
@@ -75,8 +79,8 @@
 
                 function printHelp() {
                   echo "Available arguments:"
-                  echo -e "> ${yellowString "-c|--commit"}: commit hash from which a file list will be generated"
-                  echo -e "> ${yellowString "-d|--destination"}: path to copy generated file list to"
+                  echo -e "> ${yellowString "-c, --commit"}: commit hash from which a file list will be generated"
+                  echo -e "> ${yellowString "-d, --destination"}: path to copy generated file list to"
                   echo -e "> ${purpleString "--fetch-files-from-commit"}: fetch files content from commit, instead of current tree"
                   echo -e "\n(${dimGreenString "!"}) Yellow-colored arguments are required"
                 }

@@ -3,14 +3,17 @@
 {
   options.icedos.applications.docker =
     let
-      inherit ((fromTOML (lib.fileContents ./config.toml)).icedos.applications.docker)
+      inherit (icedosLib) mkBoolOption;
+      inherit (lib) readFile mkOption;
+
+      inherit ((fromTOML (readFile ./config.toml)).icedos.applications.docker)
         daemonSettings
         requireSudo
         ;
     in
     {
-      daemonSettings = lib.mkOption { default = daemonSettings; };
-      requireSudo = icedosLib.mkBoolOption { default = requireSudo; };
+      daemonSettings = mkOption { default = daemonSettings; };
+      requireSudo = mkBoolOption { default = requireSudo; };
     };
 
   outputs.nixosModules =

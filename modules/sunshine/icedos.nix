@@ -3,7 +3,9 @@
 {
   options.icedos.applications.sunshine.autoStart =
     let
-      inherit ((fromTOML (lib.readFile ./config.toml)).icedos.applications.sunshine)
+      inherit (lib) readFile;
+
+      inherit ((fromTOML (readFile ./config.toml)).icedos.applications.sunshine)
         autoStart
         ;
     in

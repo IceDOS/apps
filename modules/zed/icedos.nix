@@ -7,7 +7,7 @@
 {
   options.icedos.applications.zed =
     let
-      inherit (lib) mkOption;
+      inherit (lib) mkOption readFile;
 
       inherit (icedosLib)
         mkBoolOption
@@ -16,7 +16,7 @@
         mkStrOption
         ;
 
-      inherit ((fromTOML (lib.fileContents ./config.toml)).icedos.applications.zed)
+      inherit ((fromTOML (readFile ./config.toml)).icedos.applications.zed)
         autosave
         extensions
         extraPackages
@@ -78,7 +78,7 @@
             vim
             ;
 
-          inherit (lib) mkIf;
+          inherit (lib) mkIf mkMerge;
           inherit (pkgs) nil nixd zed-editor-fhs;
         in
         {
@@ -102,10 +102,10 @@
                   "toml"
                 ];
 
-                extraPackages = icedosLib.pkgMapper pkgs extraPackages;
+                extraPackages = icedosLib.pkgs.mapper pkgs extraPackages;
                 package = mkIf fhs zed-editor-fhs;
 
-                userSettings = lib.mkMerge [
+                userSettings = mkMerge [
                   {
                     inherit
                       (

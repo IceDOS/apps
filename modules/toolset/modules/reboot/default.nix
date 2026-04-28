@@ -14,8 +14,7 @@
             systemctl reboot --firmware-setup -i
             ;;
           *)
-            echo "Unknown arg: $1" >&2
-            exit 1
+            die "unknown arg: $1"
             ;;
         esac
       '';

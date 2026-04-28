@@ -14,7 +14,9 @@
         mkSubmoduleAttrsOption
         ;
 
-      inherit ((fromTOML (lib.readFile ./config.toml)).icedos.applications.codium.users.username)
+      inherit (lib) readFile;
+
+      inherit ((fromTOML (readFile ./config.toml)).icedos.applications.codium.users.username)
         autoSave
         colorTheme
         fontSize
@@ -46,13 +48,13 @@
           ...
         }:
         let
-          inherit (lib) mkIf;
+          inherit (lib) mkIf mkMerge;
 
           cfg = config.icedos;
           osConfig = config;
         in
         {
-          icedos.applications.codium.users = icedosLib.genUserDefaults {
+          icedos.applications.codium.users = icedosLib.users.genDefaults {
             users = config.icedos.users;
           };
 
@@ -92,7 +94,7 @@
                     vscode-extensions.zhuangtongfa.material-theme
                   ];
 
-                  profiles.default.userSettings = lib.mkMerge [
+                  profiles.default.userSettings = mkMerge [
                     {
                       "[css]".editor.defaultFormatter = "esbenp.prettier-vscode";
                       "[javascript]".editor.defaultFormatter = "esbenp.prettier-vscode";
