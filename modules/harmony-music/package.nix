@@ -86,7 +86,7 @@ stdenvNoCC.mkDerivation (
       echo "
         export LD_LIBRARY_PATH=${mpv}/lib
         export PATH=$PATH:${xdg-user-dirs}/bin
-        exec ${harmonyMusicBin} $@
+        exec ${harmonyMusicBin} \"\$@\"
       " > ${harmonyMusicWrapper}
 
       chmod +x ${harmonyMusicWrapper}

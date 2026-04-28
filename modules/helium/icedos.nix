@@ -69,7 +69,7 @@
             mkdir -p $out/bin
 
             echo '#!/bin/sh' > $out/bin/helium
-            echo "${helium}/bin/helium ${flags} \$@" >> $out/bin/helium
+            echo "${helium}/bin/helium ${flags} \"\$@\"" >> $out/bin/helium
             chmod +x $out/bin/helium
 
             ln -s ${helium}/share $out
