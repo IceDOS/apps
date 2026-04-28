@@ -25,26 +25,22 @@
         let
           cfg = config.icedos;
 
-          inherit (cfg) applications users;
-          inherit (applications.protonvpn-cli) country;
+          inherit (cfg.applications.protonvpn-cli) country;
 
           inherit (lib)
             hasAttr
-            mapAttrs
             optional
             ;
+
+          generateTargetArray =
+            base:
+            base
+            ++ optional (hasAttr "desktop" cfg && hasAttr "cosmic" cfg.desktop) "cosmic-session.target"
+            ++ optional (hasAttr "desktop" cfg && hasAttr "gnome" cfg.desktop) "gnome-session.target"
+            ++ optional (hasAttr "desktop" cfg && hasAttr "hyprland" cfg.desktop) "hyprland-session.target";
         in
         {
-          home-manager.users = mapAttrs (
-            user: _:
-            let
-              generateTargetArray =
-                base:
-                base
-                ++ optional (hasAttr "desktop" cfg && hasAttr "cosmic" cfg.desktop) "cosmic-session.target"
-                ++ optional (hasAttr "desktop" cfg && hasAttr "gnome" cfg.desktop) "gnome-session.target"
-                ++ optional (hasAttr "desktop" cfg && hasAttr "hyprland" cfg.desktop) "hyprland-session.target";
-            in
+          home-manager.sharedModules = [
             {
               systemd.user.services.protonvpn-cli = {
                 Unit = {
@@ -73,7 +69,7 @@
                 };
               };
             }
-          ) users;
+          ];
 
           environment.systemPackages = [ pkgs.proton-vpn-cli ];
         }

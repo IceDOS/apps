@@ -45,134 +45,134 @@
           ...
         }:
         let
-          inherit (lib)
-            mapAttrs
-            mkIf
-            ;
+          inherit (lib) mkIf;
 
           cfg = config.icedos;
-          users = cfg.users;
+          osConfig = config;
         in
         {
           environment.variables.EDITOR = mkIf (
             cfg.applications.defaultEditor == "codium.desktop"
           ) "codium -n -w";
 
-          home-manager.users = mapAttrs (
-            user: _:
-            let
-              codium = cfg.applications.codium.users.${user};
-            in
-            {
-              programs.vscode = {
-                enable = true;
-                profiles.default.enableExtensionUpdateCheck = true;
-                profiles.default.enableUpdateCheck = false;
-                package = pkgs.vscodium;
+          home-manager.sharedModules = [
+            (
+              { config, ... }:
 
-                profiles.default.extensions = with pkgs; [
-                  vscode-extensions.codezombiech.gitignore
-                  vscode-extensions.dbaeumer.vscode-eslint
-                  vscode-extensions.donjayamanne.githistory
-                  vscode-extensions.eamodio.gitlens
-                  vscode-extensions.editorconfig.editorconfig
-                  vscode-extensions.esbenp.prettier-vscode
-                  vscode-extensions.fabiospampinato.vscode-open-in-github
-                  vscode-extensions.formulahendry.auto-close-tag
-                  vscode-extensions.formulahendry.code-runner
-                  vscode-extensions.gruntfuggly.todo-tree
-                  vscode-extensions.jnoortheen.nix-ide
-                  vscode-extensions.pkief.material-icon-theme
-                  vscode-extensions.tamasfe.even-better-toml
-                  vscode-extensions.timonwong.shellcheck
-                  vscode-extensions.zhuangtongfa.material-theme
-                ];
+              let
+                codium = cfg.applications.codium.users.${config.home.username};
+              in
+              {
+                programs.vscode = {
+                  enable = true;
+                  profiles.default.enableExtensionUpdateCheck = true;
+                  profiles.default.enableUpdateCheck = false;
+                  package = pkgs.vscodium;
 
-                profiles.default.userSettings = lib.mkMerge [
-                  {
-                    "[css]".editor.defaultFormatter = "esbenp.prettier-vscode";
-                    "[javascript]".editor.defaultFormatter = "esbenp.prettier-vscode";
-                    "[typescript]".editor.defaultFormatter = "esbenp.prettier-vscode";
-                    "[typescriptreact]".editor.defaultFormatter = "esbenp.prettier-vscode";
-                    diffEditor.ignoreTrimWhitespace = false;
+                  profiles.default.extensions = with pkgs; [
+                    vscode-extensions.codezombiech.gitignore
+                    vscode-extensions.dbaeumer.vscode-eslint
+                    vscode-extensions.donjayamanne.githistory
+                    vscode-extensions.eamodio.gitlens
+                    vscode-extensions.editorconfig.editorconfig
+                    vscode-extensions.esbenp.prettier-vscode
+                    vscode-extensions.fabiospampinato.vscode-open-in-github
+                    vscode-extensions.formulahendry.auto-close-tag
+                    vscode-extensions.formulahendry.code-runner
+                    vscode-extensions.gruntfuggly.todo-tree
+                    vscode-extensions.jnoortheen.nix-ide
+                    vscode-extensions.pkief.material-icon-theme
+                    vscode-extensions.tamasfe.even-better-toml
+                    vscode-extensions.timonwong.shellcheck
+                    vscode-extensions.zhuangtongfa.material-theme
+                  ];
 
-                    editor = {
-                      fontLigatures = true;
-                      formatOnPaste = codium.formatOnPaste;
-                      formatOnSave = codium.formatOnSave;
-                      minimap.enabled = false;
-                      renderWhitespace = "trailing";
-                      smoothScrolling = true;
-                      tabSize = 2;
-                    };
+                  profiles.default.userSettings = lib.mkMerge [
+                    {
+                      "[css]".editor.defaultFormatter = "esbenp.prettier-vscode";
+                      "[javascript]".editor.defaultFormatter = "esbenp.prettier-vscode";
+                      "[typescript]".editor.defaultFormatter = "esbenp.prettier-vscode";
+                      "[typescriptreact]".editor.defaultFormatter = "esbenp.prettier-vscode";
+                      diffEditor.ignoreTrimWhitespace = false;
 
-                    evenBetterToml.formatter.alignComments = false;
-
-                    files = {
-                      associations."*.css" = "tailwindcss";
-                      autoSave = codium.autoSave;
-                      insertFinalNewline = true;
-                      trimFinalNewlines = true;
-                      trimTrailingWhitespace = true;
-                    };
-
-                    git = {
-                      autofetch = true;
-                      confirmSync = false;
-                    };
-
-                    gitlens = {
-                      codeLens.enabled = false;
-                      defaultDateFormat = "YYYY-MM-DD HH:mm";
-                      defaultDateLocale = "system";
-                      defaultDateShortFormat = "YYYY-M-D";
-                      defaultTimeFormat = "HH:mm";
-                      statusBar.enabled = false;
-
-                      views.repositories = {
-                        showContributors = false;
-                        showStashes = true;
-                        showTags = false;
-                        showWorktrees = false;
+                      editor = {
+                        fontLigatures = true;
+                        formatOnPaste = codium.formatOnPaste;
+                        formatOnSave = codium.formatOnSave;
+                        minimap.enabled = false;
+                        renderWhitespace = "trailing";
+                        smoothScrolling = true;
+                        tabSize = 2;
                       };
-                    };
 
-                    nix.formatterPath = "nixfmt";
-                    scm.showHistoryGraph = false;
+                      evenBetterToml.formatter.alignComments = false;
 
-                    terminal.integrated = {
-                      cursorBlinking = true;
-                      cursorStyle = "line";
-                      smoothScrolling = true;
-                    };
+                      files = {
+                        associations."*.css" = "tailwindcss";
+                        autoSave = codium.autoSave;
+                        insertFinalNewline = true;
+                        trimFinalNewlines = true;
+                        trimTrailingWhitespace = true;
+                      };
 
-                    update.mode = "none";
+                      git = {
+                        autofetch = true;
+                        confirmSync = false;
+                      };
 
-                    window = {
-                      menuBarVisibility = "toggle";
-                      zoomLevel = codium.zoomLevel;
-                    };
+                      gitlens = {
+                        codeLens.enabled = false;
+                        defaultDateFormat = "YYYY-MM-DD HH:mm";
+                        defaultDateLocale = "system";
+                        defaultDateShortFormat = "YYYY-M-D";
+                        defaultTimeFormat = "HH:mm";
+                        statusBar.enabled = false;
 
-                    workbench = {
-                      iconTheme = "material-icon-theme";
-                      list.smoothScrolling = true;
-                      startupEditor = "none";
-                      tips.enabled = false;
-                    };
-                  }
+                        views.repositories = {
+                          showContributors = false;
+                          showStashes = true;
+                          showTags = false;
+                          showWorktrees = false;
+                        };
+                      };
 
-                  (mkIf (!(config.stylix.enable or false)) {
-                    editor = {
-                      fontFamily = "'JetBrainsMono Nerd Font', 'Droid Sans Mono', 'monospace', monospace";
-                      fontSize = codium.fontSize;
-                    };
-                    terminal.integrated.fontSize = codium.fontSize;
-                    workbench.colorTheme = codium.colorTheme;
-                  })
-                ];
-              };
-            }
-          ) users;
+                      nix.formatterPath = "nixfmt";
+                      scm.showHistoryGraph = false;
+
+                      terminal.integrated = {
+                        cursorBlinking = true;
+                        cursorStyle = "line";
+                        smoothScrolling = true;
+                      };
+
+                      update.mode = "none";
+
+                      window = {
+                        menuBarVisibility = "toggle";
+                        zoomLevel = codium.zoomLevel;
+                      };
+
+                      workbench = {
+                        iconTheme = "material-icon-theme";
+                        list.smoothScrolling = true;
+                        startupEditor = "none";
+                        tips.enabled = false;
+                      };
+                    }
+
+                    (mkIf (!(osConfig.stylix.enable or false)) {
+                      editor = {
+                        fontFamily = "'JetBrainsMono Nerd Font', 'Droid Sans Mono', 'monospace', monospace";
+                        fontSize = codium.fontSize;
+                      };
+                      terminal.integrated.fontSize = codium.fontSize;
+                      workbench.colorTheme = codium.colorTheme;
+                    })
+                  ];
+                };
+              }
+            )
+          ];
         }
       )
     ];

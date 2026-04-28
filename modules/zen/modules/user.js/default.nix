@@ -8,13 +8,11 @@
 let
   inherit (lib)
     listToAttrs
-    mapAttrs
     substring
     ;
 
-  cfg = config.icedos;
   firefoxVersion = substring 0 5 pkgs.firefox.version;
-  zen = cfg.applications.zen;
+  zen = config.icedos.applications.zen;
 
   baseSettings = {
     "browser.download.always_ask_before_handling_new_types" = false;
@@ -78,12 +76,14 @@ let
     // (if profile.pwa then pwaSettings else { });
 in
 {
-  home-manager.users = mapAttrs (_: _: {
-    programs.zen-browser.profiles = listToAttrs (
-      map (profile: {
-        name = profile.exec;
-        value.settings = profileSettings profile;
-      }) zen.profiles
-    );
-  }) cfg.users;
+  home-manager.sharedModules = [
+    {
+      programs.zen-browser.profiles = listToAttrs (
+        map (profile: {
+          name = profile.exec;
+          value.settings = profileSettings profile;
+        }) zen.profiles
+      );
+    }
+  ];
 }

@@ -33,56 +33,58 @@
         }:
 
         let
-          inherit (lib) mapAttrs mkIf hasAttr;
+          inherit (lib) mkIf hasAttr;
           cfg = config.icedos;
           kitty = cfg.applications.kitty;
         in
         {
-          home-manager.users = mapAttrs (user: _: {
-            programs.kitty = lib.mkMerge [
-              {
-                enable = true;
+          home-manager.sharedModules = [
+            {
+              programs.kitty = lib.mkMerge [
+                {
+                  enable = true;
 
-                settings = {
-                  confirm_os_window_close = "0";
-                  cursor_shape = "beam";
-                  enable_audio_bell = "no";
-                  hide_window_decorations = if (kitty.hideDecorations) then "yes" else "no";
-                  update_check_interval = "0";
-                  copy_on_select = "no";
-                  wayland_titlebar_color = "background";
-                };
-              }
+                  settings = {
+                    confirm_os_window_close = "0";
+                    cursor_shape = "beam";
+                    enable_audio_bell = "no";
+                    hide_window_decorations = if (kitty.hideDecorations) then "yes" else "no";
+                    update_check_interval = "0";
+                    copy_on_select = "no";
+                    wayland_titlebar_color = "background";
+                  };
+                }
 
-              (mkIf (!(config.stylix.enable or false)) {
-                font.name = "JetBrainsMono Nerd Font";
-                font.size = kitty.fontSize;
-                themeFile = "OneDark-Pro";
-              })
+                (mkIf (!(config.stylix.enable or false)) {
+                  font.name = "JetBrainsMono Nerd Font";
+                  font.size = kitty.fontSize;
+                  themeFile = "OneDark-Pro";
+                })
 
-              {
-                settings.background_opacity = lib.mkForce (toString (kitty.opacity / 100.0));
-              }
-            ];
-
-            wayland.windowManager.hyprland.settings.bind =
-              mkIf (hasAttr "desktop" cfg && hasAttr "hyprland" cfg.desktop)
-                [
-                  "$mainMod, X, exec, kitty"
-                ];
-
-            dconf.settings = mkIf (hasAttr "desktop" cfg && hasAttr "gnome" cfg.desktop) {
-              "org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/kitty" = {
-                binding = "<Super>x";
-                command = "kitty";
-                name = "Kitty";
-              };
-
-              "org/gnome/settings-daemon/plugins/media-keys".custom-keybindings = [
-                "/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/kitty/"
+                {
+                  settings.background_opacity = lib.mkForce (toString (kitty.opacity / 100.0));
+                }
               ];
-            };
-          }) cfg.users;
+
+              wayland.windowManager.hyprland.settings.bind =
+                mkIf (hasAttr "desktop" cfg && hasAttr "hyprland" cfg.desktop)
+                  [
+                    "$mainMod, X, exec, kitty"
+                  ];
+
+              dconf.settings = mkIf (hasAttr "desktop" cfg && hasAttr "gnome" cfg.desktop) {
+                "org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/kitty" = {
+                  binding = "<Super>x";
+                  command = "kitty";
+                  name = "Kitty";
+                };
+
+                "org/gnome/settings-daemon/plugins/media-keys".custom-keybindings = [
+                  "/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/kitty/"
+                ];
+              };
+            }
+          ];
         }
       )
     ];

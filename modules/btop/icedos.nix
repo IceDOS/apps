@@ -12,18 +12,19 @@
         }:
 
         let
-          inherit (lib) mapAttrs mkIf;
-          cfg = config.icedos;
+          inherit (lib) mkIf;
         in
         {
-          home-manager.users = mapAttrs (user: _: {
-            programs.btop.enable = true;
+          home-manager.sharedModules = [
+            {
+              programs.btop.enable = true;
 
-            xdg.configFile."btop/btop.conf" = mkIf (!(config.stylix.enable or false)) {
-              source = ./btop.conf;
-              force = true;
-            };
-          }) cfg.users;
+              xdg.configFile."btop/btop.conf" = mkIf (!(config.stylix.enable or false)) {
+                source = ./btop.conf;
+                force = true;
+              };
+            }
+          ];
         }
       )
     ];

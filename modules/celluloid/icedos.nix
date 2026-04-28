@@ -20,33 +20,31 @@ in
     { inputs, ... }:
     [
       (
-        {
-          pkgs,
-          lib,
-          config,
-          ...
-        }:
+        { pkgs, ... }:
 
-        let
-          inherit (config.icedos) users;
-        in
         {
           environment.systemPackages = with pkgs; [
             celluloid
           ];
 
-          home-manager.users = lib.mapAttrs (user: _: {
-            home.file.".config/celluloid/celluloid.conf".source = ./celluloid.conf;
-            home.file.".config/celluloid/shaders/FSR.glsl".source = inputs.celluloid-shader;
+          home-manager.sharedModules = [
+            (
+              { config, ... }:
 
-            dconf.settings = {
-              "io/github/celluloid-player/celluloid" = {
-                always-append-to-playlist = true;
-                mpv-config-enable = true;
-                mpv-config-file = "file:///home/${user}/.config/celluloid/celluloid.conf";
-              };
-            };
-          }) users;
+              {
+                home.file.".config/celluloid/celluloid.conf".source = ./celluloid.conf;
+                home.file.".config/celluloid/shaders/FSR.glsl".source = inputs.celluloid-shader;
+
+                dconf.settings = {
+                  "io/github/celluloid-player/celluloid" = {
+                    always-append-to-playlist = true;
+                    mpv-config-enable = true;
+                    mpv-config-file = "file://${config.home.homeDirectory}/.config/celluloid/celluloid.conf";
+                  };
+                };
+              }
+            )
+          ];
         }
       )
     ];
