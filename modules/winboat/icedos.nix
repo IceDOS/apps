@@ -3,7 +3,8 @@
 {
   options.icedos.applications.winboat.autostart =
     let
-      inherit ((fromTOML (lib.readFile ./config.toml)).icedos.applications.winboat) autostart;
+      inherit (lib) readFile;
+      inherit ((fromTOML (readFile ./config.toml)).icedos.applications.winboat) autostart;
     in
     icedosLib.mkBoolOption { default = autostart; };
 
@@ -30,6 +31,10 @@
           pkgs,
           ...
         }:
+
+        let
+          inherit (lib) mkIf mapAttrs;
+        in
         {
           boot.kernelModules = [ "iptable_nat" ];
 
@@ -62,14 +67,13 @@
           systemd.services.docker.serviceConfig.ExecStartPost =
             let
               cfg = config.icedos;
-              inherit (lib) mkIf;
               inherit (pkgs) docker;
             in
             mkIf (!cfg.applications.winboat.autostart) ''
               (${docker}/bin/docker stop WinBoat || exit 0)
             '';
 
-          users.users = lib.mapAttrs (user: _: {
+          users.users = mapAttrs (user: _: {
             extraGroups = [ "docker" ];
           }) config.icedos.users;
 

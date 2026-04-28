@@ -29,13 +29,74 @@
             splitString
             ;
 
+          inherit (icedosLib.bash) prelude genHelpFlags purpleString;
+
           cfg = config.icedos;
           hasGamescope = hasAttr "gamescope" cfg.applications;
+          hasGamemode = hasAttr "gamemode" cfg.applications;
+          hasPowerProfilesDaemon = hasAttr "power-profiles-daemon" cfg.applications;
 
           packages = [ proton-launch ] ++ optional hasGamescope pkgs.gamescope;
 
+          conditionalGamemodeHelp =
+            if hasGamemode then
+              ''echo -e "> ${purpleString "--gamemode"}: wrap with feral gamemoderun"''
+            else
+              "";
+
+          conditionalNoGamemodeHelp =
+            if hasGamemode then
+              ''echo -e "> ${purpleString "--no-gamemode"}: don't wrap with gamemode"''
+            else
+              "";
+
+          conditionalGamescopeHelp =
+            if hasGamescope then
+              ''echo -e "> ${purpleString "--gamescope"}: wrap with gamescope (via scopebuddy)"''
+            else
+              "";
+
+          conditionalNoGamePerformanceHelp =
+            if hasPowerProfilesDaemon then
+              ''echo -e "> ${purpleString "--no-game-performance"}: don't switch to performance power profile"''
+            else
+              "";
+
           proton-launch = (
             pkgs.writeShellScriptBin "proton-launch" ''
+              ${prelude}
+
+              if [[ ${genHelpFlags { }} ]]; then
+                echo "Usage: proton-launch [OPTIONS] [--] <command> [args...]"
+                echo "Available options:"
+                echo -e "> ${purpleString "--deck"}: pretend to be a Steam Deck"
+                echo -e "> ${purpleString "--fps-limit <N>"}: cap framerate at N fps"
+                echo -e "> ${purpleString "--fsr4"}: enable FSR 4 frame upscaling"
+                echo -e "> ${purpleString "--fsr4-watermark"}: show FSR4/MLFG watermark overlay"
+                echo -e "> ${purpleString "--gamescope-args <args>"}: pass extra args to gamescope"
+                echo -e "> ${purpleString "--hdr"}: enable HDR output"
+                echo -e "> ${purpleString "--hidraw"}: enable hidraw device passthrough"
+                echo -e "> ${purpleString "--lod-bias <N>"}: set DXVK/D3D9 sampler LOD bias"
+                echo -e "> ${purpleString "--max-frame-latency <N>"}: cap DXGI max frame latency"
+                echo -e "> ${purpleString "--no-dll-overrides"}: clear WINEDLLOVERRIDES"
+                echo -e "> ${purpleString "--no-dxr"}: disable DirectX raytracing in VKD3D"
+                echo -e "> ${purpleString "--no-esync"}: disable esync"
+                echo -e "> ${purpleString "--no-gpl"}: disable DXVK graphics pipeline library"
+                echo -e "> ${purpleString "--no-mangohud"}: disable mangohud overlay (when present)"
+                echo -e "> ${purpleString "--no-ntsync"}: disable ntsync"
+                echo -e "> ${purpleString "--no-proton-sdl"}: disable proton's SDL preference"
+                echo -e "> ${purpleString "--no-rebar-upload"}: disable VRAM upload via Resizable BAR"
+                echo -e "> ${purpleString "--sdl-x11"}: force SDL to use X11 video driver"
+                echo -e "> ${purpleString "--shader-all-cores"}: use all CPU cores for DXVK shader compilation"
+                echo -e "> ${purpleString "--wayland"}: enable Proton's native Wayland backend"
+                echo -e "> ${purpleString "--wow64"}: enable Proton's 64-bit WoW translation"
+                ${conditionalGamemodeHelp}
+                ${conditionalGamescopeHelp}
+                ${conditionalNoGamemodeHelp}
+                ${conditionalNoGamePerformanceHelp}
+                exit 0
+              fi
+
               DXVK_CONFIG_OPTS=""
               DXVK_LOG_LEVEL=warn
               PROTON_ENABLE_HIDRAW=0

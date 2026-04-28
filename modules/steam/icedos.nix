@@ -40,7 +40,7 @@
         let
           inherit (config.icedos) applications hardware users;
           inherit (hardware) devices;
-          inherit (icedosLib) pkgMapper;
+          inherit (icedosLib.pkgs) mapper;
 
           inherit (lib)
             attrNames
@@ -53,7 +53,7 @@
           inherit (pkgs) steam;
           inherit (applications.steam) beta cpuUsageWorkaround downloadsWorkaround;
 
-          extraPackages = pkgMapper pkgs applications.steam.extraPackages;
+          extraPackages = mapper pkgs applications.steam.extraPackages;
           hasExtraPackages = length extraPackages != 0;
           hasGamescope = hasAttr "gamescope" applications;
           hasProtonLaunch = hasAttr "proton-launch" applications;

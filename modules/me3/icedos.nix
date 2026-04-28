@@ -5,6 +5,7 @@
     let
       inherit (lib)
         attrValues
+        genAttrs
         head
         mapAttrs
         mkOption
@@ -31,7 +32,7 @@
         "disable_arxan"
         "patch_mem"
       ];
-      nullOverrides = lib.genAttrs overridableScalars (_: mkOption { default = null; });
+      nullOverrides = genAttrs overridableScalars (_: mkOption { default = null; });
     in
     mkSubmoduleAttrsOption { default = games; } (
       (optionsFromAttrs (removeAttrs sampleGame [ "profiles" ]))
@@ -65,6 +66,7 @@
                 concatMap
                 concatMapStringsSep
                 concatStringsSep
+                escape
                 filter
                 findFirst
                 isAttrs
@@ -76,6 +78,8 @@
                 listToAttrs
                 mapAttrsToList
                 optionalString
+                boolToString
+                unique
                 ;
 
               inherit (config.icedos) applications;
@@ -84,9 +88,9 @@
               toTOMLValue =
                 v:
                 if isString v then
-                  "\"${lib.escape [ "\"" "\\" ] v}\""
+                  "\"${escape [ "\"" "\\" ] v}\""
                 else if isBool v then
-                  lib.boolToString v
+                  boolToString v
                 else if isInt v then
                   toString v
                 else if isList v then
@@ -137,8 +141,8 @@
                       seen' = seen ++ [ pr.name ];
                       depsResolved = map (d: resolveRefs seen' (lookupProfile d)) pr.dependencies;
                       merged = {
-                        natives = lib.unique ((concatMap (r: r.natives) depsResolved) ++ pr.natives);
-                        packages = lib.unique ((concatMap (r: r.packages) depsResolved) ++ pr.packages);
+                        natives = unique ((concatMap (r: r.natives) depsResolved) ++ pr.natives);
+                        packages = unique ((concatMap (r: r.packages) depsResolved) ++ pr.packages);
                       };
                     in
                     if cycleFree then merged else merged;

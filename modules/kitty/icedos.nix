@@ -4,9 +4,9 @@
   options.icedos.applications.kitty =
     let
       inherit (icedosLib) mkBoolOption mkNumberOption;
-      inherit (lib) mkOption types;
+      inherit (lib) mkOption readFile types;
 
-      inherit ((fromTOML (lib.fileContents ./config.toml)).icedos.applications.kitty)
+      inherit ((fromTOML (readFile ./config.toml)).icedos.applications.kitty)
         fontSize
         hideDecorations
         opacity
@@ -33,14 +33,21 @@
         }:
 
         let
-          inherit (lib) mkIf hasAttr;
           cfg = config.icedos;
+
+          inherit (lib)
+            mkIf
+            mkMerge
+            mkForce
+            hasAttr
+            ;
+
           kitty = cfg.applications.kitty;
         in
         {
           home-manager.sharedModules = [
             {
-              programs.kitty = lib.mkMerge [
+              programs.kitty = mkMerge [
                 {
                   enable = true;
 
@@ -62,7 +69,7 @@
                 })
 
                 {
-                  settings.background_opacity = lib.mkForce (toString (kitty.opacity / 100.0));
+                  settings.background_opacity = mkForce (toString (kitty.opacity / 100.0));
                 }
               ];
 

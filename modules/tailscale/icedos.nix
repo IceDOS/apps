@@ -3,7 +3,9 @@
 {
   options.icedos.applications.tailscale.enableTrayscale =
     let
-      inherit ((fromTOML (lib.readFile ./config.toml)).icedos.applications.tailscale)
+      inherit (lib) readFile;
+
+      inherit ((fromTOML (readFile ./config.toml)).icedos.applications.tailscale)
         enableTrayscale
         ;
     in
