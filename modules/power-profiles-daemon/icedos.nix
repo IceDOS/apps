@@ -22,9 +22,8 @@
 
         let
           cfg = config.icedos;
-          inherit (cfg) applications users;
-          inherit (applications.power-profiles-daemon) profile;
-          inherit (lib) hasAttr mapAttrs optional;
+          inherit (cfg.applications.power-profiles-daemon) profile;
+          inherit (lib) hasAttr optional;
 
           generateTargetArray =
             base:
@@ -36,34 +35,36 @@
         {
           services.power-profiles-daemon.enable = true;
 
-          home-manager.users = mapAttrs (user: _: {
-            systemd.user.services.power-profiles-daemon-profile = {
-              Unit = {
-                Description = "Power Profiles Daemon - Profile setter";
+          home-manager.sharedModules = [
+            {
+              systemd.user.services.power-profiles-daemon-profile = {
+                Unit = {
+                  Description = "Power Profiles Daemon - Profile setter";
 
-                After = generateTargetArray [ "graphical-session.target" ];
-                PartOf = "graphical-session.target";
-                StartLimitIntervalSec = 60;
-                StartLimitBurst = 60;
+                  After = generateTargetArray [ "graphical-session.target" ];
+                  PartOf = "graphical-session.target";
+                  StartLimitIntervalSec = 60;
+                  StartLimitBurst = 60;
+                };
+
+                Install.WantedBy = generateTargetArray [ ];
+
+                Service = {
+                  ExecStart = "${pkgs.writeShellScriptBin "power-profiles-daemon-profile" ''
+                    base_path="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+                    nix_system_path="/run/current-system/sw/bin"
+                    nix_user_path="''${HOME}/.nix-profile/bin"
+                    export PATH="''${base_path}:''${nix_system_path}:''${nix_user_path}:$PATH"
+
+                    powerprofilesctl set ${profile}
+                  ''}/bin/power-profiles-daemon-profile";
+
+                  Nice = "-20";
+                  Restart = "on-failure";
+                };
               };
-
-              Install.WantedBy = generateTargetArray [ ];
-
-              Service = {
-                ExecStart = "${pkgs.writeShellScriptBin "power-profiles-daemon-profile" ''
-                  base_path="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-                  nix_system_path="/run/current-system/sw/bin"
-                  nix_user_path="''${HOME}/.nix-profile/bin"
-                  export PATH="''${base_path}:''${nix_system_path}:''${nix_user_path}:$PATH"
-
-                  powerprofilesctl set ${profile}
-                ''}/bin/power-profiles-daemon-profile";
-
-                Nice = "-20";
-                Restart = "on-failure";
-              };
-            };
-          }) users;
+            }
+          ];
         }
       )
     ];

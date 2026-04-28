@@ -22,13 +22,11 @@
       (
         {
           config,
-          lib,
           pkgs,
           ...
         }:
 
         let
-          inherit (lib) mapAttrs;
           inherit (icedosLib)
             dimGreenString
             dimYellowString
@@ -36,24 +34,30 @@
             redString
             yellowString
             ;
-          cfg = config.icedos;
-          users = cfg.applications.git.users;
+
+          users = config.icedos.applications.git.users;
         in
         {
-          home-manager.users = mapAttrs (user: _: {
-            home.packages = [ pkgs.lazygit ];
+          home-manager.sharedModules = [
+            (
+              { config, ... }:
 
-            programs.git = {
-              enable = true;
+              {
+                home.packages = [ pkgs.lazygit ];
 
-              settings = {
-                user.email = users.${user}.email;
-                user.name = users.${user}.username;
-              };
+                programs.git = {
+                  enable = true;
 
-              signing.format = null; # Fallback for system version lower than 25.05
-            };
-          }) cfg.users;
+                  settings = {
+                    user.email = users.${config.home.username}.email;
+                    user.name = users.${config.home.username}.username;
+                  };
+
+                  signing.format = null; # Fallback for system version lower than 25.05
+                };
+              }
+            )
+          ];
 
           icedos.applications.toolset.commands = [
             {

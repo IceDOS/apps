@@ -91,7 +91,7 @@
           inherit (lib)
             attrNames
             filterAttrs
-            mapAttrs
+            hasAttr
             mkIf
             optional
             readFile
@@ -108,59 +108,63 @@
         {
           imports = getModules ./modules;
 
-          home-manager.users = mapAttrs (user: _: {
-            systemd.user.services.sd-inhibitor =
-              let
-                inherit (lib) hasAttr;
-                watchers = cfg.applications.sd-inhibitor.users.${user}.watchers;
-              in
-              mkIf
-                (
-                  watchers.cpu.enable
-                  || watchers.disk.enable
-                  || watchers.network.enable
-                  || watchers.pipewire.enable
-                  || watchers.ports.enable
-                  || watchers.gpu.enable
-                )
-                {
-                  Unit =
-                    let
-                      sessionTargets =
+          home-manager.sharedModules = [
+            (
+              { config, ... }:
+              {
+                systemd.user.services.sd-inhibitor =
+                  let
+                    watchers = cfg.applications.sd-inhibitor.users.${config.home.username}.watchers;
+                  in
+                  mkIf
+                    (
+                      watchers.cpu.enable
+                      || watchers.disk.enable
+                      || watchers.network.enable
+                      || watchers.pipewire.enable
+                      || watchers.ports.enable
+                      || watchers.gpu.enable
+                    )
+                    {
+                      Unit =
+                        let
+                          sessionTargets =
+                            [ ]
+                            ++ optional (hasAttr "desktop" cfg && hasAttr "cosmic" cfg.desktop) "cosmic-session.target"
+                            ++ optional (hasAttr "desktop" cfg && hasAttr "gnome" cfg.desktop) "gnome-session.target"
+                            ++ optional (hasAttr "desktop" cfg && hasAttr "hyprland" cfg.desktop) "hyprland-session.target";
+                        in
+                        {
+                          Description = "service to inhibit idle, sleep and shutdown based on device usage limits";
+                          After = [ "graphical-session.target" ] ++ sessionTargets;
+                          StartLimitIntervalSec = 60;
+                          StartLimitBurst = 60;
+                        };
+
+                      Install.WantedBy =
                         [ ]
                         ++ optional (hasAttr "desktop" cfg && hasAttr "cosmic" cfg.desktop) "cosmic-session.target"
                         ++ optional (hasAttr "desktop" cfg && hasAttr "gnome" cfg.desktop) "gnome-session.target"
                         ++ optional (hasAttr "desktop" cfg && hasAttr "hyprland" cfg.desktop) "hyprland-session.target";
-                    in
-                    {
-                      Description = "service to inhibit idle, sleep and shutdown based on device usage limits";
-                      After = [ "graphical-session.target" ] ++ sessionTargets;
-                      StartLimitIntervalSec = 60;
-                      StartLimitBurst = 60;
+
+                      Service = {
+                        ExecStart =
+                          with pkgs;
+                          "${writeShellScript "sd-inhibitor" ''
+                            base_path="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+                            nix_system_path="/run/current-system/sw/bin"
+                            nix_user_path="''${HOME}/.nix-profile/bin"
+                            export PATH="''${base_path}:''${nix_system_path}:''${nix_user_path}:$PATH"
+
+                            ${readFile ./sd-inhibitor.sh}
+                          ''}";
+                        Nice = "-20";
+                        Restart = "on-failure";
+                      };
                     };
-
-                  Install.WantedBy =
-                    [ ]
-                    ++ optional (hasAttr "desktop" cfg && hasAttr "cosmic" cfg.desktop) "cosmic-session.target"
-                    ++ optional (hasAttr "desktop" cfg && hasAttr "gnome" cfg.desktop) "gnome-session.target"
-                    ++ optional (hasAttr "desktop" cfg && hasAttr "hyprland" cfg.desktop) "hyprland-session.target";
-
-                  Service = {
-                    ExecStart =
-                      with pkgs;
-                      "${writeShellScript "sd-inhibitor" ''
-                        base_path="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-                        nix_system_path="/run/current-system/sw/bin"
-                        nix_user_path="''${HOME}/.nix-profile/bin"
-                        export PATH="''${base_path}:''${nix_system_path}:''${nix_user_path}:$PATH"
-
-                        ${readFile ./sd-inhibitor.sh}
-                      ''}";
-                    Nice = "-20";
-                    Restart = "on-failure";
-                  };
-                };
-          }) cfg.users;
+              }
+            )
+          ];
         }
       )
     ];

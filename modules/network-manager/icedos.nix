@@ -30,25 +30,27 @@
 
           users.users = mapAttrs (user: _: { extraGroups = [ "networkmanager" ]; }) cfg.users;
 
-          home-manager.users = mapAttrs (user: _: {
-            xdg.desktopEntries = mkIf (cfg.applications.network-manager.applet) {
-              nm-connection-editor = {
-                exec = "${pkgs.networkmanagerapplet}/bin/nm-connection-editor";
-                icon = "epiphany";
-                name = "Network Connection Editor";
-                terminal = false;
-                type = "Application";
-              };
+          home-manager.sharedModules = [
+            {
+              xdg.desktopEntries = mkIf (cfg.applications.network-manager.applet) {
+                nm-connection-editor = {
+                  exec = "${pkgs.networkmanagerapplet}/bin/nm-connection-editor";
+                  icon = "epiphany";
+                  name = "Network Connection Editor";
+                  terminal = false;
+                  type = "Application";
+                };
 
-              nm-tray = {
-                exec = "${pkgs.networkmanagerapplet}/bin/nm-applet";
-                icon = "epiphany";
-                name = "Network Connection Tray";
-                terminal = false;
-                type = "Application";
+                nm-tray = {
+                  exec = "${pkgs.networkmanagerapplet}/bin/nm-applet";
+                  icon = "epiphany";
+                  name = "Network Connection Tray";
+                  terminal = false;
+                  type = "Application";
+                };
               };
-            };
-          }) cfg.users;
+            }
+          ];
         }
       )
     ];

@@ -56,25 +56,25 @@
           ...
         }:
         let
-          inherit (config.icedos) users;
           inherit (config.icedos.applications) defaultBrowser;
           inherit (pkgs.stdenv.hostPlatform) system;
           inherit (inputs.zen.packages.${system}) default;
-          inherit (lib) mapAttrs mkIf;
+          inherit (lib) mkIf;
         in
         {
-          home-manager.sharedModules = [ inputs.zen.homeModules.default ];
+          home-manager.sharedModules = [
+            inputs.zen.homeModules.default
+            {
+              programs.zen-browser = {
+                enable = true;
+                package = default;
+              };
+            }
+          ];
 
           environment.sessionVariables.DEFAULT_BROWSER = mkIf (
             defaultBrowser == "zen.desktop"
           ) "${default}/bin/zen-beta";
-
-          home-manager.users = mapAttrs (_: _: {
-            programs.zen-browser = {
-              enable = true;
-              package = default;
-            };
-          }) users;
         }
       )
 

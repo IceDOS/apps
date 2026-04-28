@@ -15,7 +15,6 @@
         let
           inherit (lib)
             hasAttr
-            mapAttrs
             makeSearchPathOutput
             mkIf
             ;
@@ -42,44 +41,46 @@
 
           services.gvfs.enable = true;
 
-          home-manager.users = mapAttrs (user: _: {
-            dconf.settings = {
-              "org/gnome/nautilus/preferences" = {
-                always-use-location-entry = true;
-                show-create-link = true;
-                show-delete-permanently = true;
+          home-manager.sharedModules = [
+            {
+              dconf.settings = {
+                "org/gnome/nautilus/preferences" = {
+                  always-use-location-entry = true;
+                  show-create-link = true;
+                  show-delete-permanently = true;
+                };
+
+                "org/gnome/nautilus/icon-view" = {
+                  default-zoom-level = "small-plus";
+                };
+
+                "org/gtk/gtk4/settings/file-chooser" = {
+                  sort-directories-first = true;
+                  show-hidden = true;
+                };
+
+                "org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/nautilus" =
+                  mkIf (hasAttr "desktop" cfg && hasAttr "gnome" cfg.desktop)
+                    {
+                      binding = "<Super>e";
+                      command = "nautilus .";
+                      name = "Nautilus";
+                    };
+
+                "org/gnome/settings-daemon/plugins/media-keys".custom-keybindings = mkIf (
+                  hasAttr "desktop" cfg && hasAttr "gnome" cfg.desktop
+                ) [ "/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/nautilus/" ];
               };
 
-              "org/gnome/nautilus/icon-view" = {
-                default-zoom-level = "small-plus";
+              home.file = {
+                "Templates/new".text = "";
+                "Templates/new.cfg".text = "";
+                "Templates/new.ini".text = "";
+                "Templates/new.sh".text = "";
+                "Templates/new.txt".text = "";
               };
-
-              "org/gtk/gtk4/settings/file-chooser" = {
-                sort-directories-first = true;
-                show-hidden = true;
-              };
-
-              "org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/nautilus" =
-                mkIf (hasAttr "desktop" cfg && hasAttr "gnome" cfg.desktop)
-                  {
-                    binding = "<Super>e";
-                    command = "nautilus .";
-                    name = "Nautilus";
-                  };
-
-              "org/gnome/settings-daemon/plugins/media-keys".custom-keybindings = mkIf (
-                hasAttr "desktop" cfg && hasAttr "gnome" cfg.desktop
-              ) [ "/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/nautilus/" ];
-            };
-
-            home.file = {
-              "Templates/new".text = "";
-              "Templates/new.cfg".text = "";
-              "Templates/new.ini".text = "";
-              "Templates/new.sh".text = "";
-              "Templates/new.txt".text = "";
-            };
-          }) cfg.users;
+            }
+          ];
         }
       )
     ];

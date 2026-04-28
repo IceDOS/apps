@@ -56,7 +56,7 @@
         {
           environment.systemPackages = with pkgs; [ me3 ];
 
-          home-manager.users =
+          home-manager.sharedModules =
             let
               inherit (icedosLib) abortIf;
 
@@ -74,13 +74,11 @@
                 isString
                 length
                 listToAttrs
-                mapAttrs
                 mapAttrsToList
                 optionalString
                 ;
 
-              inherit (config.icedos) applications users;
-
+              inherit (config.icedos) applications;
               userGames = removeAttrs applications.me3.games [ "__sample" ];
 
               toTOMLValue =
@@ -220,9 +218,9 @@
                 else
                   entry;
             in
-            mapAttrs (user: _: {
-              home.file = listToAttrs (map mkHomeFile allProfiles);
-            }) users;
+            [
+              { home.file = listToAttrs (map mkHomeFile allProfiles); }
+            ];
         }
       )
     ];

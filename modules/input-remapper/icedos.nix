@@ -18,24 +18,25 @@
         {
           services.input-remapper.enable = true;
 
-          home-manager.users = mapAttrs (user: _: {
-            systemd.user.services.input-remapper-autoload-fix = {
-              Unit = {
-                Description = "Input Remapper Autoload Fix";
-                StartLimitIntervalSec = 60;
-                StartLimitBurst = 60;
+          home-manager.sharedModules = [
+            {
+              systemd.user.services.input-remapper-autoload-fix = {
+                Unit = {
+                  Description = "Input Remapper Autoload Fix";
+                  StartLimitIntervalSec = 60;
+                  StartLimitBurst = 60;
+                };
+
+                Install.WantedBy = [ "graphical-session.target" ];
+
+                Service = {
+                  ExecStart = "${pkgs.input-remapper}/bin/input-remapper-control --command autoload";
+                  Nice = "-20";
+                  Restart = "on-failure";
+                };
               };
-
-              Install.WantedBy = [ "graphical-session.target" ];
-
-              Service = {
-                ExecStart = "${pkgs.input-remapper}/bin/input-remapper-control --command autoload";
-                Nice = "-20";
-                Restart = "on-failure";
-              };
-            };
-
-          }) users;
+            }
+          ];
 
           users.users = mapAttrs (user: _: { extraGroups = [ "input" ]; }) users;
         }

@@ -14,27 +14,22 @@
         let
           cfg = config.icedos;
 
-          inherit (cfg) users;
-
           inherit (lib)
             hasAttr
-            mapAttrs
             optional
             readFile
             replaceStrings
             ;
+
+          generateTargetArray =
+            base:
+            base
+            ++ optional (hasAttr "desktop" cfg && hasAttr "cosmic" cfg.desktop) "cosmic-session.target"
+            ++ optional (hasAttr "desktop" cfg && hasAttr "gnome" cfg.desktop) "gnome-session.target"
+            ++ optional (hasAttr "desktop" cfg && hasAttr "hyprland" cfg.desktop) "hyprland-session.target";
         in
         {
-          home-manager.users = mapAttrs (
-            user: _:
-            let
-              generateTargetArray =
-                base:
-                base
-                ++ optional (hasAttr "desktop" cfg && hasAttr "cosmic" cfg.desktop) "cosmic-session.target"
-                ++ optional (hasAttr "desktop" cfg && hasAttr "gnome" cfg.desktop) "gnome-session.target"
-                ++ optional (hasAttr "desktop" cfg && hasAttr "hyprland" cfg.desktop) "hyprland-session.target";
-            in
+          home-manager.sharedModules = [
             {
               home.file = {
                 ".config/walker/config.toml".text =
@@ -142,7 +137,7 @@
                 };
               };
             }
-          ) users;
+          ];
 
           environment.systemPackages =
             let

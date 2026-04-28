@@ -22,8 +22,8 @@
         }:
 
         let
-          inherit (config.icedos) applications users;
-          inherit (lib) mapAttrs readFile replaceStrings;
+          inherit (config.icedos) applications;
+          inherit (lib) readFile replaceStrings;
 
           stylixOn = config.stylix.enable or false;
           stylixColors = config.lib.stylix.colors or { };
@@ -55,19 +55,24 @@
         {
           fonts.packages = with pkgs; [ meslo-lgs-nf ];
 
-          home-manager.users = mapAttrs (user: _: {
-            programs.zsh = {
-              enable = true;
-              dotDir = "${config.home-manager.users.${user}.xdg.configHome}/zsh";
-            };
+          home-manager.sharedModules = [
+            (
+              { config, ... }:
+              {
+                programs.zsh = {
+                  enable = true;
+                  dotDir = "${config.xdg.configHome}/zsh";
+                };
 
-            home.file = {
-              ".config/zsh/p10k.zsh".source =
-                "${pkgs.zsh-powerlevel10k}/share/zsh-powerlevel10k/powerlevel10k.zsh-theme";
+                home.file = {
+                  ".config/zsh/p10k.zsh".source =
+                    "${pkgs.zsh-powerlevel10k}/share/zsh-powerlevel10k/powerlevel10k.zsh-theme";
 
-              ".config/zsh/p10k-theme.zsh".text = p10kThemeText;
-            };
-          }) users;
+                  ".config/zsh/p10k-theme.zsh".text = p10kThemeText;
+                };
+              }
+            )
+          ];
 
           programs.zsh = {
             enable = true;

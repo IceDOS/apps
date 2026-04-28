@@ -46,7 +46,7 @@
           ...
         }:
         let
-          inherit (config.icedos) applications users;
+          inherit (config.icedos) applications;
           inherit (applications) defaultBrowser;
           inherit (applications.helium) drmSupportUsingGoogleChrome profiles;
           inherit (pkgs) google-chrome nur;
@@ -55,9 +55,9 @@
           inherit (lib)
             concatStringsSep
             length
-            mapAttrs
             mkIf
             optional
+            optionals
             ;
 
           flags = concatStringsSep " " (
@@ -90,14 +90,14 @@
             noto-fonts-cjk-serif
           ];
 
-          home-manager.users = mkIf drmSupportUsingGoogleChrome (
-            mapAttrs (user: _: {
+          home-manager.sharedModules = optionals drmSupportUsingGoogleChrome [
+            {
               home.file = {
                 ".config/net.imput.helium/WidevineCdm/latest-component-updated-widevine-cdm".text =
                   ''{"Path":"${google-chrome}/share/google/chrome/WidevineCdm"}'';
               };
-            }) users
-          );
+            }
+          ];
         }
       )
 
@@ -111,13 +111,8 @@
         }:
 
         let
-          inherit (lib)
-            listToAttrs
-            mapAttrs
-            ;
-
-          inherit (config.icedos) applications users;
-          inherit (applications.helium) profiles;
+          inherit (lib) listToAttrs;
+          inherit (config.icedos.applications.helium) profiles;
           inherit (pkgs.nur.repos.Ev357) helium;
         in
         {
@@ -128,27 +123,29 @@
             ''
           ) profiles;
 
-          home-manager.users = mapAttrs (user: _: {
-            xdg.desktopEntries = listToAttrs (
-              map (profile: {
-                name = profile.exec;
+          home-manager.sharedModules = [
+            {
+              xdg.desktopEntries = listToAttrs (
+                map (profile: {
+                  name = profile.exec;
 
-                value = {
-                  exec = profile.exec;
+                  value = {
+                    exec = profile.exec;
 
-                  icon =
-                    if (profile.icon == "") then
-                      "${helium}/share/icons/hicolor/256x256/apps/helium.png"
-                    else
-                      profile.icon;
+                    icon =
+                      if (profile.icon == "") then
+                        "${helium}/share/icons/hicolor/256x256/apps/helium.png"
+                      else
+                        profile.icon;
 
-                  name = profile.name;
-                  terminal = false;
-                  type = "Application";
-                };
-              }) profiles
-            );
-          }) users;
+                    name = profile.name;
+                    terminal = false;
+                    type = "Application";
+                  };
+                }) profiles
+              );
+            }
+          ];
         }
       )
     ];

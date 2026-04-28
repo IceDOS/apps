@@ -21,13 +21,11 @@
           ...
         }:
         let
-          inherit (config.icedos) applications users;
-          inherit (applications.flatpak) packages;
+          inherit (config.icedos.applications.flatpak) packages;
 
           inherit (lib)
             elemAt
             length
-            mapAttrs
             mkOptionDefault
             splitString
             ;
@@ -35,38 +33,40 @@
         {
           services.flatpak.enable = true;
 
-          home-manager.users = mapAttrs (user: _: {
-            imports = [ inputs.nix-flatpak.homeManagerModules.nix-flatpak ];
+          home-manager.sharedModules = [
+            {
+              imports = [ inputs.nix-flatpak.homeManagerModules.nix-flatpak ];
 
-            services.flatpak = {
-              packages = map (
-                package:
-                let
-                  packageParts = splitString ":" package;
+              services.flatpak = {
+                packages = map (
+                  package:
+                  let
+                    packageParts = splitString ":" package;
 
-                  package' =
-                    if (length packageParts > 1) then
-                      {
-                        appId = elemAt packageParts 1;
-                        origin = elemAt packageParts 0;
-                      }
-                    else
-                      {
-                        appId = package;
-                        origin = "flathub";
-                      };
-                in
-                package'
-              ) packages;
+                    package' =
+                      if (length packageParts > 1) then
+                        {
+                          appId = elemAt packageParts 1;
+                          origin = elemAt packageParts 0;
+                        }
+                      else
+                        {
+                          appId = package;
+                          origin = "flathub";
+                        };
+                  in
+                  package'
+                ) packages;
 
-              remotes = mkOptionDefault [
-                {
-                  name = "flathub-beta";
-                  location = "https://flathub.org/beta-repo/flathub-beta.flatpakrepo";
-                }
-              ];
-            };
-          }) users;
+                remotes = mkOptionDefault [
+                  {
+                    name = "flathub-beta";
+                    location = "https://flathub.org/beta-repo/flathub-beta.flatpakrepo";
+                  }
+                ];
+              };
+            }
+          ];
         }
       )
     ];

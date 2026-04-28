@@ -63,8 +63,7 @@
           ...
         }:
         let
-          inherit (config.icedos) applications users;
-          inherit (applications) defaultEditor zed;
+          inherit (config.icedos.applications) defaultEditor zed;
 
           inherit (zed)
             autosave
@@ -79,7 +78,7 @@
             vim
             ;
 
-          inherit (lib) mapAttrs mkIf;
+          inherit (lib) mkIf;
           inherit (pkgs) nil nixd zed-editor-fhs;
         in
         {
@@ -92,82 +91,84 @@
 
           programs.nix-ld.enable = mkIf (!fhs) true;
 
-          home-manager.users = mapAttrs (user: _: {
-            programs.zed-editor = {
-              enable = true;
+          home-manager.sharedModules = [
+            {
+              programs.zed-editor = {
+                enable = true;
 
-              extensions = extensions ++ [
-                "nix"
-                "one-dark-pro"
-                "toml"
-              ];
+                extensions = extensions ++ [
+                  "nix"
+                  "one-dark-pro"
+                  "toml"
+                ];
 
-              extraPackages = icedosLib.pkgMapper pkgs extraPackages;
-              package = mkIf fhs zed-editor-fhs;
+                extraPackages = icedosLib.pkgMapper pkgs extraPackages;
+                package = mkIf fhs zed-editor-fhs;
 
-              userSettings = lib.mkMerge [
-                {
-                  inherit
-                    (
+                userSettings = lib.mkMerge [
+                  {
+                    inherit
+                      (
+                        lsp
+                        // {
+                          lsp.nil.initialization_options.formatting.command = [ "nixfmt" ];
+                        }
+                        // {
+                          inherit languages;
+                        }
+                      )
                       lsp
-                      // {
-                        lsp.nil.initialization_options.formatting.command = [ "nixfmt" ];
-                      }
-                      // {
-                        inherit languages;
-                      }
-                    )
-                    lsp
-                    languages
-                    ;
+                      languages
+                      ;
 
-                  auto_update = false;
-                  autosave = if autosave then "on" else "off";
-                  collaboration_panel.button = false;
-                  format_on_save = if formatOnSave then "on" else "off";
+                    auto_update = false;
+                    autosave = if autosave then "on" else "off";
+                    collaboration_panel.button = false;
+                    format_on_save = if formatOnSave then "on" else "off";
 
-                  indent_guides = {
-                    enabled = true;
-                    coloring = "indent_aware";
-                  };
-
-                  inlay_hints.enabled = true;
-                  journal.hour_format = "hour24";
-                  notification_panel.button = false;
-                  relative_line_numbers = "enabled";
-                  show_whitespaces = "boundary";
-                  tabs.git_status = true;
-
-                  terminal =
-                    let
-                      stylixOn = config.stylix.enable or false;
-                    in
-                    {
-                      blinking = "on";
-                      copy_on_select = true;
-                      font_family = if stylixOn then config.stylix.fonts.monospace.name else "JetBrainsMono Nerd Font";
-                      font_size = if stylixOn then (config.stylix.fonts.sizes.terminal or 12) else fontSize;
+                    indent_guides = {
+                      enabled = true;
+                      coloring = "indent_aware";
                     };
 
-                  vim_mode = vim;
-                }
+                    inlay_hints.enabled = true;
+                    journal.hour_format = "hour24";
+                    notification_panel.button = false;
+                    relative_line_numbers = "enabled";
+                    show_whitespaces = "boundary";
+                    tabs.git_status = true;
 
-                (mkIf (!(config.stylix.enable or false)) {
-                  buffer_font_family = "JetBrainsMono Nerd Font";
-                  buffer_font_size = fontSize;
-                  ui_font_size = fontSize + 2;
+                    terminal =
+                      let
+                        stylixOn = config.stylix.enable or false;
+                      in
+                      {
+                        blinking = "on";
+                        copy_on_select = true;
+                        font_family = if stylixOn then config.stylix.fonts.monospace.name else "JetBrainsMono Nerd Font";
+                        font_size = if stylixOn then (config.stylix.fonts.sizes.terminal or 12) else fontSize;
+                      };
 
-                  theme =
-                    let
-                      inherit (theme) dark light mode;
-                    in
-                    {
-                      inherit dark light mode;
-                    };
-                })
-              ];
-            };
-          }) users;
+                    vim_mode = vim;
+                  }
+
+                  (mkIf (!(config.stylix.enable or false)) {
+                    buffer_font_family = "JetBrainsMono Nerd Font";
+                    buffer_font_size = fontSize;
+                    ui_font_size = fontSize + 2;
+
+                    theme =
+                      let
+                        inherit (theme) dark light mode;
+                      in
+                      {
+                        inherit dark light mode;
+                      };
+                  })
+                ];
+              };
+            }
+          ];
         }
       )
     ];
