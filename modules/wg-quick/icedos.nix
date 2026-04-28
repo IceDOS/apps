@@ -46,7 +46,7 @@
                     exit 1
                   fi
 
-                  newFile="/etc/wireguard/''$(basename $1)"
+                  newFile="/etc/wireguard/''$(basename "$1")"
 
                   mkdir -p /etc/wireguard
                   umask 0022 /etc/wireguard
@@ -54,7 +54,7 @@
                   cp "$1" "$newFile"
                   chmod 600 "$newFile"
                   rm "$1"
-                ' -- $@
+                ' -- "$@"
               '';
 
               help = "add wireguard config to /etc/wireguard";
