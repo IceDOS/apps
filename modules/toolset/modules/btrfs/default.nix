@@ -21,6 +21,8 @@ in
       '';
 
       help = "compress btrfs path using zstd";
+
+      completion.files = true;
     }
   ];
 }

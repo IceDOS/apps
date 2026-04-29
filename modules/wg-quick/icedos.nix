@@ -58,6 +58,8 @@
               '';
 
               help = "add wireguard config to /etc/wireguard";
+
+              completion.files = true;
             }
           ];
         }
