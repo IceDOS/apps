@@ -1,0 +1,15 @@
+[[icedos.applications.samba.shares]]
+name = ""
+path = ""
+comment = ""
+browseable = true
+readOnly = true
+guestOk = false
+forceUser = ""
+forceGroup = ""
+validUsers = []
+writeList = []
+createMask = "0644"
+directoryMask = "0755"
+
+[icedos.applications.samba.shares.extraSettings]

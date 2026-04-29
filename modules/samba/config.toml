@@ -1,0 +1,18 @@
+[icedos.applications.samba]
+workgroup = "WORKGROUP"
+serverString = "%h server (Samba)"
+serverRole = "standalone server"
+minProtocol = "SMB2"
+mapToGuest = "bad user"
+guestAccount = "nobody"
+useSendfile = true
+aioReadSize = 16384
+aioWriteSize = 16384
+socketOptions = "TCP_NODELAY IPTOS_LOWDELAY"
+logFile = "/var/log/samba/log.%m"
+maxLogSize = 50
+openFirewall = false
+enableWsdd = false
+enableNmbd = true
+
+[icedos.applications.samba.extraGlobalSettings]
