@@ -32,14 +32,14 @@ in
               { config, ... }:
 
               {
-                home.file.".config/celluloid/celluloid.conf".source = ./celluloid.conf;
-                home.file.".config/celluloid/shaders/FSR.glsl".source = inputs.celluloid-shader;
+                xdg.configFile."celluloid/celluloid.conf".source = ./celluloid.conf;
+                xdg.configFile."celluloid/shaders/FSR.glsl".source = inputs.celluloid-shader;
 
                 dconf.settings = {
                   "io/github/celluloid-player/celluloid" = {
                     always-append-to-playlist = true;
                     mpv-config-enable = true;
-                    mpv-config-file = "file://${config.home.homeDirectory}/.config/celluloid/celluloid.conf";
+                    mpv-config-file = "file://${config.xdg.configHome}/celluloid/celluloid.conf";
                   };
                 };
               }

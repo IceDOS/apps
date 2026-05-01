@@ -65,34 +65,32 @@
         {
           home-manager.sharedModules = [
             {
-              home = {
-                file = {
-                  ".local/share/Steam/package/beta" = mkIf beta {
-                    force = true;
-                    text = if steamdeck then "steamdeck_publicbeta" else "publicbeta";
-                  };
-
-                  ".local/share/Steam/steam_dev.cfg" = mkIf downloadsWorkaround {
-                    force = true;
-
-                    text = ''
-                      @nClientDownloadEnableHTTP2PlatformLinux 0
-                    '';
-                  };
+              xdg.dataFile = {
+                "Steam/package/beta" = mkIf beta {
+                  force = true;
+                  text = if steamdeck then "steamdeck_publicbeta" else "publicbeta";
                 };
 
-                packages =
-                  if (!hasGamescope && !hasProtonLaunch && !hasExtraPackages && !session) then
-                    [ steam ]
-                  else if ((hasGamescope || hasProtonLaunch) && !session) then
-                    [
-                      (steam.override {
-                        extraPkgs = pkgs: extraPackages ++ optionalGamescope ++ optionalProtonLaunch;
-                      })
-                    ]
-                  else
-                    [ ];
+                "Steam/steam_dev.cfg" = mkIf downloadsWorkaround {
+                  force = true;
+
+                  text = ''
+                    @nClientDownloadEnableHTTP2PlatformLinux 0
+                  '';
+                };
               };
+
+              home.packages =
+                if (!hasGamescope && !hasProtonLaunch && !hasExtraPackages && !session) then
+                  [ steam ]
+                else if ((hasGamescope || hasProtonLaunch) && !session) then
+                  [
+                    (steam.override {
+                      extraPkgs = pkgs: extraPackages ++ optionalGamescope ++ optionalProtonLaunch;
+                    })
+                  ]
+                else
+                  [ ];
             }
           ];
 

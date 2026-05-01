@@ -64,11 +64,9 @@
                   dotDir = "${config.xdg.configHome}/zsh";
                 };
 
-                home.file = {
-                  ".config/zsh/p10k.zsh".source =
-                    "${pkgs.zsh-powerlevel10k}/share/zsh-powerlevel10k/powerlevel10k.zsh-theme";
-
-                  ".config/zsh/p10k-theme.zsh".text = p10kThemeText;
+                xdg.configFile = {
+                  "zsh/p10k.zsh".source = "${pkgs.zsh-powerlevel10k}/share/zsh-powerlevel10k/powerlevel10k.zsh-theme";
+                  "zsh/p10k-theme.zsh".text = p10kThemeText;
                 };
               }
             )
@@ -95,8 +93,8 @@
                 source "''${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-''${(%):-%n}.zsh"
               fi
 
-              [[ ! -f ~/.config/zsh/p10k.zsh ]] || source ~/.config/zsh/p10k.zsh
-              [[ ! -f ~/.config/zsh/p10k-theme.zsh ]] || source ~/.config/zsh/p10k-theme.zsh
+              [[ ! -f "''${XDG_CONFIG_HOME:-$HOME/.config}/zsh/p10k.zsh" ]] || source "''${XDG_CONFIG_HOME:-$HOME/.config}/zsh/p10k.zsh"
+              [[ ! -f "''${XDG_CONFIG_HOME:-$HOME/.config}/zsh/p10k-theme.zsh" ]] || source "''${XDG_CONFIG_HOME:-$HOME/.config}/zsh/p10k-theme.zsh"
               unsetopt PROMPT_SP
             '';
 

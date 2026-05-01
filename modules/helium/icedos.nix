@@ -92,8 +92,8 @@
 
           home-manager.sharedModules = optionals drmSupportUsingGoogleChrome [
             {
-              home.file = {
-                ".config/net.imput.helium/WidevineCdm/latest-component-updated-widevine-cdm".text =
+              xdg.configFile = {
+                "net.imput.helium/WidevineCdm/latest-component-updated-widevine-cdm".text =
                   ''{"Path":"${google-chrome}/share/google/chrome/WidevineCdm"}'';
               };
             }

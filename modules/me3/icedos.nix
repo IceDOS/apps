@@ -207,7 +207,7 @@
                 let
                   duplicateCount = length (filter (n: n == p.name) profileNames);
                   entry = {
-                    name = ".config/me3/profiles/${p.name}.me3";
+                    name = "me3/profiles/${p.name}.me3";
                     value.text = ''
                       ${renderProfile gameName game p}
                     '';
@@ -223,7 +223,7 @@
                   entry;
             in
             [
-              { home.file = listToAttrs (map mkHomeFile allProfiles); }
+              { xdg.configFile = listToAttrs (map mkHomeFile allProfiles); }
             ];
         }
       )
