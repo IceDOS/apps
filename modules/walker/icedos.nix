@@ -45,9 +45,42 @@
             ]
           );
 
+          # Elephant caches xdg desktop entries at startup and doesn't
+          # rescan, so newly-installed entries (post-rebuild, post-flatpak,
+          # etc.) stay invisible until the service is restarted. Watch
+          # ~/.local/share/applications and try-restart elephant on any
+          # change there.
+          systemd.user.paths.elephant-restart = {
+            description = "Restart elephant when desktop entries change";
+            wantedBy = [ "default.target" ];
+            pathConfig.PathChanged = "%h/.local/share/applications";
+          };
+
+          systemd.user.services.elephant-restart = {
+            description = "Restart elephant when desktop entries change";
+            serviceConfig = {
+              Type = "oneshot";
+              ExecStart = "${pkgs.systemd}/bin/systemctl --user try-restart elephant.service";
+            };
+          };
+
+          # extraPackages lands in environment.systemPackages, which doesn't
+          # affect home-manager's unit content — so a system-only rebuild
+          # leaves hm-<user>.service unchanged and switch-to-configuration
+          # never re-runs hm activation, skipping the restart-elephant
+          # hook. Tracking systemPackages here flips the unit content
+          # whenever a system package is added/removed, forcing hm
+          # activation (and the hook) to re-run.
+          systemd.services = lib.mapAttrs' (
+            user: _:
+            lib.nameValuePair "home-manager-${user}" {
+              restartTriggers = config.environment.systemPackages;
+            }
+          ) cfg.users;
+
           home-manager.sharedModules = [
             (
-              { config, ... }:
+              { config, lib, ... }:
               let
                 stylixOn = config.stylix.enable or false;
                 colors = config.lib.stylix.colors or { };
@@ -134,6 +167,19 @@
                   enable = true;
                   clipboardType = "regular";
                 };
+
+                # The systemd.user.path watcher in the NixOS-side block
+                # only catches changes to ~/.local/share/applications
+                # (flatpak, Wine, manual installs). Desktop entries from
+                # icedos modules and config.toml land in
+                # ~/.nix-profile/share/applications, which is a symlink
+                # chain inotify can't track across hm switches. So
+                # explicitly try-restart elephant at the tail of every
+                # home-manager activation — fires once per rebuild,
+                # no-op when elephant isn't running.
+                home.activation.restart-elephant = lib.hm.dag.entryAfter [ "reloadSystemd" ] ''
+                  $DRY_RUN_CMD ${pkgs.systemd}/bin/systemctl --user try-restart elephant.service || true
+                '';
               }
             )
           ];
