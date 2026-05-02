@@ -5,11 +5,10 @@
     let
       inherit (lib)
         head
-        mkOption
         readFile
-        types
         ;
       inherit (icedosLib)
+        mkAttrsOption
         mkBoolOption
         mkNumberOption
         mkStrListOption
@@ -55,11 +54,7 @@
       openFirewall = mkBoolOption { default = openFirewall; };
       enableWsdd = mkBoolOption { default = enableWsdd; };
       enableNmbd = mkBoolOption { default = enableNmbd; };
-
-      extraGlobalSettings = mkOption {
-        type = types.attrs;
-        default = { };
-      };
+      extraGlobalSettings = mkAttrsOption { default = { }; };
 
       shares =
         let
@@ -92,10 +87,7 @@
           writeList = mkStrListOption { default = writeList; };
           createMask = mkStrOption { default = createMask; };
           directoryMask = mkStrOption { default = directoryMask; };
-          extraSettings = mkOption {
-            type = types.attrs;
-            default = extraSettings;
-          };
+          extraSettings = mkAttrsOption { default = extraSettings; };
         };
     };
 

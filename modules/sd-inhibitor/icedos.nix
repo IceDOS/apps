@@ -92,13 +92,13 @@
           inherit (lib)
             attrNames
             filterAttrs
-            hasAttr
             mkIf
-            optional
             readFile
             ;
 
           cfg = config.icedos;
+
+          sessionTargets = icedosLib.systemd.desktopSessionTargets cfg;
 
           getModules =
             path:
@@ -127,35 +127,20 @@
                       || watchers.gpu.enable
                     )
                     {
-                      Unit =
-                        let
-                          sessionTargets =
-                            [ ]
-                            ++ optional (hasAttr "desktop" cfg && hasAttr "cosmic" cfg.desktop) "cosmic-session.target"
-                            ++ optional (hasAttr "desktop" cfg && hasAttr "gnome" cfg.desktop) "gnome-session.target"
-                            ++ optional (hasAttr "desktop" cfg && hasAttr "hyprland" cfg.desktop) "hyprland-session.target";
-                        in
-                        {
-                          Description = "service to inhibit idle, sleep and shutdown based on device usage limits";
-                          After = [ "graphical-session.target" ] ++ sessionTargets;
-                          StartLimitIntervalSec = 60;
-                          StartLimitBurst = 60;
-                        };
+                      Unit = {
+                        Description = "service to inhibit idle, sleep and shutdown based on device usage limits";
+                        After = [ "graphical-session.target" ] ++ sessionTargets;
+                        StartLimitIntervalSec = 60;
+                        StartLimitBurst = 60;
+                      };
 
-                      Install.WantedBy =
-                        [ ]
-                        ++ optional (hasAttr "desktop" cfg && hasAttr "cosmic" cfg.desktop) "cosmic-session.target"
-                        ++ optional (hasAttr "desktop" cfg && hasAttr "gnome" cfg.desktop) "gnome-session.target"
-                        ++ optional (hasAttr "desktop" cfg && hasAttr "hyprland" cfg.desktop) "hyprland-session.target";
+                      Install.WantedBy = sessionTargets;
 
                       Service = {
                         ExecStart =
                           with pkgs;
                           "${writeShellScript "sd-inhibitor" ''
-                            base_path="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-                            nix_system_path="/run/current-system/sw/bin"
-                            nix_user_path="''${HOME}/.nix-profile/bin"
-                            export PATH="''${base_path}:''${nix_system_path}:''${nix_user_path}:$PATH"
+                            ${icedosLib.bash.exportSystemPath}
 
                             ${readFile ./sd-inhibitor.sh}
                           ''}";
