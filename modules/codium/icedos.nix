@@ -11,7 +11,7 @@
         mkBoolOption
         mkNumberOption
         mkStrOption
-        mkSubmoduleAttrsOption
+        mkUsersOption
         ;
 
       inherit (lib) readFile;
@@ -26,7 +26,7 @@
         ;
     in
     {
-      users = mkSubmoduleAttrsOption { default = { }; } {
+      users = mkUsersOption {
         autoSave = mkStrOption { default = autoSave; };
         colorTheme = mkStrOption { default = colorTheme; };
         fontSize = mkNumberOption { default = fontSize; };
