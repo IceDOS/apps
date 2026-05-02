@@ -2,6 +2,7 @@
   build ? "amd64",
   compiledWith ? "clang-pgo",
   fetchurl,
+  makeDesktopItem,
   stdenvNoCC,
 }:
 
@@ -9,6 +10,10 @@ let
   name = pname;
   pname = "eden";
   version = "0.1.1";
+
+  appName = "dev.eden_emu.eden";
+  desktopFile = "${appName}.desktop";
+  icon = "${appName}.svg";
 
   edenAppimage = fetchurl {
     url = "https://git.eden-emu.dev/eden-emu/eden/releases/download/v${version}/Eden-Linux-v${version}-${build}-${compiledWith}.AppImage";
@@ -52,35 +57,41 @@ let
       }
       .${build};
   };
+
+  desktopItem = makeDesktopItem {
+    name = appName;
+    desktopName = "Eden";
+    comment = "Nintendo Switch emulator";
+    exec = "/@out@/AppRun";
+    icon = "/@out@/share/applications/${icon}";
+    type = "Application";
+
+    categories = [
+      "Game"
+      "Emulator"
+    ];
+  };
 in
 stdenvNoCC.mkDerivation {
   inherit name;
 
   dontUnpack = true;
 
-  installPhase =
-    let
-      appImagePath = "$out/lib/eden.AppImage";
-      appName = "dev.eden_emu.eden";
-      desktopFile = "${appName}.desktop";
-      desktopFilePath = "$out/share/applications/${desktopFile}";
-      icon = "${appName}.svg";
-      iconPath = "$out/share/applications/${icon}";
-    in
-    ''
-      mkdir -p $out/lib
+  installPhase = ''
+    mkdir -p $out/lib
 
-      cp ${edenAppimage} ${appImagePath}
-      chmod +x ${appImagePath}
-      ${appImagePath} --appimage-extract
-      rm ${appImagePath}
-      rm AppDir/lib
-      mv AppDir/* $out
+    cp ${edenAppimage} $out/lib/eden.AppImage
+    chmod +x $out/lib/eden.AppImage
+    $out/lib/eden.AppImage --appimage-extract
+    rm $out/lib/eden.AppImage
+    rm AppDir/lib
+    mv AppDir/* $out
 
-      mkdir -p $out/share/applications
-      ln -s $out/${desktopFile} ${desktopFilePath}
-      ln -s $out/${icon} ${iconPath}
+    install -Dm644 ${desktopItem}/share/applications/${desktopFile} \
+      $out/share/applications/${desktopFile}
+    substituteInPlace $out/share/applications/${desktopFile} \
+      --replace-fail "/@out@" "$out"
 
-      substituteInPlace ${desktopFilePath} --replace-fail "${appName}" "${iconPath}"
-    '';
+    ln -s $out/${icon} $out/share/applications/${icon}
+  '';
 }
