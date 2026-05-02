@@ -16,6 +16,7 @@
   libayatana-indicator,
   libdbusmenu,
   libepoxy,
+  makeDesktopItem,
   mpv,
   pango,
   stdenvNoCC,
@@ -30,6 +31,20 @@ stdenvNoCC.mkDerivation (
     harmonyMusicDir = "${shareDir}/harmonymusic";
     harmonyMusicBin = "${harmonyMusicDir}/harmonymusic";
     harmonyMusicWrapper = "$out/bin/harmony-music";
+
+    desktopItem = makeDesktopItem {
+      name = "harmonymusic";
+      desktopName = "Harmony Music";
+      comment = "YouTube Music client";
+      exec = "/@out@/bin/harmony-music %U";
+      icon = "harmonymusic";
+      type = "Application";
+
+      categories = [
+        "AudioVideo"
+        "Audio"
+      ];
+    };
   in
   {
     pname = "harmony-music";
@@ -80,8 +95,10 @@ stdenvNoCC.mkDerivation (
     postFixup = ''
       addAutoPatchelfSearchPath ${jdk}/lib/openjdk/lib/server
 
+      install -Dm644 ${desktopItem}/share/applications/harmonymusic.desktop \
+        ${shareDir}/applications/harmonymusic.desktop
       substituteInPlace ${shareDir}/applications/harmonymusic.desktop \
-        --replace-fail "harmonymusic %U" "${harmonyMusicWrapper}"
+        --replace-fail "/@out@" "$out"
 
       echo "
         export LD_LIBRARY_PATH=${mpv}/lib
