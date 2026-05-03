@@ -87,6 +87,12 @@ stdenvNoCC.mkDerivation {
     rm AppDir/lib
     mv AppDir/* $out
 
+    # AppImage sharun wrappers leak into systemPackages and shadow real
+    # xdg-utils binaries, breaking link-open in every Electron app
+    # (Signal Desktop, etc.). They are AppImage-internal helpers — eden does
+    # not need them on the host PATH.
+    rm -f $out/bin/xdg-open $out/bin/gio-launch-desktop
+
     install -Dm644 ${desktopItem}/share/applications/${desktopFile} \
       $out/share/applications/${desktopFile}
     substituteInPlace $out/share/applications/${desktopFile} \
