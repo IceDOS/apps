@@ -138,6 +138,11 @@
                     show_whitespaces = "boundary";
                     tabs.git_status = true;
 
+                    title_bar = {
+                      button_layout = icedosLib.desktop.mkButtonLayoutString config.icedos.desktop.windows;
+                      show_sign_in = false;
+                    };
+
                     terminal =
                       let
                         stylixOn = config.stylix.enable or false;
