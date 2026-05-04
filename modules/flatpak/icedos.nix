@@ -18,6 +18,7 @@
         {
           config,
           lib,
+          pkgs,
           ...
         }:
         let
@@ -32,6 +33,12 @@
         in
         {
           services.flatpak.enable = true;
+
+          icedos.applications.toolset.rebuild.hooks.preUpdate = [
+            ''
+              ${pkgs.flatpak}/bin/flatpak update || true
+            ''
+          ];
 
           home-manager.sharedModules = [
             {

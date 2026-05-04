@@ -9,7 +9,6 @@ let
   inherit (lib) mkOption readFile types;
 
   inherit ((fromTOML (readFile ./config.toml)).icedos.applications.steam.millennium)
-    autoUpdate
     defaultTheme
     disableAnimations
     disableBlur
@@ -30,7 +29,6 @@ in
   };
 
   options.icedos.applications.steam.millennium = {
-    autoUpdate = mkBoolOption { default = autoUpdate; };
     defaultTheme = mkStrOption { default = defaultTheme; };
     disableAnimations = mkBoolOption { default = disableAnimations; };
     disableBlur = mkBoolOption { default = disableBlur; };
@@ -364,8 +362,9 @@ in
             # Use Steam Brew's pre-built release zips (contain .millennium/Dist/
             # built artifacts plugins need). Tradeoff: no `.git` so Millennium's
             # in-UI "Update" button warns "Failed to open Git repository" — that
-            # warning is cosmetic. For updates, set `autoUpdate = true` and
-            # rebuild; the script wipes existing dirs + re-fetches.
+            # warning is cosmetic. For updates, run `icedos rebuild --update`;
+            # the rebuild preUpdate hook wipes icedos-managed dirs and this
+            # script re-fetches them on the next HM activation.
 
             fetch_theme() {
               local id="$1"
@@ -379,14 +378,14 @@ in
               name=$(jq -r '.data.github.repo // .name' <<<"$meta")
               url=$(jq -r .download <<<"$meta")
               dest="$HOME/.steam/steam/steamui/skins/$name"
-              ${lib.optionalString cfg.autoUpdate ''
-                # autoUpdate: drop existing dir so we re-fetch the latest zip.
-                rm -rf "$dest"
-              ''}
               if [ -d "$dest" ]; then
-                printf '%s\n' "$id" > "$dest/$MARKER"
-                echo "[millennium-bootstrap] theme $name present, skipping"
-                return 0
+                if [ -f "$dest/$MARKER" ]; then
+                  echo "[millennium-bootstrap] theme $name present, skipping"
+                  return 0
+                fi
+                # Marker missing: dir is partial/aborted state — wipe + refetch.
+                echo "[millennium-bootstrap] theme $name marker missing, refetching"
+                rm -rf "$dest"
               fi
               tmp=$(mktemp -d)
               trap "rm -rf '$tmp'" RETURN
@@ -411,13 +410,14 @@ in
               name=$(jq -r .repoName <<<"$meta")
               rel=$(jq -r .downloadUrl <<<"$meta")
               dest="$HOME/.local/share/millennium/plugins/$name"
-              ${lib.optionalString cfg.autoUpdate ''
-                rm -rf "$dest"
-              ''}
               if [ -d "$dest" ]; then
-                printf '%s\n' "$id" > "$dest/$MARKER"
-                echo "[millennium-bootstrap] plugin $name present, skipping"
-                return 0
+                if [ -f "$dest/$MARKER" ]; then
+                  echo "[millennium-bootstrap] plugin $name present, skipping"
+                  return 0
+                fi
+                # Marker missing: dir is partial/aborted state — wipe + refetch.
+                echo "[millennium-bootstrap] plugin $name marker missing, refetching"
+                rm -rf "$dest"
               fi
               tmp=$(mktemp -d)
               trap "rm -rf '$tmp'" RETURN
@@ -526,6 +526,32 @@ in
         in
         {
           nixpkgs.overlays = [ inputs.millennium.overlays.default ];
+
+          # On `icedos rebuild --update[-hooks]`, drop icedos-managed
+          # millennium theme/plugin dirs. `.icedos-managed-id` marker
+          # (written by bootstrap) distinguishes ours from user-installed
+          # dirs (preserved). For --update (full rebuild), HM activation
+          # re-runs bootstrap and re-fetches. For --update-hooks (no HM
+          # activation), invoke bootstrap inline.
+          icedos.applications.toolset.rebuild.hooks.preUpdate =
+            mkIf (allThemeIds != [ ] || allPluginIds != [ ])
+              [
+                ''
+                  for root in "$HOME/.steam/steam/steamui/skins" "$HOME/.local/share/millennium/plugins"; do
+                    [ -d "$root" ] || continue
+                    for d in "$root"/*/; do
+                      if [ -f "$d/.icedos-managed-id" ]; then
+                        echo -e "${icedosLib.bash.greenString "millennium"}: wiping $(basename "$d") for refresh"
+                        rm -rf "$d"
+                      fi
+                    done
+                  done
+
+                  if [ "''${ICEDOS_HOOKS_ONLY:-0}" = "1" ]; then
+                    ${bootstrapScript}
+                  fi
+                ''
+              ];
 
           home-manager.sharedModules = [
             (
