@@ -3,6 +3,8 @@ for w in cpu gpu disk network pipewire ports; do
   command -v "$w-watcher" &>/dev/null && watchers+=("$w")
 done
 
+UID_SELF="$(id -u)"
+
 PID=""
 LAST_STATE=""
 
@@ -17,6 +19,16 @@ release() {
 trap 'release; exit 0' TERM INT
 
 while :; do
+  if pgrep -fU "$UID_SELF" "icedos-toggle-inhibit-(idle|sleep)" >/dev/null 2>&1; then
+    if [[ -n "$PID" ]]; then
+      echo "manual toggle-inhibit active, releasing watcher inhibitor: $PID"
+      release
+      LAST_STATE=""
+    fi
+    sleep 1
+    continue
+  fi
+
   firing=()
   for w in "${watchers[@]}"; do
     [[ "$("$w-watcher")" == "true" ]] && firing+=("$w")
