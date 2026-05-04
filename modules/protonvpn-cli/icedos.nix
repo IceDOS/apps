@@ -59,15 +59,18 @@
           onOff = b: if b then "on" else "off";
 
           netshieldValue =
-            if settings.netshield.full then "malware-ads-trackers"
-            else if settings.netshield.malware then "malware-only"
-            else "off";
+            if settings.netshield.full then
+              "malware-ads-trackers"
+            else if settings.netshield.malware then
+              "malware-only"
+            else
+              "off";
 
           killSwitchValue = if settings.killSwitch then "standard" else "off";
 
-          customDnsValid = abortIf
-            (settings.customDns && settings.customDnsServers == "")
-            "icedos.applications.protonvpn-cli.settings.customDnsServers must be non-empty when customDns is true.";
+          customDnsValid =
+            abortIf (settings.customDns && settings.customDnsServers == "")
+              "icedos.applications.protonvpn-cli.settings.customDnsServers must be non-empty when customDns is true.";
 
           connectArgs = concatStringsSep " " (
             optional (connect.country != "") ''--country "${connect.country}"''
@@ -82,7 +85,7 @@
             if (customDnsValid && settings.customDns) then
               ''protonvpn config set custom-dns on --dns "${settings.customDnsServers}"''
             else
-              ''protonvpn config set custom-dns off'';
+              "protonvpn config set custom-dns off";
 
           startScript = ''
             ${icedosLib.bash.exportSystemPath}
