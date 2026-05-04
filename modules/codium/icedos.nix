@@ -70,7 +70,7 @@
                 codium = cfg.applications.codium.users.${config.home.username};
               in
               {
-                programs.vscode = {
+                programs.vscodium = {
                   enable = true;
                   profiles.default.enableExtensionUpdateCheck = true;
                   profiles.default.enableUpdateCheck = false;
