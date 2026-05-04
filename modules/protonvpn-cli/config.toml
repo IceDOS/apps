@@ -1,2 +1,21 @@
-[icedos.applications.protonvpn-cli]
-country = "" # Country code (US, GB, DE) or full name ("United States")
+[icedos.applications.protonvpn-cli.connect]
+city = ""
+country = ""
+p2p = false
+random = false
+securecore = false
+tor = false
+
+[icedos.applications.protonvpn-cli.settings.netshield]
+malware = false
+full = false
+
+[icedos.applications.protonvpn-cli.settings]
+anonymousCrashReports = false
+customDns = false
+customDnsServers = ""
+ipv6 = false
+killSwitch = false
+moderateNat = false
+portForwarding = false
+vpnAccelerator = true
