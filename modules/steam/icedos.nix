@@ -50,17 +50,18 @@
             optional
             ;
 
-          inherit (pkgs) steam;
           inherit (applications.steam) beta cpuUsageWorkaround downloadsWorkaround;
 
           extraPackages = mapper pkgs applications.steam.extraPackages;
           hasExtraPackages = length extraPackages != 0;
           hasGamescope = hasAttr "gamescope" applications;
+          hasMillennium = hasAttr "millennium" applications.steam;
           hasProtonLaunch = hasAttr "proton-launch" applications;
           optionalGamescope = optional hasGamescope pkgs.gamescope;
           optionalProtonLaunch = optional hasProtonLaunch pkgs.proton-launch;
           session = hasAttr "session" applications.steam;
           steamdeck = hasAttr "steamdeck" devices;
+          steamPkg = if hasMillennium then pkgs.millennium-steam else pkgs.steam;
         in
         {
           home-manager.sharedModules = [
@@ -82,10 +83,10 @@
 
               home.packages =
                 if (!hasGamescope && !hasProtonLaunch && !hasExtraPackages && !session) then
-                  [ steam ]
+                  [ steamPkg ]
                 else if ((hasGamescope || hasProtonLaunch) && !session) then
                   [
-                    (steam.override {
+                    (steamPkg.override {
                       extraPkgs = pkgs: extraPackages ++ optionalGamescope ++ optionalProtonLaunch;
                     })
                   ]
@@ -97,6 +98,7 @@
           programs.steam = {
             enable = steamdeck || session;
             extraPackages = extraPackages ++ optionalGamescope ++ optionalProtonLaunch;
+            package = mkIf hasMillennium steamPkg;
           };
 
           systemd.tmpfiles.rules = mkIf cpuUsageWorkaround (
