@@ -3,8 +3,8 @@
 {
   options.icedos.applications.kitty =
     let
-      inherit (icedosLib) mkBoolOption mkNumberOption;
-      inherit (lib) mkOption readFile types;
+      inherit (icedosLib) mkBoolOption mkIntBetweenOption mkNumberOption;
+      inherit (lib) readFile;
 
       inherit ((fromTOML (readFile ./config.toml)).icedos.applications.kitty)
         fontSize
@@ -15,11 +15,11 @@
     {
       fontSize = mkNumberOption { default = fontSize; };
       hideDecorations = mkBoolOption { default = hideDecorations; };
-      opacity = mkOption {
-        type = types.ints.between 1 100;
+
+      opacity = mkIntBetweenOption {
         default = opacity;
         description = "Kitty background opacity, 1-100 scale (forwarded as 0.01-1.00 to kitty).";
-      };
+      } 1 100;
     };
 
   outputs.nixosModules =

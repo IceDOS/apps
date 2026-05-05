@@ -3,8 +3,8 @@
 {
   options.icedos.applications.steam.session =
     let
-      inherit (lib) mkOption readFile;
-      inherit (icedosLib) mkStrListOption;
+      inherit (lib) readFile;
+      inherit (icedosLib) mkStrListOption mkUntypedOption;
 
       inherit ((fromTOML (readFile ./config.toml)).icedos.applications.steam.session)
         args
@@ -14,7 +14,7 @@
     in
     {
       args = mkStrListOption { default = args; };
-      env = mkOption { default = env; };
+      env = mkUntypedOption { default = env; };
       steamArgs = mkStrListOption { default = steamArgs; };
     };
 

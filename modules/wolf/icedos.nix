@@ -3,8 +3,8 @@
 {
   options.icedos.applications.wolf =
     let
-      inherit (lib) mkOption readFile;
-      inherit (icedosLib) mkStrOption mkStrListOption;
+      inherit (lib) readFile;
+      inherit (icedosLib) mkStrOption mkStrListOption mkUntypedOption;
 
       inherit ((fromTOML (readFile ./config.toml)).icedos.applications.wolf)
         extraEnvironmentFlags
@@ -16,7 +16,7 @@
         ;
     in
     {
-      extraEnvironmentFlags = mkOption { default = extraEnvironmentFlags; };
+      extraEnvironmentFlags = mkUntypedOption { default = extraEnvironmentFlags; };
       extraOptions = mkStrListOption { default = extraOptions; };
       extraPackages = mkStrListOption { default = extraPackages; };
       extraVolumes = mkStrListOption { default = extraVolumes; };

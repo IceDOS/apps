@@ -8,21 +8,18 @@
         genAttrs
         head
         mapAttrs
-        mkOption
         readFile
         ;
 
       inherit ((fromTOML (readFile ./config.toml)).icedos.applications.me3) games;
-
-      inherit (icedosLib) mkSubmoduleAttrsOption mkSubmoduleListOption;
-
+      inherit (icedosLib) mkSubmoduleAttrsOption mkSubmoduleListOption mkUntypedOption;
       sampleGame = head (attrValues games);
       sampleProfile = head sampleGame.profiles;
 
       # Each TOML key on the sample entry becomes an untyped option whose default
       # mirrors the parsed stub — the zsh-module pattern at apps/modules/zsh/icedos.nix:4-11,
       # lifted to a whole attrset so we don't have to enumerate keys by hand.
-      optionsFromAttrs = attrs: mapAttrs (_: v: mkOption { default = v; }) attrs;
+      optionsFromAttrs = attrs: mapAttrs (_: v: mkUntypedOption { default = v; }) attrs;
 
       # Nullable per-profile overrides that fall through to the game's defaults.
       overridableScalars = [
@@ -32,7 +29,7 @@
         "disable_arxan"
         "patch_mem"
       ];
-      nullOverrides = genAttrs overridableScalars (_: mkOption { default = null; });
+      nullOverrides = genAttrs overridableScalars (_: mkUntypedOption { default = null; });
     in
     mkSubmoduleAttrsOption { default = games; } (
       (optionsFromAttrs (removeAttrs sampleGame [ "profiles" ]))
