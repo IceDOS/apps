@@ -1,6 +1,16 @@
-{ ... }:
+{ icedosLib, lib, ... }:
 
 {
+  options.icedos.applications.btop =
+    let
+      inherit (lib) readFile;
+      inherit (icedosLib) mkBoolOption;
+      inherit ((fromTOML (readFile ./config.toml)).icedos.applications.btop) sudoDesktopEntry;
+    in
+    {
+      sudoDesktopEntry = mkBoolOption { default = sudoDesktopEntry; };
+    };
+
   outputs.nixosModules =
     { ... }:
     [
@@ -72,7 +82,7 @@
                 ];
               };
 
-              xdg.desktopEntries.btop-sudo = {
+              xdg.desktopEntries.btop-sudo = mkIf config.icedos.applications.btop.sudoDesktopEntry {
                 name = "sudo btop++";
                 genericName = "System Monitor";
                 comment = "Resource monitor that shows usage and stats for processor, memory, disks, network and processes";
