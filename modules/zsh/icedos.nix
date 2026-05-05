@@ -1,13 +1,14 @@
-{ lib, ... }:
+{ icedosLib, lib, ... }:
 
 {
   options.icedos.applications.zsh =
     let
-      inherit (lib) mkOption readFile;
+      inherit (lib) readFile;
+      inherit (icedosLib) mkUntypedOption;
       inherit ((fromTOML (readFile ./config.toml)).icedos.applications.zsh) aliases;
     in
     {
-      aliases = mkOption { default = aliases; };
+      aliases = mkUntypedOption { default = aliases; };
     };
 
   outputs.nixosModules =

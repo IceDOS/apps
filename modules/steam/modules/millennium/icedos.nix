@@ -3,10 +3,12 @@
 let
   inherit (icedosLib)
     mkBoolOption
+    mkEitherOption
     mkStrListOption
     mkStrOption
     ;
-  inherit (lib) mkOption readFile types;
+
+  inherit (lib) readFile types;
 
   inherit ((fromTOML (readFile ./config.toml)).icedos.applications.steam.millennium)
     defaultTheme
@@ -32,11 +34,12 @@ in
     defaultTheme = mkStrOption { default = defaultTheme; };
     disableAnimations = mkBoolOption { default = disableAnimations; };
     disableBlur = mkBoolOption { default = disableBlur; };
-    enabledPlugins = mkOption {
-      type = types.either types.str (types.listOf types.str);
+
+    enabledPlugins = mkEitherOption {
       default = enabledPlugins;
       description = ''Either the literal string "all" (enable every installed plugin) or a list of plugin IDs to enable.'';
-    };
+    } types.str (types.listOf types.str);
+
     pluginIds = mkStrListOption { default = pluginIds; };
     themeIds = mkStrListOption { default = themeIds; };
   };

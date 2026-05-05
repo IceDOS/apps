@@ -7,13 +7,14 @@
 {
   options.icedos.applications.zed =
     let
-      inherit (lib) mkOption readFile;
+      inherit (lib) readFile;
 
       inherit (icedosLib)
         mkBoolOption
         mkNumberOption
         mkStrListOption
         mkStrOption
+        mkUntypedOption
         ;
 
       inherit ((fromTOML (readFile ./config.toml)).icedos.applications.zed)
@@ -36,8 +37,8 @@
       fhs = mkBoolOption { default = fhs; };
       fontSize = mkNumberOption { default = fontSize; };
       formatOnSave = mkBoolOption { default = formatOnSave; };
-      languages = mkOption { default = languages; };
-      lsp = mkOption { default = lsp; };
+      languages = mkUntypedOption { default = languages; };
+      lsp = mkUntypedOption { default = lsp; };
 
       theme =
         let
