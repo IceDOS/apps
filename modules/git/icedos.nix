@@ -72,77 +72,83 @@
 
           icedos.applications.toolset.commands = [
             {
-              command = "extract-commit";
+              command = "git";
+              help = "git related commands";
+              commands = [
+                {
+                  command = "extract-commit";
 
-              script = ''
-                ERROR="${redString "error"}"
+                  script = ''
+                    ERROR="${redString "error"}"
 
-                function printHelp() {
-                  echo "Available arguments:"
-                  echo -e "> ${yellowString "-c, --commit"}: commit hash from which a file list will be generated"
-                  echo -e "> ${yellowString "-d, --destination"}: path to copy generated file list to"
-                  echo -e "> ${purpleString "--fetch-files-from-commit"}: fetch files content from commit, instead of current tree"
-                  echo -e "\n(${dimGreenString "!"}) Yellow-colored arguments are required"
-                }
+                    function printHelp() {
+                      echo "Available arguments:"
+                      echo -e "> ${yellowString "-c, --commit"}: commit hash from which a file list will be generated"
+                      echo -e "> ${yellowString "-d, --destination"}: path to copy generated file list to"
+                      echo -e "> ${purpleString "--fetch-files-from-commit"}: fetch files content from commit, instead of current tree"
+                      echo -e "\n(${dimGreenString "!"}) Yellow-colored arguments are required"
+                    }
 
-                if [[ $# -le 1 ]]; then
-                  printHelp
-                  exit 0
-                fi
-
-                while [[ $# -gt 0 ]]; do
-                  case "$1" in
-                    -c|--commit)
-                      COMMIT="$2"
-                      shift 2
-                      ;;
-                    -d|--destination)
-                      DESTINATION="$2"
-                      shift 2
-                      ;;
-                    --fetch-files-from-commit)
-                      FETCH_COMMIT=1
-                      shift
-                      ;;
-                    *)
-                      echo -e "$ERROR: unknown arg \"$1\" \n"
+                    if [[ $# -le 1 ]]; then
                       printHelp
-                      exit 1
-                  esac
-                done
+                      exit 0
+                    fi
 
-                [ "$COMMIT" == "" ] && echo -e "$ERROR: ${dimYellowString "-c|--commit"} required" && exit 1
-                [ "$DESTINATION" == "" ] && echo -e "$ERROR: ${dimYellowString "-d|--destination"} required" && exit 1
+                    while [[ $# -gt 0 ]]; do
+                      case "$1" in
+                        -c|--commit)
+                          COMMIT="$2"
+                          shift 2
+                          ;;
+                        -d|--destination)
+                          DESTINATION="$2"
+                          shift 2
+                          ;;
+                        --fetch-files-from-commit)
+                          FETCH_COMMIT=1
+                          shift
+                          ;;
+                        *)
+                          echo -e "$ERROR: unknown arg \"$1\" \n"
+                          printHelp
+                          exit 1
+                      esac
+                    done
 
-                FILES_TO_EXTRACT=$(git diff-tree --no-commit-id --name-only -r "$COMMIT" 2>/dev/null)
+                    [ "$COMMIT" == "" ] && echo -e "$ERROR: ${dimYellowString "-c|--commit"} required" && exit 1
+                    [ "$DESTINATION" == "" ] && echo -e "$ERROR: ${dimYellowString "-d|--destination"} required" && exit 1
 
-                [ -z "''${FILES_TO_EXTRACT[@]}" ] && echo -e "$ERROR: no files to extract, make sure the commit hash is correct and not empty" && exit 1
+                    FILES_TO_EXTRACT=$(git diff-tree --no-commit-id --name-only -r "$COMMIT" 2>/dev/null)
 
-                mkdir -p "$DESTINATION"
+                    [ -z "''${FILES_TO_EXTRACT[@]}" ] && echo -e "$ERROR: no files to extract, make sure the commit hash is correct and not empty" && exit 1
 
-                for file in $FILES_TO_EXTRACT; do
-                  source_dir=$(dirname "$file")
-                  dest_dir="$DESTINATION/$source_dir"
+                    mkdir -p "$DESTINATION"
 
-                  mkdir -p "$dest_dir"
+                    for file in $FILES_TO_EXTRACT; do
+                      source_dir=$(dirname "$file")
+                      dest_dir="$DESTINATION/$source_dir"
 
-                  case $FETCH_COMMIT in
-                    1)
-                      git show "''${COMMIT}:''${file}" > "$DESTINATION/$file"
-                      ;;
-                    *)
-                      if [[ ! -e "$file" ]]; then
-                        echo -e "$ERROR: failed to copy \"$file\", file is not present in current structure"
-                        continue
-                      fi
+                      mkdir -p "$dest_dir"
 
-                      cp "$file" "$DESTINATION/$file"
-                      ;;
-                  esac
-                done
-              '';
+                      case $FETCH_COMMIT in
+                        1)
+                          git show "''${COMMIT}:''${file}" > "$DESTINATION/$file"
+                          ;;
+                        *)
+                          if [[ ! -e "$file" ]]; then
+                            echo -e "$ERROR: failed to copy \"$file\", file is not present in current structure"
+                            continue
+                          fi
 
-              help = "-c <commit_hash> -d <destination_directory>";
+                          cp "$file" "$DESTINATION/$file"
+                          ;;
+                      esac
+                    done
+                  '';
+
+                  help = "-c <commit_hash> -d <destination_directory>";
+                }
+              ];
             }
           ];
         }
