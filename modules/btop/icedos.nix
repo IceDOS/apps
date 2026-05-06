@@ -4,10 +4,17 @@
   options.icedos.applications.btop =
     let
       inherit (lib) readFile;
-      inherit (icedosLib) mkBoolOption;
-      inherit ((fromTOML (readFile ./config.toml)).icedos.applications.btop) sudoDesktopEntry;
+      inherit (icedosLib) mkBoolOption mkStrListOption;
+
+      inherit ((fromTOML (readFile ./config.toml)).icedos.applications.btop)
+        speedInBytes
+        diskExclusions
+        sudoDesktopEntry
+        ;
     in
     {
+      diskExclusions = mkStrListOption { default = diskExclusions; };
+      speedInBytes = mkBoolOption { default = speedInBytes; };
       sudoDesktopEntry = mkBoolOption { default = sudoDesktopEntry; };
     };
 
@@ -23,7 +30,8 @@
         }:
 
         let
-          inherit (lib) mkIf mkMerge;
+          inherit (config.icedos.applications.btop) speedInBytes diskExclusions sudoDesktopEntry;
+          inherit (lib) concatStringsSep mkIf mkMerge;
 
           btopBin = pkgs.writeShellScriptBin "btop" ''
             export PATH="${pkgs.coreutils}/bin:${pkgs.glibc.bin}/bin:''${PATH:-}"
@@ -73,16 +81,22 @@
 
                 settings = mkMerge [
                   {
+                    base_10_sizes = speedInBytes;
                     disk_free_priv = false;
                     swap_disk = false;
                   }
+
+                  (mkIf (diskExclusions != [ ]) {
+                    disks_filter = "exclude=" + concatStringsSep " " diskExclusions;
+                  })
+
                   (mkIf (!(config.stylix.enable or false)) {
                     color_theme = "onedark";
                   })
                 ];
               };
 
-              xdg.desktopEntries.btop-sudo = mkIf config.icedos.applications.btop.sudoDesktopEntry {
+              xdg.desktopEntries.btop-sudo = mkIf sudoDesktopEntry {
                 name = "sudo btop++";
                 genericName = "System Monitor";
                 comment = "Resource monitor that shows usage and stats for processor, memory, disks, network and processes";

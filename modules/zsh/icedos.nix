@@ -3,12 +3,12 @@
 {
   options.icedos.applications.zsh =
     let
-      inherit (lib) readFile;
-      inherit (icedosLib) mkUntypedOption;
+      inherit (lib) readFile types;
+      inherit (icedosLib) mkAttrsOfOption;
       inherit ((fromTOML (readFile ./config.toml)).icedos.applications.zsh) aliases;
     in
     {
-      aliases = mkUntypedOption { default = aliases; };
+      aliases = mkAttrsOfOption { default = aliases; } types.str;
     };
 
   outputs.nixosModules =

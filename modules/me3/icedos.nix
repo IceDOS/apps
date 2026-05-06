@@ -5,31 +5,77 @@
     let
       inherit (lib)
         attrValues
-        genAttrs
         head
+        isAttrs
+        isBool
+        isInt
+        isList
+        isString
         mapAttrs
         readFile
+        types
         ;
 
       inherit ((fromTOML (readFile ./config.toml)).icedos.applications.me3) games;
-      inherit (icedosLib) mkSubmoduleAttrsOption mkSubmoduleListOption mkUntypedOption;
+      inherit (icedosLib)
+        mkAttrsOption
+        mkBoolOption
+        mkListOption
+        mkNullableOption
+        mkNumberOption
+        mkNumberListOption
+        mkStrListOption
+        mkStrOption
+        mkSubmoduleAttrsOption
+        mkSubmoduleListOption
+        ;
+
       sampleGame = head (attrValues games);
       sampleProfile = head sampleGame.profiles;
 
-      # Each TOML key on the sample entry becomes an untyped option whose default
-      # mirrors the parsed stub — the zsh-module pattern at apps/modules/zsh/icedos.nix:4-11,
-      # lifted to a whole attrset so we don't have to enumerate keys by hand.
-      optionsFromAttrs = attrs: mapAttrs (_: v: mkUntypedOption { default = v; }) attrs;
+      # Auto-derive the most precise wrapper for each TOML-shaped value so the
+      # generated submodule fields stay typed without enumerating each key by
+      # hand. Empty lists fall back to `listOf anything` because the sample TOML
+      # has no element to inspect, but real entries may differ in shape (e.g.
+      # game-level natives are attrs while profile-level natives are refs).
+      typedOptionFor =
+        v:
+        if isBool v then
+          mkBoolOption { default = v; }
+        else if isInt v then
+          mkNumberOption { default = v; }
+        else if isString v then
+          mkStrOption { default = v; }
+        else if isList v then
+          if v == [ ] then
+            mkListOption { default = v; } types.anything
+          else
+            let
+              head' = head v;
+            in
+            if isString head' then
+              mkStrListOption { default = v; }
+            else if isInt head' then
+              mkNumberListOption { default = v; }
+            else
+              mkListOption { default = v; } types.attrs
+        else if isAttrs v then
+          mkAttrsOption { default = v; }
+        else
+          mkAttrsOption { default = v; };
+
+      optionsFromAttrs = attrs: mapAttrs (_: typedOptionFor) attrs;
 
       # Nullable per-profile overrides that fall through to the game's defaults.
-      overridableScalars = [
-        "profileVersion"
-        "savefile"
-        "start_online"
-        "disable_arxan"
-        "patch_mem"
-      ];
-      nullOverrides = genAttrs overridableScalars (_: mkUntypedOption { default = null; });
+      overridableScalarTypes = {
+        profileVersion = types.str;
+        savefile = types.str;
+        start_online = types.bool;
+        disable_arxan = types.bool;
+        patch_mem = types.bool;
+      };
+
+      nullOverrides = mapAttrs (_: t: mkNullableOption { default = null; } t) overridableScalarTypes;
     in
     mkSubmoduleAttrsOption { default = games; } (
       (optionsFromAttrs (removeAttrs sampleGame [ "profiles" ]))
@@ -56,7 +102,7 @@
 
           home-manager.sharedModules =
             let
-              inherit (icedosLib) abortIf;
+              inherit (icedosLib) validate;
 
               inherit (lib)
                 attrNames
@@ -95,7 +141,11 @@
                 else if isAttrs v then
                   "{ ${concatStringsSep ", " (mapAttrsToList (k: val: "${k} = ${toTOMLValue val}") v)} }"
                 else
-                  throw "me3 renderer: unsupported TOML value ${toString v}";
+                  validate.abort {
+                    when = true;
+                    path = "icedos.applications.me3.renderer";
+                    msg = "unsupported TOML value '${toString v}'";
+                  };
 
               renderEntry = attrs: concatStringsSep "\n" (mapAttrsToList (k: v: "${k} = ${toTOMLValue v}") attrs);
 
@@ -125,16 +175,22 @@
                       hit = findFirst (pr: pr.name == depName) null game.profiles;
                     in
                     if hit == null then
-                      throw ''me3 profile "${p.name}" (game "${gameName}"): unknown dependency "${depName}"''
+                      validate.abort {
+                        when = true;
+                        path = ''icedos.applications.me3.games."${gameName}".profiles."${p.name}".dependencies'';
+                        msg = ''unknown dependency "${depName}"'';
+                      }
                     else
                       hit;
 
                   resolveRefs =
                     seen: pr:
                     let
-                      cycleFree = abortIf (builtins.elem pr.name seen) ''me3 profile dependency cycle in game "${gameName}": ${
-                        concatStringsSep " -> " (seen ++ [ pr.name ])
-                      }'';
+                      cycleFree = validate.abort {
+                        when = builtins.elem pr.name seen;
+                        path = ''icedos.applications.me3.games."${gameName}".profiles'';
+                        msg = "dependency cycle: ${concatStringsSep " -> " (seen ++ [ pr.name ])}";
+                      };
                       seen' = seen ++ [ pr.name ];
                       depsResolved = map (d: resolveRefs seen' (lookupProfile d)) pr.dependencies;
                       merged = {
@@ -152,7 +208,11 @@
                       hit = findFirst (n: n.name == ref) null game.natives;
                     in
                     if hit == null then
-                      throw ''me3 profile "${p.name}" (game "${gameName}"): no native named "${ref}"''
+                      validate.abort {
+                        when = true;
+                        path = ''icedos.applications.me3.games."${gameName}".profiles."${p.name}".natives'';
+                        msg = ''no native named "${ref}"'';
+                      }
                     else
                       removeAttrs hit [ "name" ];
 
@@ -162,7 +222,11 @@
                       hit = findFirst (pkg: pkg.id == ref) null game.packages;
                     in
                     if hit == null then
-                      throw ''me3 profile "${p.name}" (game "${gameName}"): no package id "${ref}"''
+                      validate.abort {
+                        when = true;
+                        path = ''icedos.applications.me3.games."${gameName}".profiles."${p.name}".packages'';
+                        msg = ''no package id "${ref}"'';
+                      }
                     else
                       hit;
 
@@ -209,15 +273,13 @@
                       ${renderProfile gameName game p}
                     '';
                   };
+                  unique' = validate.abort {
+                    when = duplicateCount > 1;
+                    path = ''icedos.applications.me3.profiles."${p.name}"'';
+                    msg = ''${toString duplicateCount} profiles named "${p.name}" detected - profile names must be unique'';
+                  };
                 in
-                if
-                  (abortIf (duplicateCount > 1)
-                    ''${toString duplicateCount} me3 profiles named "${p.name}" detected - profile names have to be unique!''
-                  )
-                then
-                  entry
-                else
-                  entry;
+                if unique' then entry else entry;
             in
             [
               { xdg.configFile = listToAttrs (map mkHomeFile allProfiles); }
