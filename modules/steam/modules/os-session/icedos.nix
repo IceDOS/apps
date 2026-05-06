@@ -37,7 +37,7 @@
           inherit (config.icedos) applications hardware system;
           inherit (config.services.displayManager) autoLogin;
           inherit (hardware) devices graphics;
-          inherit (icedosLib) abortIf;
+          inherit (icedosLib) validate;
           inherit (lib) hasAttr mkIf;
           inherit (system) isFirstBuild;
         in
@@ -51,12 +51,11 @@
 
               autoStart =
                 autoStart.enable
-                && (
-                  let
-                    inherit (autoLogin) enable user;
-                  in
-                  abortIf enable ''Autologin is enabled for user "${user}" - this configuration is incompatible with steam os session's autostart. Please remove the "icedos.desktop.autologinUser" entry!''
-                );
+                && (validate.abort {
+                  when = autoLogin.enable;
+                  path = "icedos.applications.steam.os-session.autoStart";
+                  msg = ''Autologin is enabled for user "${autoLogin.user}" - this configuration is incompatible with steam os session's autostart. Please remove the "icedos.desktop.autologinUser" entry!'';
+                });
 
               desktopSession = autoStart.desktopSession;
               updater.splash = if (hasAttr "steamdeck" devices) then "jovian" else "vendor";

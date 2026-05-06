@@ -3,7 +3,7 @@
 {
   options.icedos.applications.docker =
     let
-      inherit (icedosLib) mkBoolOption mkUntypedOption;
+      inherit (icedosLib) mkAttrsOption mkBoolOption;
       inherit (lib) readFile;
 
       inherit ((fromTOML (readFile ./config.toml)).icedos.applications.docker)
@@ -12,7 +12,7 @@
         ;
     in
     {
-      daemonSettings = mkUntypedOption { default = daemonSettings; };
+      daemonSettings = mkAttrsOption { default = daemonSettings; };
       requireSudo = mkBoolOption { default = requireSudo; };
     };
 

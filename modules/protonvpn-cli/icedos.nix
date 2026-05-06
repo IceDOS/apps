@@ -51,7 +51,7 @@
           cfg = config.icedos;
 
           inherit (cfg.applications.protonvpn-cli) connect settings;
-          inherit (icedosLib) abortIf;
+          inherit (icedosLib) validate;
           inherit (lib) concatStringsSep optional;
 
           sessionTargets = icedosLib.systemd.desktopSessionTargets cfg;
@@ -68,9 +68,12 @@
 
           killSwitchValue = if settings.killSwitch then "standard" else "off";
 
-          customDnsValid =
-            abortIf (settings.customDns && settings.customDnsServers == "")
-              "icedos.applications.protonvpn-cli.settings.customDnsServers must be non-empty when customDns is true.";
+          customDnsValid = validate.requires {
+            when = settings.customDns;
+            require = settings.customDnsServers != "";
+            path = "icedos.applications.protonvpn-cli.settings.customDnsServers";
+            msg = "must be non-empty when customDns is true";
+          };
 
           connectArgs = concatStringsSep " " (
             optional (connect.country != "") ''--country "${connect.country}"''

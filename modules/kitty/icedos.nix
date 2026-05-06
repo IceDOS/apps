@@ -17,6 +17,8 @@
       hideDecorations = mkBoolOption { default = hideDecorations; };
 
       opacity = mkIntBetweenOption {
+        path = "icedos.applications.kitty.opacity";
+        source = ./config.toml;
         default = opacity;
         description = "Kitty background opacity, 1-100 scale (forwarded as 0.01-1.00 to kitty).";
       } 1 100;

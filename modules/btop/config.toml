@@ -1,2 +1,4 @@
 [icedos.applications.btop]
+diskExclusions = []
+speedInBytes = true
 sudoDesktopEntry = true
