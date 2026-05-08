@@ -36,7 +36,7 @@
 
         let
           inherit (pkgs) fetchFromGitHub shadps4;
-          customBuild = config.icedos.applications.shadps4.customBuild;
+          inherit (config.icedos.applications.shadps4) customBuild;
         in
         {
           environment.systemPackages =

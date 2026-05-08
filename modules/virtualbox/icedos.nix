@@ -10,8 +10,8 @@
           ...
         }:
         let
+          inherit (config.icedos) users;
           inherit (icedosLib.users) mkGroupInjector;
-          users = config.icedos.users;
         in
         {
           virtualisation.virtualbox.host.enable = true;

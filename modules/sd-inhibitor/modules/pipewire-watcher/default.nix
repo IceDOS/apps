@@ -7,7 +7,7 @@
 
 let
   inherit (lib) concatMapStrings mkIf;
-  cfg = config.icedos;
+  inherit (config.icedos.applications) sd-inhibitor;
 in
 {
   home-manager.sharedModules = [
@@ -16,7 +16,7 @@ in
       {
         home.packages =
           let
-            watcher = cfg.applications.sd-inhibitor.users.${config.home.username}.watchers.pipewire;
+            watcher = sd-inhibitor.users.${config.home.username}.watchers.pipewire;
             strListItem = item: "'${item}',";
           in
           mkIf (watcher.enable) [
@@ -26,11 +26,11 @@ in
               local OUTPUT = "Stream/Output/Audio"
 
               local INPUTS_TO_IGNORE = {
-                ${concatMapStrings (input: strListItem (input)) watcher.inputsToIgnore}
+                ${concatMapStrings (input: strListItem input) watcher.inputsToIgnore}
               }
 
               local OUTPUTS_TO_IGNORE = {
-                ${concatMapStrings (output: strListItem (output)) watcher.outputsToIgnore}
+                ${concatMapStrings (output: strListItem output) watcher.outputsToIgnore}
               }
 
               local INHIBIT_LOCK = false

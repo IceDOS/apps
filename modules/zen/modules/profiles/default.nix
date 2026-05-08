@@ -13,7 +13,7 @@ let
     optionalAttrs
     ;
 
-  zen = config.icedos.applications.zen;
+  inherit (config.icedos.applications) zen;
   pwaProfiles = filter (profile: profile.pwa) zen.profiles;
   stylixOn = config.stylix.enable or false;
 in

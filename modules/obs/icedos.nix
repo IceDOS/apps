@@ -31,12 +31,13 @@
           programs.obs-studio =
             let
               inherit (icedosLib.pkgs) mapper;
-              obs = config.icedos.applications.obs;
+              inherit (config.icedos.applications) obs;
+              inherit (obs) plugins virtualCamera;
             in
             {
               enable = true;
-              enableVirtualCamera = obs.virtualCamera;
-              plugins = mapper pkgs obs.plugins;
+              enableVirtualCamera = virtualCamera;
+              plugins = mapper pkgs plugins;
             };
         }
       )

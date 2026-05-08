@@ -34,6 +34,9 @@
 
         let
           inherit (lib) mkIf mapAttrs;
+          inherit (config) icedos;
+          inherit (icedos) users;
+          inherit (icedos.applications.winboat) autostart;
         in
         {
           boot.kernelModules = [ "iptable_nat" ];
@@ -66,16 +69,15 @@
 
           systemd.services.docker.serviceConfig.ExecStartPost =
             let
-              cfg = config.icedos;
               inherit (pkgs) docker;
             in
-            mkIf (!cfg.applications.winboat.autostart) ''
+            mkIf (!autostart) ''
               (${docker}/bin/docker stop WinBoat || exit 0)
             '';
 
-          users.users = mapAttrs (user: _: {
+          users.users = mapAttrs (_: _: {
             extraGroups = [ "docker" ];
-          }) config.icedos.users;
+          }) users;
 
           virtualisation.docker.enable = true;
           virtualisation.libvirtd.enable = true;

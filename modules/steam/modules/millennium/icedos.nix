@@ -57,20 +57,41 @@ in
 
         let
           inherit (builtins) toJSON;
+
           inherit (lib)
             concatMapStringsSep
+            concatStrings
+            concatStringsSep
+            imap0
+            length
+            makeBinPath
             mkIf
+            optional
+            optionalAttrs
+            optionalString
+            unique
             ;
 
           inherit (icedosLib.color) hexToRgbInts;
 
-          cfg = config.icedos.applications.steam.millennium;
+          inherit (config.icedos) applications desktop;
+          inherit (applications.steam) millennium;
+          inherit (desktop) windows;
 
-          stylixCfg = config.icedos.desktop.stylix or { enable = false; };
+          inherit (millennium)
+            defaultTheme
+            disableAnimations
+            disableBlur
+            enabledPlugins
+            pluginIds
+            themeIds
+            ;
+
+          stylixCfg = desktop.stylix or { enable = false; };
           stylixOn = stylixCfg.enable or false;
 
           # "#RRGGBB" → "R, G, B" — Adwaita-for-Steam's --adw-*-rgb format.
-          hexToRgbTriple = hex: lib.concatMapStringsSep ", " toString (hexToRgbInts hex);
+          hexToRgbTriple = hex: concatMapStringsSep ", " toString (hexToRgbInts hex);
 
           slot = name: hexToRgbTriple config.lib.stylix.colors.${name};
 
@@ -180,8 +201,6 @@ in
             { var, src }: "${var}: ${slot src} !important;"
           ) colorPairs;
 
-          windows = config.icedos.desktop.windows;
-
           # Layout preset is fixed to `Windows` (right-side positioning,
           # 3 buttons). Per-button visibility comes from the global
           # `icedos.desktop.windows.{minimizeButton,maximizeButton,closeButton}`
@@ -189,9 +208,9 @@ in
           # is false. Selectors match upstream `windowcontrols/windows.css`
           # specificity (body.DesktopUI / html.client_chat_frame +
           # `!important`) so our hide rules win the cascade.
-          visibleButtonCount = lib.length (
-            lib.optional windows.minimizeButton "minimize"
-            ++ lib.optional windows.maximizeButton "maximize"
+          visibleButtonCount = length (
+            optional windows.minimizeButton "minimize"
+            ++ optional windows.maximizeButton "maximize"
             ++ [ "close" ]
           );
 
@@ -214,12 +233,12 @@ in
           # .minimizeButton { visibility: visible !important; }` loses the
           # cascade. Repeat the leaf class to bump our specificity above
           # upstream while keeping selectors valid CSS.
-          hideButtonRules = lib.concatStrings (
-            lib.optional (!windows.minimizeButton) ''
+          hideButtonRules = concatStrings (
+            optional (!windows.minimizeButton) ''
               body.DesktopUI .title-bar-actions .title-area-icon.minimizeButton.minimizeButton,
               html.client_chat_frame .title-bar-actions .title-area-icon.minimizeButton.minimizeButton { visibility: hidden !important; }
             ''
-            ++ lib.optional (!windows.maximizeButton) ''
+            ++ optional (!windows.maximizeButton) ''
               body.DesktopUI .title-bar-actions .title-area-icon.maximizeButton.maximizeButton,
               body.DesktopUI .title-bar-actions .title-area-icon.restoreButton.restoreButton,
               html.client_chat_frame .title-bar-actions .title-area-icon.maximizeButton.maximizeButton,
@@ -235,8 +254,8 @@ in
           visibleFromRight = [
             "close"
           ]
-          ++ lib.optional windows.maximizeButton "maximize"
-          ++ lib.optional windows.minimizeButton "minimize";
+          ++ optional windows.maximizeButton "maximize"
+          ++ optional windows.minimizeButton "minimize";
 
           mkPositionRule =
             i: btn:
@@ -250,7 +269,7 @@ in
                 else
                   [ "${btn}Button" ];
 
-              selectors = lib.concatMapStringsSep ",\n" (
+              selectors = concatMapStringsSep ",\n" (
                 cls:
                 "body.DesktopUI .title-bar-actions .title-area-icon.${cls}.${cls},\nhtml.client_chat_frame .title-bar-actions .title-area-icon.${cls}.${cls}"
               ) classes;
@@ -261,19 +280,19 @@ in
               }
             '';
 
-          buttonPositionRules = lib.concatStrings (lib.imap0 mkPositionRule visibleFromRight);
+          buttonPositionRules = concatStrings (imap0 mkPositionRule visibleFromRight);
 
           # Performance mitigations for Adwaita-for-Steam on CEF.
           # Each block is opt-in (defaults to enabled in config.toml) so
           # users can re-enable a specific effect by flipping its flag.
-          blurCss = lib.optionalString cfg.disableBlur ''
+          blurCss = optionalString disableBlur ''
             :root:root, body, body * {
               backdrop-filter: none !important;
               -webkit-backdrop-filter: none !important;
             }
           '';
 
-          animationsCss = lib.optionalString cfg.disableAnimations ''
+          animationsCss = optionalString disableAnimations ''
             :root:root, body, body * {
               transition: none !important;
               animation-duration: 0s !important;
@@ -294,19 +313,19 @@ in
             ${performanceCss}
           '';
 
-          isAdwaitaDefault = cfg.defaultTheme == adwaitaThemeId;
+          isAdwaitaDefault = defaultTheme == adwaitaThemeId;
 
           # Theme/plugin IDs that bootstrap MUST install (defaultTheme +
           # enabledPlugins implicitly install too, on top of anything
           # explicitly listed in themeIds/pluginIds).
-          allThemeIds = lib.unique ((lib.optional (cfg.defaultTheme != "") cfg.defaultTheme) ++ cfg.themeIds);
+          allThemeIds = unique ((optional (defaultTheme != "") defaultTheme) ++ themeIds);
 
           # `enabledPlugins` is either the literal "all" (every installed
           # plugin gets flagged enabled at patch time) or an explicit list
           # of plugin IDs.
-          enableAllPlugins = cfg.enabledPlugins == "all";
-          enabledPluginIds = if enableAllPlugins then [ ] else cfg.enabledPlugins;
-          allPluginIds = lib.unique (enabledPluginIds ++ cfg.pluginIds);
+          enableAllPlugins = enabledPlugins == "all";
+          enabledPluginIds = if enableAllPlugins then [ ] else enabledPlugins;
+          allPluginIds = unique (enabledPluginIds ++ pluginIds);
 
           # Seeded on first launch. Millennium owns this file at runtime and
           # rewrites it; `force = true` lets HM re-stomp on each rebuild so
@@ -321,7 +340,7 @@ in
             general.checkForMillenniumUpdates = false;
             misc.hasShownWelcomeModal = true;
           }
-          // lib.optionalAttrs isAdwaitaDefault {
+          // optionalAttrs isAdwaitaDefault {
             themes.conditions."Adwaita-for-Steam" = {
               "Window controls layout" = "Windows";
               # Pin explicit "no" so Steam shutdowns of Millennium don't
@@ -338,13 +357,16 @@ in
           bootstrapScript = pkgs.writeShellScript "millennium-bootstrap" ''
             set -u
             export PATH="${
-              lib.makeBinPath [
-                pkgs.coreutils
-                pkgs.curl
-                pkgs.gnugrep
-                pkgs.jq
-                pkgs.unzip
-              ]
+              makeBinPath (
+                with pkgs;
+                [
+                  coreutils
+                  curl
+                  gnugrep
+                  jq
+                  unzip
+                ]
+              )
             }"
 
             # Marker filename written into each icedos-installed dir so the
@@ -443,11 +465,11 @@ in
               done
             }
 
-            ${lib.concatMapStringsSep "\n" (id: ''fetch_theme "${id}"'') allThemeIds}
-            ${lib.concatMapStringsSep "\n" (id: ''fetch_plugin "${id}"'') allPluginIds}
+            ${concatMapStringsSep "\n" (id: ''fetch_theme "${id}"'') allThemeIds}
+            ${concatMapStringsSep "\n" (id: ''fetch_plugin "${id}"'') allPluginIds}
 
-            prune_dir "$HOME/.steam/steam/steamui/skins" "${lib.concatStringsSep " " allThemeIds}"
-            prune_dir "$HOME/.local/share/millennium/plugins" "${lib.concatStringsSep " " allPluginIds}"
+            prune_dir "$HOME/.steam/steam/steamui/skins" "${concatStringsSep " " allThemeIds}"
+            prune_dir "$HOME/.local/share/millennium/plugins" "${concatStringsSep " " allPluginIds}"
 
             # Patch Millennium's config.json post-fetch with the resolved
             # theme dir name + plugin repo names. We can't seed these in
@@ -473,7 +495,7 @@ in
               # for each plugin we want to enable, read its plugin.json.
               local names=()
               local d pj
-              ${lib.optionalString enableAllPlugins ''
+              ${optionalString enableAllPlugins ''
                 # "all" shortcut: enable every installed plugin by reading
                 # each one's plugin.json `name`.
                 if [ -d "$HOME/.local/share/millennium/plugins" ]; then
@@ -486,7 +508,7 @@ in
                   done
                 fi
               ''}
-              ${lib.concatMapStringsSep "\n" (id: ''
+              ${concatMapStringsSep "\n" (id: ''
                 # Resolve ID → repo name → read its on-disk plugin.json for
                 # the internal name. Fall back to API pluginJson.name if
                 # plugin.json missing locally.
@@ -511,8 +533,8 @@ in
             }
 
             if [ -f "$CONFIG" ]; then
-              ${lib.optionalString (cfg.defaultTheme != "") ''
-                patch_active_theme "${cfg.defaultTheme}"
+              ${optionalString (defaultTheme != "") ''
+                patch_active_theme "${defaultTheme}"
               ''}
               patch_enabled_plugins
             fi

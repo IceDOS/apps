@@ -96,9 +96,10 @@
             readFile
             ;
 
-          cfg = config.icedos;
+          inherit (config) icedos;
+          inherit (icedos.applications) sd-inhibitor;
 
-          sessionTargets = icedosLib.systemd.desktopSessionTargets cfg;
+          sessionTargets = icedosLib.systemd.desktopSessionTargets icedos;
 
           getModules =
             path:
@@ -339,7 +340,7 @@
               {
                 systemd.user.services.sd-inhibitor =
                   let
-                    watchers = cfg.applications.sd-inhibitor.users.${config.home.username}.watchers;
+                    watchers = sd-inhibitor.users.${config.home.username}.watchers;
                   in
                   mkIf
                     (

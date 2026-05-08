@@ -64,7 +64,8 @@
           ...
         }:
         let
-          inherit (config.icedos.applications) defaultEditor zed;
+          inherit (config.icedos) applications desktop;
+          inherit (applications) defaultEditor zed;
 
           inherit (zed)
             autosave
@@ -140,7 +141,7 @@
                     tabs.git_status = true;
 
                     title_bar = {
-                      button_layout = icedosLib.desktop.mkButtonLayoutString config.icedos.desktop.windows;
+                      button_layout = icedosLib.desktop.mkButtonLayoutString desktop.windows;
                       show_sign_in = false;
                     };
 

@@ -21,7 +21,7 @@
           services.sunshine = {
             enable = true;
             capSysAdmin = true;
-            autoStart = config.icedos.applications.sunshine.autoStart;
+            inherit (config.icedos.applications.sunshine) autoStart;
           };
         }
       )

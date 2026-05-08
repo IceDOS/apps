@@ -28,6 +28,7 @@
 
         let
           inherit (icedosLib.users) genDefaults;
+
           inherit (icedosLib.bash)
             dimGreenString
             dimYellowString
@@ -36,11 +37,11 @@
             yellowString
             ;
 
-          users = config.icedos.applications.git.users;
+          inherit (config.icedos.applications.git) users;
         in
         {
           icedos.applications.git.users = genDefaults {
-            users = config.icedos.users;
+            inherit (config.icedos) users;
           };
 
           home-manager.sharedModules = [

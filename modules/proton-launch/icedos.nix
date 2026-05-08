@@ -31,10 +31,11 @@
 
           inherit (icedosLib.bash) prelude genHelpFlags purpleString;
 
-          cfg = config.icedos;
-          hasGamescope = hasAttr "gamescope" cfg.applications;
-          hasGamemode = hasAttr "gamemode" cfg.applications;
-          hasPowerProfilesDaemon = hasAttr "power-profiles-daemon" cfg.applications;
+          inherit (config.icedos) applications hardware;
+
+          hasGamescope = hasAttr "gamescope" applications;
+          hasGamemode = hasAttr "gamemode" applications;
+          hasPowerProfilesDaemon = hasAttr "power-profiles-daemon" applications;
 
           packages = [ proton-launch ] ++ optional hasGamescope pkgs.gamescope;
 
@@ -112,7 +113,7 @@
               mesa_glthread=true
 
               ${
-                if (hasAttr "mangohud" cfg.applications) then
+                if (hasAttr "mangohud" applications) then
                   ''
                     MANGOAPP="--mangoapp"
                     MANGOHUD="${pkgs.mangohud}/bin/mangohud"
@@ -123,7 +124,7 @@
               }
 
               ${
-                if (hasAttr "power-profiles-daemon" cfg.applications) then
+                if (hasAttr "power-profiles-daemon" applications) then
                   ''
                     GAME_PERFORMANCE="${pkgs.systemd}/bin/systemd-inhibit --why proton-launch-game-performance ${pkgs.power-profiles-daemon}/bin/powerprofilesctl launch -p performance -r proton-launch-game-performance --"
                   ''
@@ -132,9 +133,9 @@
               }
 
               ${
-                if hasAttr "monitors" cfg.hardware && (length cfg.hardware.monitors) != 0 then
+                if hasAttr "monitors" hardware && (length hardware.monitors) != 0 then
                   let
-                    monitor = head (cfg.hardware.monitors);
+                    monitor = head (hardware.monitors);
                     resolution = splitString "x" (monitor.resolution);
                     width = head resolution;
                     height = last resolution;
@@ -177,7 +178,7 @@
                     shift
                     ;;
                     ${
-                      if (hasAttr "gamemode" cfg.applications) then
+                      if (hasAttr "gamemode" applications) then
                         ''
                           --gamemode)
                             GAMEMODE="${pkgs.gamemode}/bin/gamemoderun"
@@ -245,7 +246,7 @@
                     shift
                     ;;
                     ${
-                      if (hasAttr "power-profiles-daemon" cfg.applications) then
+                      if (hasAttr "power-profiles-daemon" applications) then
                         ''
                           --no-game-performance)
                             GAME_PERFORMANCE=""

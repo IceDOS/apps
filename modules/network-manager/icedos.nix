@@ -25,17 +25,18 @@
         let
           inherit (lib) mkIf;
           inherit (icedosLib.users) mkGroupInjector;
-          cfg = config.icedos;
+          inherit (config.icedos) applications users;
+          inherit (applications.network-manager) applet;
         in
 
         {
           networking.networkmanager.enable = true;
 
-          users.users = mkGroupInjector "networkmanager" cfg.users;
+          users.users = mkGroupInjector "networkmanager" users;
 
           home-manager.sharedModules = [
             {
-              xdg.desktopEntries = mkIf (cfg.applications.network-manager.applet) {
+              xdg.desktopEntries = mkIf applet {
                 nm-connection-editor = {
                   exec = "${pkgs.networkmanagerapplet}/bin/nm-connection-editor";
                   icon = "epiphany";

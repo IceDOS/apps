@@ -7,7 +7,7 @@
 
 let
   inherit (lib) mkIf;
-  cfg = config.icedos;
+  inherit (config.icedos.applications) sd-inhibitor;
 in
 {
   home-manager.sharedModules = [
@@ -16,7 +16,7 @@ in
       {
         home.packages =
           let
-            watcher = cfg.applications.sd-inhibitor.users.${config.home.username}.watchers.gpu;
+            watcher = sd-inhibitor.users.${config.home.username}.watchers.gpu;
           in
           mkIf (watcher.enable) [
             (pkgs.writeShellScriptBin "gpu-watcher" ''

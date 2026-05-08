@@ -30,13 +30,15 @@
 
         let
           inherit (lib) hasAttr;
-          cfg = config.icedos;
+          inherit (config.icedos) applications hardware;
+          inherit (applications) mangohud;
+          inherit (hardware) devices;
         in
         {
           home-manager.sharedModules = [
             (
               let
-                steamdeck = hasAttr "steamdeck" cfg.hardware.devices;
+                steamdeck = hasAttr "steamdeck" devices;
               in
               {
                 programs.mangohud = {
@@ -45,8 +47,7 @@
                   settings =
                     let
                       inherit (lib) mkMerge mkForce mkIf;
-                      hasBattery = cfg.hardware.devices.laptop || steamdeck;
-                      mangohud = cfg.applications.mangohud;
+                      hasBattery = devices.laptop || steamdeck;
                       normalColor = "F9F9F9";
                       loadColors = "${normalColor},D09965,DC6A73";
                       reversedLoadColors = "DC6A73,D09965,${normalColor}";

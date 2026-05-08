@@ -49,25 +49,31 @@
         }:
         let
           inherit (lib) mkIf mkMerge;
+          inherit (config) icedos;
+          inherit (icedos.applications) codium defaultEditor;
 
-          cfg = config.icedos;
-          osConfig = config;
+          globalStylixEnabled = config.stylix.enable or false;
         in
         {
           icedos.applications.codium.users = icedosLib.users.genDefaults {
-            users = config.icedos.users;
+            inherit (icedos) users;
           };
 
-          environment.variables.EDITOR = mkIf (
-            cfg.applications.defaultEditor == "codium.desktop"
-          ) "codium -n -w";
+          environment.variables.EDITOR = mkIf (defaultEditor == "codium.desktop") "codium -n -w";
 
           home-manager.sharedModules = [
             (
               { config, ... }:
 
               let
-                codium = cfg.applications.codium.users.${config.home.username};
+                inherit (codium.users.${config.home.username})
+                  autoSave
+                  colorTheme
+                  fontSize
+                  formatOnPaste
+                  formatOnSave
+                  zoomLevel
+                  ;
               in
               {
                 programs.vscodium = {
@@ -103,9 +109,9 @@
                       diffEditor.ignoreTrimWhitespace = false;
 
                       editor = {
+                        inherit formatOnPaste formatOnSave;
+
                         fontLigatures = true;
-                        formatOnPaste = codium.formatOnPaste;
-                        formatOnSave = codium.formatOnSave;
                         minimap.enabled = false;
                         renderWhitespace = "trailing";
                         smoothScrolling = true;
@@ -115,8 +121,9 @@
                       evenBetterToml.formatter.alignComments = false;
 
                       files = {
+                        inherit autoSave;
+
                         associations."*.css" = "tailwindcss";
-                        autoSave = codium.autoSave;
                         insertFinalNewline = true;
                         trimFinalNewlines = true;
                         trimTrailingWhitespace = true;
@@ -155,8 +162,9 @@
                       update.mode = "none";
 
                       window = {
+                        inherit zoomLevel;
+
                         menuBarVisibility = "toggle";
-                        zoomLevel = codium.zoomLevel;
                       };
 
                       workbench = {
@@ -167,13 +175,15 @@
                       };
                     }
 
-                    (mkIf (!(osConfig.stylix.enable or false)) {
+                    (mkIf (!globalStylixEnabled) {
                       editor = {
+                        inherit fontSize;
+
                         fontFamily = "'JetBrainsMono Nerd Font', 'Droid Sans Mono', 'monospace', monospace";
-                        fontSize = codium.fontSize;
                       };
-                      terminal.integrated.fontSize = codium.fontSize;
-                      workbench.colorTheme = mkIf (codium.colorTheme != "") codium.colorTheme;
+
+                      terminal.integrated.fontSize = fontSize;
+                      workbench.colorTheme = mkIf (colorTheme != "") colorTheme;
                     })
                   ];
                 };
