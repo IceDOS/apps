@@ -1,10 +1,6 @@
 { icedosLib, ... }:
 
 {
-  inputs = {
-    nixos-unstable-small.url = "github:NixOS/nixpkgs/nixos-unstable-small";
-  };
-
   outputs.nixosModules =
     { inputs, ... }:
     [
@@ -17,19 +13,9 @@
         }:
         let
           inherit (lib) mapAttrs;
-
-          small = import inputs.nixos-unstable-small {
-            inherit (pkgs.stdenv) system;
-            config = config.nixpkgs.config;
-          };
-
           users = config.icedos.users;
         in
         {
-          nixpkgs.overlays = [
-            (self: super: { inherit (small) virtualbox; })
-          ];
-
           virtualisation.virtualbox.host.enable = true;
 
           boot.kernelParams = [
