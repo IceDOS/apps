@@ -21,7 +21,7 @@
         let
           inherit (lib) listToAttrs;
           inherit (icedosLib.bash) genHelpFlags;
-          interfaces = config.icedos.applications.wg-quick.interfaces;
+          inherit (config.icedos.applications.wg-quick) interfaces;
         in
         {
           networking.wg-quick.interfaces = listToAttrs (

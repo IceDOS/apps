@@ -31,7 +31,7 @@
         }:
 
         let
-          cfg = config.icedos;
+          inherit (config.icedos.applications) extraPackages insecurePackages;
         in
         {
           environment.systemPackages =
@@ -45,9 +45,9 @@
               unzip # An extraction utility
               wget # Terminal downloader
             ]
-            ++ (icedosLib.pkgs.mapper pkgs cfg.applications.extraPackages);
+            ++ (icedosLib.pkgs.mapper pkgs extraPackages);
 
-          nixpkgs.config.permittedInsecurePackages = cfg.applications.insecurePackages;
+          nixpkgs.config.permittedInsecurePackages = insecurePackages;
           programs.nano.enable = false;
         }
       )

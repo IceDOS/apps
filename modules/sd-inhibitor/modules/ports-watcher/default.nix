@@ -8,11 +8,11 @@
 let
   inherit (lib)
     concatStringsSep
-    mkIf
     length
+    mkIf
     ;
 
-  cfg = config.icedos;
+  inherit (config.icedos.applications) sd-inhibitor;
 in
 {
   home-manager.sharedModules = [
@@ -22,7 +22,7 @@ in
         home.packages =
           let
             isEmpty = x: (length x) < 0;
-            watcher = cfg.applications.sd-inhibitor.users.${config.home.username}.watchers.ports;
+            watcher = sd-inhibitor.users.${config.home.username}.watchers.ports;
             inbound = map (p: "sport = :${toString p}") watcher.inboundPorts;
             outbound = map (p: "dport = :${toString p}") watcher.outboundPorts;
             filter = concatStringsSep " or " (inbound ++ outbound);

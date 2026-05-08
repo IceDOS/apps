@@ -19,7 +19,8 @@
             mkIf
             ;
 
-          cfg = config.icedos;
+          inherit (config) icedos;
+          inherit (icedos) desktop;
         in
         {
           environment = {
@@ -60,7 +61,7 @@
                 };
 
                 "org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/nautilus" =
-                  mkIf (hasAttr "desktop" cfg && hasAttr "gnome" cfg.desktop)
+                  mkIf (hasAttr "desktop" icedos && hasAttr "gnome" desktop)
                     {
                       binding = "<Super>e";
                       command = "nautilus .";
@@ -68,7 +69,7 @@
                     };
 
                 "org/gnome/settings-daemon/plugins/media-keys".custom-keybindings = mkIf (
-                  hasAttr "desktop" cfg && hasAttr "gnome" cfg.desktop
+                  hasAttr "desktop" icedos && hasAttr "gnome" desktop
                 ) [ "/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/nautilus/" ];
               };
 

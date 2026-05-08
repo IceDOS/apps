@@ -5,6 +5,7 @@
     let
       inherit (icedosLib) mkBoolOption mkStrOption;
       inherit (lib) readFile;
+
       inherit ((fromTOML (readFile ./config.toml)).icedos.applications.protonvpn-cli)
         connect
         settings
@@ -48,13 +49,12 @@
           ...
         }:
         let
-          cfg = config.icedos;
-
-          inherit (cfg.applications.protonvpn-cli) connect settings;
           inherit (icedosLib) validate;
           inherit (lib) concatStringsSep optional;
+          inherit (config) icedos;
+          inherit (icedos.applications.protonvpn-cli) connect settings;
 
-          sessionTargets = icedosLib.systemd.desktopSessionTargets cfg;
+          sessionTargets = icedosLib.systemd.desktopSessionTargets icedos;
 
           onOff = b: if b then "on" else "off";
 

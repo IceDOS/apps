@@ -13,8 +13,8 @@
 
         let
           inherit (lib) hasAttr mapAttrs optional;
-          inherit (config.icedos.hardware) cpus;
-          cfg = config.icedos;
+          inherit (config.icedos) hardware users;
+          inherit (hardware) cpus;
         in
         {
           programs.virt-manager.enable = true;
@@ -24,9 +24,9 @@
             spiceUSBRedirection.enable = true;
           };
 
-          users.users = mapAttrs (user: _: {
+          users.users = mapAttrs (_: _: {
             extraGroups = [ "libvirtd" ];
-          }) cfg.users;
+          }) users;
 
           boot.kernelParams = [
             # Allows passthrough of independent devices, that are members of larger IOMMU groups

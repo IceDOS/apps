@@ -12,9 +12,16 @@
           ...
         }:
         let
-          cfg = config.icedos;
+          inherit (lib)
+            concatStringsSep
+            mapAttrs'
+            mkForce
+            nameValuePair
+            readFile
+            replaceStrings
+            ;
 
-          inherit (lib) readFile replaceStrings;
+          inherit (config.icedos) desktop users;
         in
         {
           services.elephant.enable = true;
@@ -35,8 +42,8 @@
           # profile, mirroring what the old hand-rolled walker.service shell
           # wrapper exported. %h and %u are systemd specifiers (home dir,
           # username) so this stays generic across users.
-          systemd.user.services.elephant.environment.PATH = lib.mkForce (
-            lib.concatStringsSep ":" [
+          systemd.user.services.elephant.environment.PATH = mkForce (
+            concatStringsSep ":" [
               "${pkgs.bash}/bin"
               "/run/wrappers/bin"
               "/run/current-system/sw/bin"
@@ -71,22 +78,24 @@
           # hook. Tracking systemPackages here flips the unit content
           # whenever a system package is added/removed, forcing hm
           # activation (and the hook) to re-run.
-          systemd.services = lib.mapAttrs' (
+          systemd.services = mapAttrs' (
             user: _:
-            lib.nameValuePair "home-manager-${user}" {
+            nameValuePair "home-manager-${user}" {
               restartTriggers = config.environment.systemPackages;
             }
-          ) cfg.users;
+          ) users;
 
           home-manager.sharedModules = [
             (
               { config, lib, ... }:
               let
+                inherit (lib) hm importTOML;
+
                 stylixOn = config.stylix.enable or false;
                 colors = config.lib.stylix.colors or { };
                 popups = config.stylix.fonts.sizes.popups or 10;
 
-                accentSlot = cfg.desktop.stylix.accentBase16Slot or "base0D";
+                accentSlot = desktop.stylix.accentBase16Slot or "base0D";
                 accentHex = if stylixOn then colors.${accentSlot} else "CBA6F7";
 
                 scaleFontSize = origPx: toString (builtins.floor ((origPx * 1.0 * popups / 12) + 0.5));
@@ -150,7 +159,7 @@
                   # drop the `theme` key so the home-manager module's auto-injected
                   # `settings.theme = theme.name` doesn't collide at the same priority.
                   settings =
-                    (removeAttrs (lib.importTOML "${pkgs.walker.src}/resources/config.toml") [
+                    (removeAttrs (importTOML "${pkgs.walker.src}/resources/config.toml") [
                       "theme"
                     ])
                     // {
@@ -177,7 +186,7 @@
                 # explicitly try-restart elephant at the tail of every
                 # home-manager activation — fires once per rebuild,
                 # no-op when elephant isn't running.
-                home.activation.restart-elephant = lib.hm.dag.entryAfter [ "reloadSystemd" ] ''
+                home.activation.restart-elephant = hm.dag.entryAfter [ "reloadSystemd" ] ''
                   $DRY_RUN_CMD ${pkgs.systemd}/bin/systemctl --user try-restart elephant.service || true
                 '';
               }

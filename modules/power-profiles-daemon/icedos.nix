@@ -20,10 +20,10 @@
         }:
 
         let
-          cfg = config.icedos;
-          inherit (cfg.applications.power-profiles-daemon) profile;
+          inherit (config) icedos;
+          inherit (icedos.applications.power-profiles-daemon) profile;
 
-          sessionTargets = icedosLib.systemd.desktopSessionTargets cfg;
+          sessionTargets = icedosLib.systemd.desktopSessionTargets icedos;
         in
         {
           services.power-profiles-daemon.enable = true;

@@ -28,17 +28,18 @@
 
         let
           inherit (lib) mapAttrs mkIf;
-          cfg = config.icedos;
+          inherit (config.icedos) applications users;
+          inherit (applications.docker) daemonSettings requireSudo;
         in
         {
           virtualisation.docker = {
             enable = true;
-            daemon.settings = cfg.applications.docker.daemonSettings;
+            daemon.settings = daemonSettings;
           };
 
-          users.users = mapAttrs (user: _: {
-            extraGroups = mkIf (!cfg.applications.docker.requireSudo) [ "docker" ];
-          }) cfg.users;
+          users.users = mapAttrs (_: _: {
+            extraGroups = mkIf (!requireSudo) [ "docker" ];
+          }) users;
         }
       )
     ];

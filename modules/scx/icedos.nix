@@ -32,8 +32,9 @@
           inherit (pkgs) callPackage runtimeShell writeShellScriptBin;
           inherit (pkgs.scx) full;
 
-          scx = config.icedos.applications.scx;
-          isCake = scx.scheduler == "cake";
+          inherit (config.icedos.applications) scx;
+          inherit (scx) extraArgs scheduler;
+          isCake = scheduler == "cake";
 
           package =
             if !isCake then
@@ -47,10 +48,9 @@
         in
         {
           services.scx = {
-            inherit package;
+            inherit extraArgs package;
             enable = true;
-            extraArgs = scx.extraArgs;
-            scheduler = mkIf (!isCake) "scx_${scx.scheduler}";
+            scheduler = mkIf (!isCake) "scx_${scheduler}";
           };
 
           systemd.services.scx = mkIf isCake {

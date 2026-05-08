@@ -12,7 +12,7 @@ let
     ;
 
   firefoxVersion = substring 0 5 pkgs.firefox.version;
-  zen = config.icedos.applications.zen;
+  inherit (config.icedos.applications) zen;
 
   baseSettings = {
     "browser.download.always_ask_before_handling_new_types" = false;

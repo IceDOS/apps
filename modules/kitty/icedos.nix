@@ -35,16 +35,16 @@
         }:
 
         let
-          cfg = config.icedos;
-
           inherit (lib)
+            hasAttr
+            mkForce
             mkIf
             mkMerge
-            mkForce
-            hasAttr
             ;
 
-          kitty = cfg.applications.kitty;
+          inherit (config) icedos;
+          inherit (icedos) applications desktop;
+          inherit (applications) kitty;
         in
         {
           home-manager.sharedModules = [
@@ -76,12 +76,12 @@
               ];
 
               wayland.windowManager.hyprland.settings.bind =
-                mkIf (hasAttr "desktop" cfg && hasAttr "hyprland" cfg.desktop)
+                mkIf (hasAttr "desktop" icedos && hasAttr "hyprland" desktop)
                   [
                     "$mainMod, X, exec, kitty"
                   ];
 
-              dconf.settings = mkIf (hasAttr "desktop" cfg && hasAttr "gnome" cfg.desktop) {
+              dconf.settings = mkIf (hasAttr "desktop" icedos && hasAttr "gnome" desktop) {
                 "org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/kitty" = {
                   binding = "<Super>x";
                   command = "kitty";

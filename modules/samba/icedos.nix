@@ -109,7 +109,25 @@
             optionalAttrs
             ;
 
-          cfg = config.icedos.applications.samba;
+          inherit (config.icedos.applications.samba)
+            aioReadSize
+            aioWriteSize
+            enableNmbd
+            enableWsdd
+            extraGlobalSettings
+            guestAccount
+            logFile
+            mapToGuest
+            maxLogSize
+            minProtocol
+            openFirewall
+            serverRole
+            serverString
+            shares
+            socketOptions
+            useSendfile
+            workgroup
+            ;
 
           boolYN = b: if b then "yes" else "no";
 
@@ -135,43 +153,45 @@
             // share.extraSettings;
           };
 
-          shareSettings = listToAttrs (map mkShare cfg.shares);
+          shareSettings = listToAttrs (map mkShare shares);
 
           globalSettings = {
-            "workgroup" = cfg.workgroup;
-            "server string" = cfg.serverString;
-            "server role" = cfg.serverRole;
-            "map to guest" = cfg.mapToGuest;
-            "guest account" = cfg.guestAccount;
-            "min protocol" = cfg.minProtocol;
-            "use sendfile" = boolYN cfg.useSendfile;
-            "aio read size" = toString cfg.aioReadSize;
-            "aio write size" = toString cfg.aioWriteSize;
-            "socket options" = cfg.socketOptions;
-            "log file" = cfg.logFile;
-            "max log size" = toString cfg.maxLogSize;
+            "workgroup" = workgroup;
+            "server string" = serverString;
+            "server role" = serverRole;
+            "map to guest" = mapToGuest;
+            "guest account" = guestAccount;
+            "min protocol" = minProtocol;
+            "use sendfile" = boolYN useSendfile;
+            "aio read size" = toString aioReadSize;
+            "aio write size" = toString aioWriteSize;
+            "socket options" = socketOptions;
+            "log file" = logFile;
+            "max log size" = toString maxLogSize;
           }
-          // cfg.extraGlobalSettings;
+          // extraGlobalSettings;
         in
         {
           assertions = map (s: {
             assertion = s.name != "" && s.path != "";
             message = "icedos.applications.samba.shares: 'name' and 'path' must be non-empty for every share.";
-          }) cfg.shares;
+          }) shares;
 
           services.samba = {
+            inherit openFirewall;
+
             enable = true;
-            openFirewall = cfg.openFirewall;
-            nmbd.enable = cfg.enableNmbd;
+            nmbd.enable = enableNmbd;
             settings = {
               global = globalSettings;
             }
             // shareSettings;
           };
 
-          services.samba-wsdd = mkIf cfg.enableWsdd {
+          services.samba-wsdd = mkIf enableWsdd {
+            inherit openFirewall;
+
             enable = true;
-            openFirewall = cfg.openFirewall;
           };
         }
       )

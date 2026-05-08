@@ -11,8 +11,8 @@
           ...
         }:
         let
+          inherit (config.icedos) users;
           inherit (icedosLib.users) mkGroupInjector;
-          users = config.icedos.users;
         in
         {
           services.input-remapper.enable = true;

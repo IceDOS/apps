@@ -24,7 +24,7 @@
 
         let
           inherit (lib) optional;
-          enableTrayscale = config.icedos.applications.tailscale.enableTrayscale;
+          inherit (config.icedos.applications.tailscale) enableTrayscale;
         in
         {
           environment.systemPackages = with pkgs; [ tailscale ] ++ optional enableTrayscale trayscale;
