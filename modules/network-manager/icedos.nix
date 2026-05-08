@@ -23,14 +23,15 @@
         }:
 
         let
-          inherit (lib) mapAttrs mkIf;
+          inherit (lib) mkIf;
+          inherit (icedosLib.users) mkGroupInjector;
           cfg = config.icedos;
         in
 
         {
           networking.networkmanager.enable = true;
 
-          users.users = mapAttrs (user: _: { extraGroups = [ "networkmanager" ]; }) cfg.users;
+          users.users = mkGroupInjector "networkmanager" cfg.users;
 
           home-manager.sharedModules = [
             {

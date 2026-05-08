@@ -2,17 +2,15 @@
 
 {
   outputs.nixosModules =
-    { inputs, ... }:
+    { ... }:
     [
       (
         {
           config,
-          lib,
-          pkgs,
           ...
         }:
         let
-          inherit (lib) mapAttrs;
+          inherit (icedosLib.users) mkGroupInjector;
           users = config.icedos.users;
         in
         {
@@ -23,7 +21,7 @@
             "kvm.enable_virt_at_load=0"
           ];
 
-          users.users = mapAttrs (user: _: { extraGroups = [ "vboxusers" ]; }) users;
+          users.users = mkGroupInjector "vboxusers" users;
         }
       )
     ];
