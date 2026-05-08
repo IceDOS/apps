@@ -56,30 +56,21 @@ in
         }:
 
         let
-          inherit (builtins) substring toJSON;
+          inherit (builtins) toJSON;
           inherit (lib)
             concatMapStringsSep
-            fromHexString
             mkIf
-            removePrefix
             ;
+
+          inherit (icedosLib.color) hexToRgbInts;
 
           cfg = config.icedos.applications.steam.millennium;
 
           stylixCfg = config.icedos.desktop.stylix or { enable = false; };
           stylixOn = stylixCfg.enable or false;
 
-          # Convert "#RRGGBB" or "RRGGBB" to "R, G, B" decimal triple, the
-          # format Adwaita-for-Steam uses for `--adw-*-rgb` custom properties.
-          hexToRgbTriple =
-            hex:
-            let
-              h = removePrefix "#" hex;
-              r = fromHexString (substring 0 2 h);
-              g = fromHexString (substring 2 2 h);
-              b = fromHexString (substring 4 2 h);
-            in
-            "${toString r}, ${toString g}, ${toString b}";
+          # "#RRGGBB" → "R, G, B" — Adwaita-for-Steam's --adw-*-rgb format.
+          hexToRgbTriple = hex: lib.concatMapStringsSep ", " toString (hexToRgbInts hex);
 
           slot = name: hexToRgbTriple config.lib.stylix.colors.${name};
 

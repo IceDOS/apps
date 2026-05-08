@@ -1,4 +1,4 @@
-{ ... }:
+{ icedosLib, ... }:
 
 {
   outputs.nixosModules =
@@ -7,12 +7,11 @@
       (
         {
           config,
-          lib,
           pkgs,
           ...
         }:
         let
-          inherit (lib) mapAttrs;
+          inherit (icedosLib.users) mkGroupInjector;
           users = config.icedos.users;
         in
         {
@@ -38,7 +37,7 @@
             }
           ];
 
-          users.users = mapAttrs (user: _: { extraGroups = [ "input" ]; }) users;
+          users.users = mkGroupInjector "input" users;
         }
       )
     ];
