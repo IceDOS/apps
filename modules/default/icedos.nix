@@ -10,14 +10,12 @@
         defaultBrowser
         defaultEditor
         extraPackages
-        insecurePackages
         ;
     in
     {
       defaultBrowser = mkStrOption { default = defaultBrowser; };
       defaultEditor = mkStrOption { default = defaultEditor; };
       extraPackages = mkStrListOption { default = extraPackages; };
-      insecurePackages = mkStrListOption { default = insecurePackages; };
     };
 
   outputs.nixosModules =
@@ -31,7 +29,7 @@
         }:
 
         let
-          inherit (config.icedos.applications) extraPackages insecurePackages;
+          inherit (config.icedos.applications) extraPackages;
         in
         {
           environment.systemPackages =
@@ -47,7 +45,6 @@
             ]
             ++ (icedosLib.pkgs.mapper pkgs extraPackages);
 
-          nixpkgs.config.permittedInsecurePackages = insecurePackages;
           programs.nano.enable = false;
         }
       )
