@@ -2,4 +2,3 @@
 defaultBrowser = ""
 defaultEditor = ""
 extraPackages = []
-insecurePackages = []
