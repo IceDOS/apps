@@ -1,7 +1,9 @@
 {
   build ? "amd64",
   compiledWith ? "clang-pgo",
+  extractAppImage,
   fetchurl,
+  installDesktopEntry,
   makeDesktopItem,
   stdenvNoCC,
 }:
@@ -78,14 +80,10 @@ stdenvNoCC.mkDerivation {
   dontUnpack = true;
 
   installPhase = ''
-    mkdir -p $out/lib
-
-    cp ${edenAppimage} $out/lib/eden.AppImage
-    chmod +x $out/lib/eden.AppImage
-    $out/lib/eden.AppImage --appimage-extract
-    rm $out/lib/eden.AppImage
-    rm AppDir/lib
-    mv AppDir/* $out
+    ${extractAppImage {
+      src = edenAppimage;
+      preMove = "rm AppDir/lib";
+    }}
 
     # AppImage sharun wrappers leak into systemPackages and shadow real
     # xdg-utils binaries, breaking link-open in every Electron app
@@ -93,11 +91,6 @@ stdenvNoCC.mkDerivation {
     # not need them on the host PATH.
     rm -f $out/bin/xdg-open $out/bin/gio-launch-desktop
 
-    install -Dm644 ${desktopItem}/share/applications/${desktopFile} \
-      $out/share/applications/${desktopFile}
-    substituteInPlace $out/share/applications/${desktopFile} \
-      --replace-fail "/@out@" "$out"
-
-    ln -s $out/${icon} $out/share/applications/${icon}
+    ${installDesktopEntry { inherit desktopItem desktopFile icon; }}
   '';
 }
