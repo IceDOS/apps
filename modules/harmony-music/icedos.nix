@@ -1,4 +1,4 @@
-{ ... }:
+{ icedosLib, ... }:
 
 {
   outputs.nixosModules =
@@ -12,7 +12,9 @@
         {
           nixpkgs.overlays = [
             (final: super: {
-              harmony-music = final.callPackage ./package.nix { };
+              harmony-music = final.callPackage ./package.nix {
+                inherit (icedosLib.packaging) installDesktopEntry;
+              };
             })
           ];
 

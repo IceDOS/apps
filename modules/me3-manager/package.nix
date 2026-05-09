@@ -1,5 +1,6 @@
 {
   autoPatchelfHook,
+  extractAppImage,
   fetchurl,
   lib,
   libGL,
@@ -33,13 +34,13 @@ stdenvNoCC.mkDerivation (
     dontUnpack = true;
 
     installPhase = ''
+      ${extractAppImage {
+        src = me3Manager;
+        extractedDir = "squashfs-root";
+        moveSubdir = "usr";
+      }}
+
       mkdir -p $out/lib
-
-      cp ${me3Manager} $out/appimage
-      chmod +x $out/appimage
-      $out/appimage --appimage-extract
-
-      mv squashfs-root/usr/* $out
       mv $out/bin/me3-manager $out/bin/.me3-manager-unwrapped
       ln -s ${me3}/bin/me3-unwrapped $out/lib/me3
 

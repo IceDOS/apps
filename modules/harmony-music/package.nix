@@ -11,6 +11,7 @@
   glib,
   gtk3,
   harfbuzz,
+  installDesktopEntry,
   jdk,
   libayatana-appindicator,
   libayatana-indicator,
@@ -95,10 +96,10 @@ stdenvNoCC.mkDerivation (
     postFixup = ''
       addAutoPatchelfSearchPath ${jdk}/lib/openjdk/lib/server
 
-      install -Dm644 ${desktopItem}/share/applications/harmonymusic.desktop \
-        ${shareDir}/applications/harmonymusic.desktop
-      substituteInPlace ${shareDir}/applications/harmonymusic.desktop \
-        --replace-fail "/@out@" "$out"
+      ${installDesktopEntry {
+        inherit desktopItem;
+        desktopFile = "harmonymusic.desktop";
+      }}
 
       echo "
         export LD_LIBRARY_PATH=${mpv}/lib

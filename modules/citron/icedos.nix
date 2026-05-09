@@ -1,4 +1,4 @@
-{ ... }:
+{ icedosLib, ... }:
 
 {
   outputs.nixosModules =
@@ -12,7 +12,9 @@
         {
           nixpkgs.overlays = [
             (final: super: {
-              citron = final.callPackage ./package.nix { };
+              citron = final.callPackage ./package.nix {
+                inherit (icedosLib.packaging) extractAppImage installDesktopEntry;
+              };
             })
           ];
 

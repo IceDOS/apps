@@ -1,6 +1,8 @@
 {
   build ? "x86_64_v3",
+  extractAppImage,
   fetchurl,
+  installDesktopEntry,
   makeDesktopItem,
   stdenvNoCC,
 }:
@@ -47,20 +49,10 @@ stdenvNoCC.mkDerivation {
   dontUnpack = true;
 
   installPhase = ''
-    mkdir -p $out/lib
-
-    cp ${citronAppimage} $out/lib/citron.AppImage
-    chmod +x $out/lib/citron.AppImage
-    $out/lib/citron.AppImage --appimage-extract
-    rm $out/lib/citron.AppImage
-    rm AppDir/lib
-    mv AppDir/* $out
-
-    install -Dm644 ${desktopItem}/share/applications/${desktopFile} \
-      $out/share/applications/${desktopFile}
-    substituteInPlace $out/share/applications/${desktopFile} \
-      --replace-fail "/@out@" "$out"
-
-    ln -s $out/${icon} $out/share/applications/${icon}
+    ${extractAppImage {
+      src = citronAppimage;
+      preMove = "rm AppDir/lib";
+    }}
+    ${installDesktopEntry { inherit desktopItem desktopFile icon; }}
   '';
 }

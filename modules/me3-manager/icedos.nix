@@ -1,4 +1,4 @@
-{ ... }:
+{ icedosLib, ... }:
 
 {
   outputs.nixosModules =
@@ -12,7 +12,10 @@
         {
           nixpkgs.overlays = [
             (final: super: {
-              me3-manager = final.callPackage ./package.nix { me3 = pkgs.me3; };
+              me3-manager = final.callPackage ./package.nix {
+                me3 = pkgs.me3;
+                inherit (icedosLib.packaging) extractAppImage;
+              };
             })
           ];
 
