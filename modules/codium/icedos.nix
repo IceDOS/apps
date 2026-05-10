@@ -51,8 +51,6 @@
           inherit (lib) mkIf mkMerge;
           inherit (config) icedos;
           inherit (icedos.applications) codium defaultEditor;
-
-          globalStylixEnabled = config.stylix.enable or false;
         in
         {
           icedos.applications.codium.users = icedosLib.users.genDefaults {
@@ -100,92 +98,88 @@
                     vscode-extensions.zhuangtongfa.material-theme
                   ];
 
-                  profiles.default.userSettings = mkMerge [
-                    {
-                      "[css]".editor.defaultFormatter = "esbenp.prettier-vscode";
-                      "[javascript]".editor.defaultFormatter = "esbenp.prettier-vscode";
-                      "[typescript]".editor.defaultFormatter = "esbenp.prettier-vscode";
-                      "[typescriptreact]".editor.defaultFormatter = "esbenp.prettier-vscode";
-                      diffEditor.ignoreTrimWhitespace = false;
+                  profiles.default.userSettings = {
+                    "[css]".editor.defaultFormatter = "esbenp.prettier-vscode";
+                    "[javascript]".editor.defaultFormatter = "esbenp.prettier-vscode";
+                    "[typescript]".editor.defaultFormatter = "esbenp.prettier-vscode";
+                    "[typescriptreact]".editor.defaultFormatter = "esbenp.prettier-vscode";
+                    diffEditor.ignoreTrimWhitespace = false;
 
-                      editor = {
-                        inherit formatOnPaste formatOnSave;
+                    editor = {
+                      inherit formatOnPaste formatOnSave;
 
-                        fontLigatures = true;
-                        minimap.enabled = false;
-                        renderWhitespace = "trailing";
-                        smoothScrolling = true;
-                        tabSize = 2;
+                      fontLigatures = true;
+                      minimap.enabled = false;
+                      renderWhitespace = "trailing";
+                      smoothScrolling = true;
+                      tabSize = 2;
+                    };
+
+                    evenBetterToml.formatter.alignComments = false;
+
+                    files = {
+                      inherit autoSave;
+
+                      associations."*.css" = "tailwindcss";
+                      insertFinalNewline = true;
+                      trimFinalNewlines = true;
+                      trimTrailingWhitespace = true;
+                    };
+
+                    git = {
+                      autofetch = true;
+                      confirmSync = false;
+                    };
+
+                    gitlens = {
+                      codeLens.enabled = false;
+                      defaultDateFormat = "YYYY-MM-DD HH:mm";
+                      defaultDateLocale = "system";
+                      defaultDateShortFormat = "YYYY-M-D";
+                      defaultTimeFormat = "HH:mm";
+                      statusBar.enabled = false;
+
+                      views.repositories = {
+                        showContributors = false;
+                        showStashes = true;
+                        showTags = false;
+                        showWorktrees = false;
                       };
+                    };
 
-                      evenBetterToml.formatter.alignComments = false;
+                    nix.formatterPath = "nixfmt";
+                    scm.showHistoryGraph = false;
 
-                      files = {
-                        inherit autoSave;
+                    terminal.integrated = {
+                      cursorBlinking = true;
+                      cursorStyle = "line";
+                      smoothScrolling = true;
+                    };
 
-                        associations."*.css" = "tailwindcss";
-                        insertFinalNewline = true;
-                        trimFinalNewlines = true;
-                        trimTrailingWhitespace = true;
-                      };
+                    update.mode = "none";
 
-                      git = {
-                        autofetch = true;
-                        confirmSync = false;
-                      };
+                    window = {
+                      inherit zoomLevel;
 
-                      gitlens = {
-                        codeLens.enabled = false;
-                        defaultDateFormat = "YYYY-MM-DD HH:mm";
-                        defaultDateLocale = "system";
-                        defaultDateShortFormat = "YYYY-M-D";
-                        defaultTimeFormat = "HH:mm";
-                        statusBar.enabled = false;
+                      menuBarVisibility = "toggle";
+                    };
 
-                        views.repositories = {
-                          showContributors = false;
-                          showStashes = true;
-                          showTags = false;
-                          showWorktrees = false;
-                        };
-                      };
+                    workbench = {
+                      iconTheme = "material-icon-theme";
+                      list.smoothScrolling = true;
+                      startupEditor = "none";
+                      tips.enabled = false;
+                    };
 
-                      nix.formatterPath = "nixfmt";
-                      scm.showHistoryGraph = false;
+                    editor = {
+                      inherit fontSize;
 
-                      terminal.integrated = {
-                        cursorBlinking = true;
-                        cursorStyle = "line";
-                        smoothScrolling = true;
-                      };
+                      fontFamily = "'JetBrainsMono Nerd Font', 'Droid Sans Mono', 'monospace', monospace";
+                    };
 
-                      update.mode = "none";
-
-                      window = {
-                        inherit zoomLevel;
-
-                        menuBarVisibility = "toggle";
-                      };
-
-                      workbench = {
-                        iconTheme = "material-icon-theme";
-                        list.smoothScrolling = true;
-                        startupEditor = "none";
-                        tips.enabled = false;
-                      };
-                    }
-
-                    (mkIf (!globalStylixEnabled) {
-                      editor = {
-                        inherit fontSize;
-
-                        fontFamily = "'JetBrainsMono Nerd Font', 'Droid Sans Mono', 'monospace', monospace";
-                      };
-
-                      terminal.integrated.fontSize = fontSize;
-                      workbench.colorTheme = mkIf (colorTheme != "") colorTheme;
-                    })
-                  ];
+                    terminal.integrated.fontSize = fontSize;
+                    workbench.colorTheme = mkIf (colorTheme != "") colorTheme;
+                  };
                 };
               }
             )
