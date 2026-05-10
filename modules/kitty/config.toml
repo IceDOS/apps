@@ -1,4 +1,8 @@
 [icedos.applications.kitty]
-fontSize = 12
 hideDecorations = false # Hide top bar
 opacity = 80 # background opacity, 1-100 (80 = semi-transparent)
+themeFile = ""
+
+[icedos.applications.kitty.font]
+name = ""
+size = 0
