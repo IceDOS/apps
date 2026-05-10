@@ -140,13 +140,16 @@
                   readFile "${pkgs.walker.src}/resources/themes/default/style.css"
                 );
 
-                # Tint the search input with the stylix accent slot. Appended so it
-                # overrides the upstream .input background (lighter(@window_bg_color)).
+                # Override the upstream .input background (lighter(@window_bg_color))
+                # with the base16 slot nautilus uses for its search bar so walker's
+                # input visually matches the rest of the system surface.
+                inputBgHex = if stylixOn then colors.base03 else "353539";
+
                 accentOverride = ''
                   @define-color icedos_accent_color #${accentHex};
 
                   .input {
-                    background: alpha(@icedos_accent_color, 0.18);
+                    background: #${inputBgHex};
                   }
                 '';
               in
