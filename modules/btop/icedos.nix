@@ -84,6 +84,7 @@
                     base_10_sizes = speedInBytes;
                     disk_free_priv = false;
                     swap_disk = false;
+                    update_ms = 1000;
                   }
 
                   (mkIf (diskExclusions != [ ]) {
