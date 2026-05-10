@@ -44,6 +44,7 @@
 
           inherit (lib)
             attrNames
+            concatMap
             hasAttr
             length
             mkIf
@@ -101,10 +102,17 @@
             package = mkIf hasMillennium steamPkg;
           };
 
+          # The `L+` symlink rule does not auto-create intermediate parent
+          # directories with user ownership; without explicit `d` rules first,
+          # systemd-tmpfiles may create them as root and break later HM
+          # activation steps that try to write inside Steam/.
           systemd.tmpfiles.rules = mkIf cpuUsageWorkaround (
-            map (user: "L+ /home/${user}/.local/share/Steam/steamapps/compatdata/0 - - - - /dev/null") (
-              attrNames users
-            )
+            concatMap (user: [
+              "d /home/${user}/.local/share/Steam 0755 ${user} users -"
+              "d /home/${user}/.local/share/Steam/steamapps 0755 ${user} users -"
+              "d /home/${user}/.local/share/Steam/steamapps/compatdata 0755 ${user} users -"
+              "L+ /home/${user}/.local/share/Steam/steamapps/compatdata/0 - - - - /dev/null"
+            ]) (attrNames users)
           );
         }
       )
