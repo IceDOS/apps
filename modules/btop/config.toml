@@ -1,4 +1,5 @@
 [icedos.applications.btop]
+colorTheme = ""
 diskExclusions = []
 speedInBytes = true
 sudoDesktopEntry = true

@@ -48,9 +48,11 @@
           ...
         }:
         let
-          inherit (lib) mkIf mkMerge;
+          inherit (lib) mkForce mkIf;
           inherit (config) icedos;
-          inherit (icedos.applications) codium defaultEditor;
+          inherit (icedos.desktop) codium defaultEditor;
+
+          stylixEnabled = config.stylix.enable or false;
         in
         {
           icedos.applications.codium.users = icedosLib.users.genDefaults {
@@ -108,7 +110,20 @@
                     editor = {
                       inherit formatOnPaste formatOnSave;
 
+                      fontFamily = mkIf (
+                        !stylixEnabled
+                      ) "'JetBrainsMono Nerd Font', 'Droid Sans Mono', 'monospace', monospace";
+
                       fontLigatures = true;
+
+                      fontSize =
+                        if stylixEnabled then
+                          mkIf (fontSize != 0) (mkForce fontSize)
+                        else if (fontSize != 0) then
+                          fontSize
+                        else
+                          14;
+
                       minimap.enabled = false;
                       renderWhitespace = "trailing";
                       smoothScrolling = true;
@@ -154,6 +169,14 @@
                       cursorBlinking = true;
                       cursorStyle = "line";
                       smoothScrolling = true;
+
+                      fontSize =
+                        if stylixEnabled then
+                          mkIf (fontSize != 0) (mkForce fontSize)
+                        else if (fontSize != 0) then
+                          fontSize
+                        else
+                          14;
                     };
 
                     update.mode = "none";
@@ -169,16 +192,13 @@
                       list.smoothScrolling = true;
                       startupEditor = "none";
                       tips.enabled = false;
+
+                      colorTheme =
+                        if stylixEnabled then
+                          mkIf (colorTheme != "") (mkForce colorTheme)
+                        else
+                          mkIf (colorTheme != "") colorTheme;
                     };
-
-                    editor = {
-                      inherit fontSize;
-
-                      fontFamily = "'JetBrainsMono Nerd Font', 'Droid Sans Mono', 'monospace', monospace";
-                    };
-
-                    terminal.integrated.fontSize = fontSize;
-                    workbench.colorTheme = mkIf (colorTheme != "") colorTheme;
                   };
                 };
               }

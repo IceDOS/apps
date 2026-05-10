@@ -1,4 +1,4 @@
-{ ... }:
+{ icedosLib, ... }:
 
 {
   outputs.nixosModules =
@@ -21,7 +21,9 @@
             replaceStrings
             ;
 
-          inherit (config.icedos) desktop users;
+          inherit (config.icedos) users;
+
+          accentHex = (icedosLib.generateAccent config).hexNoHash;
         in
         {
           services.elephant.enable = true;
@@ -87,16 +89,17 @@
 
           home-manager.sharedModules = [
             (
-              { config, lib, ... }:
+              {
+                config,
+                lib,
+                ...
+              }:
               let
                 inherit (lib) hm importTOML;
 
                 stylixOn = config.stylix.enable or false;
                 colors = config.lib.stylix.colors or { };
                 popups = config.stylix.fonts.sizes.popups or 10;
-
-                accentSlot = desktop.stylix.accentBase16Slot or "base0D";
-                accentHex = if stylixOn then colors.${accentSlot} else "CBA6F7";
 
                 scaleFontSize = origPx: toString (builtins.floor ((origPx * 1.0 * popups / 12) + 0.5));
 

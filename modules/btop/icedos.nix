@@ -4,15 +4,22 @@
   options.icedos.applications.btop =
     let
       inherit (lib) readFile;
-      inherit (icedosLib) mkBoolOption mkStrListOption;
+
+      inherit (icedosLib)
+        mkBoolOption
+        mkStrListOption
+        mkStrOption
+        ;
 
       inherit ((fromTOML (readFile ./config.toml)).icedos.applications.btop)
+        colorTheme
         speedInBytes
         diskExclusions
         sudoDesktopEntry
         ;
     in
     {
+      colorTheme = mkStrOption { default = colorTheme; };
       diskExclusions = mkStrListOption { default = diskExclusions; };
       speedInBytes = mkBoolOption { default = speedInBytes; };
       sudoDesktopEntry = mkBoolOption { default = sudoDesktopEntry; };
@@ -30,8 +37,20 @@
         }:
 
         let
-          inherit (config.icedos.applications.btop) speedInBytes diskExclusions sudoDesktopEntry;
-          inherit (lib) concatStringsSep mkIf mkMerge;
+          inherit (config.icedos.applications.btop)
+            colorTheme
+            speedInBytes
+            diskExclusions
+            sudoDesktopEntry
+            ;
+          inherit (lib)
+            concatStringsSep
+            mkForce
+            mkIf
+            mkMerge
+            ;
+
+          stylixEnabled = config.stylix.enable or false;
 
           btopBin = pkgs.writeShellScriptBin "btop" ''
             export PATH="${pkgs.coreutils}/bin:${pkgs.glibc.bin}/bin:''${PATH:-}"
@@ -91,9 +110,15 @@
                     disks_filter = "exclude=" + concatStringsSep " " diskExclusions;
                   })
 
-                  (mkIf (!(config.stylix.enable or false)) {
-                    color_theme = "onedark";
-                  })
+                  {
+                    color_theme =
+                      if stylixEnabled then
+                        mkIf (colorTheme != "") (mkForce colorTheme)
+                      else if (colorTheme != "") then
+                        colorTheme
+                      else
+                        "onedark";
+                  }
                 ];
               };
 

@@ -46,8 +46,8 @@
           ...
         }:
         let
-          inherit (config.icedos) applications;
-          inherit (applications) defaultBrowser;
+          inherit (config.icedos) applications desktop;
+          inherit (desktop) defaultBrowser;
           inherit (applications.helium) drmSupportUsingGoogleChrome profiles;
           inherit (pkgs) google-chrome nur;
           inherit (nur.repos.Ev357) helium;

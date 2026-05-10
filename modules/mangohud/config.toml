@@ -1,4 +1,14 @@
 [icedos.applications.mangohud]
-fontSize = 18
+# Color overrides — "" means: use stylix when stylix is on, else fallback hardcoded.
+# Format: hex without leading "#", or comma-separated triple for load gradients.
+cpuColor = ""
+cpuLoadColor = ""
+engineColor = ""
+fontSize = 0 # 0 = use stylix size when stylix is on, else fallback 18
+fpsColor = ""
 fpsLimit = "0" # 0 equals unlimited
+gpuColor = ""
+gpuLoadColor = ""
 position = "bottom-right" # Options: top-left, top-right, middle-left, middle-right, bottom-left, bottom-right, top-center, bottom-center
+textColor = ""
+vramColor = ""
