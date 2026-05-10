@@ -1,18 +1,18 @@
-[icedos.applications]
-defaultEditor = "dev.zed.Zed.desktop"
-
 [icedos.applications.zed]
 autosave = false
 extensions = []
 extraPackages = []
 fhs = false
-fontSize = 14
 formatOnSave = false
 vim = false
 
+[icedos.applications.zed.font]
+name = "" # "" = use stylix font when stylix is on, else fallback "JetBrainsMono Nerd Font"
+size = 0 # 0 = use stylix size when stylix is on, else fallback 14
+
 [icedos.applications.zed.theme]
-dark = "One Dark Pro"
-light = "One Light"
+dark = "" # "" = use stylix theme when stylix is on, else fallback "One Dark Pro"
+light = "" # "" = use stylix theme when stylix is on, else fallback "One Light"
 mode = "system" # Options: 'system', 'dark', 'light'
 
 [icedos.applications.zed.languages]

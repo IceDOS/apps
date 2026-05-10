@@ -1,49 +1,25 @@
-{ icedosLib, lib, ... }:
+{ ... }:
 
 {
-  options.icedos.applications =
-    let
-      inherit (icedosLib) mkStrOption mkStrListOption;
-      inherit (lib) readFile;
-
-      inherit ((fromTOML (readFile ./config.toml)).icedos.applications)
-        defaultBrowser
-        defaultEditor
-        extraPackages
-        ;
-    in
-    {
-      defaultBrowser = mkStrOption { default = defaultBrowser; };
-      defaultEditor = mkStrOption { default = defaultEditor; };
-      extraPackages = mkStrListOption { default = extraPackages; };
-    };
-
   outputs.nixosModules =
     { ... }:
     [
       (
         {
-          config,
           pkgs,
           ...
         }:
 
-        let
-          inherit (config.icedos.applications) extraPackages;
-        in
         {
-          environment.systemPackages =
-            with pkgs;
-            [
-              efibootmgr # Edit EFI entries
-              killall # Tool to kill all programs matching process name
-              ntfs3g # Support NTFS drives
-              p7zip # 7zip
-              unrar # Support opening rar files
-              unzip # An extraction utility
-              wget # Terminal downloader
-            ]
-            ++ (icedosLib.pkgs.mapper pkgs extraPackages);
+          environment.systemPackages = with pkgs; [
+            efibootmgr # Edit EFI entries
+            killall # Tool to kill all programs matching process name
+            ntfs3g # Support NTFS drives
+            p7zip # 7zip
+            unrar # Support opening rar files
+            unzip # An extraction utility
+            wget # Terminal downloader
+          ];
 
           programs.nano.enable = false;
         }

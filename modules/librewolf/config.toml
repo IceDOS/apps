@@ -1,5 +1,4 @@
 [icedos.applications]
-defaultBrowser = "librewolf.desktop"
 bin = false
 
 [icedos.applications.librewolf]

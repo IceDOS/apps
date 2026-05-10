@@ -20,8 +20,8 @@
           ...
         }:
         let
-          inherit (config.icedos) applications;
-          inherit (applications) defaultBrowser;
+          inherit (config.icedos) applications desktop;
+          inherit (desktop) defaultBrowser;
           inherit (applications.librewolf) bin;
 
           inherit (lib)

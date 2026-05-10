@@ -90,12 +90,14 @@ in
           stylixCfg = desktop.stylix or { enable = false; };
           stylixOn = stylixCfg.enable or false;
 
+          resolved = icedosLib.generateAccent config;
+
           # "#RRGGBB" → "R, G, B" — Adwaita-for-Steam's --adw-*-rgb format.
           hexToRgbTriple = hex: concatMapStringsSep ", " toString (hexToRgbInts hex);
 
           slot = name: hexToRgbTriple config.lib.stylix.colors.${name};
 
-          accentSlot = stylixCfg.accentBase16Slot;
+          accentRgb = hexToRgbTriple resolved.hexNoHash;
           fgOnAccentSlot = if (stylixCfg.polarity or "dark") == "light" then "base00" else "base07";
 
           # Pairs map an Adwaita-for-Steam custom property to a Stylix base16
@@ -178,11 +180,11 @@ in
             }
             {
               var = "--adw-accent-bg-rgb";
-              src = accentSlot;
+              rgb = accentRgb;
             }
             {
               var = "--adw-accent-rgb";
-              src = accentSlot;
+              rgb = accentRgb;
             }
             {
               var = "--adw-accent-fg-rgb";
@@ -190,7 +192,7 @@ in
             }
             {
               var = "--adw-user-online-rgb";
-              src = accentSlot;
+              rgb = accentRgb;
             }
           ];
 
@@ -198,7 +200,11 @@ in
           # Millennium's runtime themeColors `<style>` injection (which
           # otherwise loads later than our @import and overrides us).
           declarations = concatMapStringsSep "\n  " (
-            { var, src }: "${var}: ${slot src} !important;"
+            entry:
+            let
+              value = if entry ? rgb then entry.rgb else slot entry.src;
+            in
+            "${entry.var}: ${value} !important;"
           ) colorPairs;
 
           # Layout preset is fixed to `Windows` (right-side positioning,
