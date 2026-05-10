@@ -3,17 +3,32 @@
 {
   options.icedos.applications.kitty =
     let
-      inherit (icedosLib) mkBoolOption mkIntBetweenOption mkNumberOption;
+      inherit (icedosLib)
+        mkBoolOption
+        mkIntBetweenOption
+        mkNumberOption
+        mkStrOption
+        ;
+
       inherit (lib) readFile;
 
       inherit ((fromTOML (readFile ./config.toml)).icedos.applications.kitty)
-        fontSize
+        font
         hideDecorations
         opacity
+        themeFile
         ;
     in
     {
-      fontSize = mkNumberOption { default = fontSize; };
+      font =
+        let
+          inherit (font) name size;
+        in
+        {
+          name = mkStrOption { default = name; };
+          size = mkNumberOption { default = size; };
+        };
+
       hideDecorations = mkBoolOption { default = hideDecorations; };
 
       opacity = mkIntBetweenOption {
@@ -22,6 +37,8 @@
         default = opacity;
         description = "Kitty background opacity, 1-100 scale (forwarded as 0.01-1.00 to kitty).";
       } 1 100;
+
+      themeFile = mkStrOption { default = themeFile; };
     };
 
   outputs.nixosModules =
@@ -45,6 +62,8 @@
           inherit (config) icedos;
           inherit (icedos) applications desktop;
           inherit (applications) kitty;
+
+          stylixEnabled = config.stylix.enable or false;
         in
         {
           home-manager.sharedModules = [
@@ -62,15 +81,31 @@
                     copy_on_select = "no";
                     wayland_titlebar_color = "background";
                   };
-                }
 
-                (mkIf (!(config.stylix.enable or false)) {
-                  font.name = "JetBrainsMono Nerd Font";
-                  font.size = kitty.fontSize;
-                  themeFile = "OneDark-Pro";
-                })
+                  font.name =
+                    if stylixEnabled then
+                      mkIf (kitty.font.name != "") (mkForce kitty.font.name)
+                    else if (kitty.font.name != "") then
+                      kitty.font.name
+                    else
+                      "JetBrainsMono Nerd Font";
 
-                {
+                  font.size =
+                    if stylixEnabled then
+                      mkIf (kitty.font.size != 0) (mkForce kitty.font.size)
+                    else if (kitty.font.size != 0) then
+                      kitty.font.size
+                    else
+                      12;
+
+                  themeFile =
+                    if stylixEnabled then
+                      mkIf (kitty.themeFile != "") (mkForce kitty.themeFile)
+                    else if (kitty.themeFile != "") then
+                      kitty.themeFile
+                    else
+                      "OneDark-Pro";
+
                   settings.background_opacity = mkForce (toString (kitty.opacity / 100.0));
                 }
               ];
