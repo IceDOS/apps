@@ -29,7 +29,7 @@
 
 let
   pname = "simpmusic";
-  version = "1.2.0";
+  version = "1.2.1";
 
   appName = "simpmusic";
   desktopFile = "${appName}.desktop";
@@ -37,7 +37,7 @@ let
 
   simpmusicAppimage = fetchurl {
     url = "https://github.com/maxrave-dev/SimpMusic/releases/download/v${version}/SimpMusic-x86_64.AppImage";
-    hash = "sha256-4JrO2nlc6ul3DWJoPPAGAv1rjDY3B4sRcAXEPraGgCk=";
+    hash = "sha256-mmfFs2NUUHt4ZFdhE+6UmIlLkFX3JeoG3fGjMdO4+8E=";
   };
 
   desktopItem = makeDesktopItem {
