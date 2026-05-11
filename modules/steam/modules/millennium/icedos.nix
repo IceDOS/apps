@@ -26,7 +26,7 @@ in
 {
   inputs = {
     millennium = {
-      url = "github:SteamClientHomebrew/Millennium?dir=packages/nix";
+      url = "github:SteamClientHomebrew/Millennium/v2.36.1?dir=packages/nix";
     };
   };
 
