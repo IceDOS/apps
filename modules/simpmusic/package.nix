@@ -14,6 +14,7 @@
   libpulseaudio,
   libx11,
   libxcb,
+  libxcursor,
   libxext,
   libxi,
   libxkbcommon,
@@ -66,6 +67,7 @@ let
     libpulseaudio
     libx11
     libxcb
+    libxcursor
     libxext
     libxi
     libxkbcommon
