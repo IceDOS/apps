@@ -90,8 +90,6 @@
 
         let
           inherit (lib)
-            attrNames
-            filterAttrs
             mkIf
             readFile
             ;
@@ -100,15 +98,9 @@
           inherit (icedos.applications) sd-inhibitor;
 
           sessionTargets = icedosLib.systemd.desktopSessionTargets icedos;
-
-          getModules =
-            path:
-            map (dir: ./. + ("/modules/" + dir)) (
-              attrNames (filterAttrs (_: v: v == "directory") (builtins.readDir path))
-            );
         in
         {
-          imports = getModules ./modules;
+          imports = icedosLib.getModules ./modules;
 
           icedos.applications.toolset.commands = [
             {
