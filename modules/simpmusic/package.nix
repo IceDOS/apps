@@ -47,7 +47,7 @@ let
     comment = "A cross-platform music app using YouTube Music for backend";
     exec = "/@out@/bin/simpmusic %U";
     icon = "/@out@/share/icons/hicolor/256x256/apps/${icon}";
-    startupWMClass = "com-maxrave-simpmusic-MainKt";
+    startupWMClass = "kotlinx-coroutines-c-a\$c";
     type = "Application";
 
     categories = [
