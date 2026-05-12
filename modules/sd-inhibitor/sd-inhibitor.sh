@@ -44,9 +44,21 @@ while :; do
     continue
   fi
 
-  what="sleep:shutdown"
-  # inhibit idle only while pipewire has active streams
-  [[ " ${firing[*]} " == *" pipewire "* ]] && what="idle:$what"
+  # Per-watcher contribution: pipewire → idle (keep monitors on during audio),
+  # any non-pipewire watcher → sleep:shutdown (block auto-suspend during work).
+  # Pipewire-only firing leaves explicit `systemctl suspend` working.
+  parts=()
+  [[ " ${firing[*]} " == *" pipewire "* ]] && parts+=("idle")
+  for w in "${firing[@]}"; do
+    [[ "$w" != "pipewire" ]] && {
+      parts+=("sleep:shutdown")
+      break
+    }
+  done
+  what="$(
+    IFS=:
+    echo "${parts[*]}"
+  )"
   why="failed: ${firing[*]}"
   state="$what|$why"
 
