@@ -17,52 +17,20 @@
       (
         {
           config,
-          lib,
           pkgs,
           ...
         }:
 
         let
-          inherit (lib)
-            getBin
-            mkForce
-            mkIf
-            ;
-
-          inherit (pkgs) callPackage runtimeShell writeShellScriptBin;
-          inherit (pkgs.scx) full;
-
           inherit (config.icedos.applications) scx;
-          inherit (scx) extraArgs scheduler;
-          isCake = scheduler == "cake";
-
-          package =
-            if !isCake then
-              full
-            else
-              full.overrideAttrs (old: {
-                postInstall = old.postInstall + ''
-                  cp ${getBin (callPackage ./scx-cake/package.nix { })}/bin/* ${placeholder "out"}/bin/
-                '';
-              });
+          inherit (scx) scheduler;
         in
         {
           services.scx = {
-            inherit extraArgs package;
+            package = pkgs.scx.full;
             enable = true;
-            scheduler = mkIf (!isCake) "scx_${scheduler}";
+            scheduler = "scx_${scheduler}";
           };
-
-          systemd.services.scx = mkIf isCake {
-            environment.SCX_SCHEDULER = mkForce "scx_cake";
-
-            serviceConfig.ExecStart = mkForce "${writeShellScriptBin "scx-watcher" ''
-              while :; do
-                ${runtimeShell} -c 'exec ${package}/bin/''${SCX_SCHEDULER_OVERRIDE:-$SCX_SCHEDULER} ''${SCX_FLAGS_OVERRIDE:-$SCX_FLAGS}'
-              done
-            ''}/bin/scx-watcher";
-          };
-
         }
       )
     ];
