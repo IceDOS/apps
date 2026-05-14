@@ -3,11 +3,17 @@
 {
   options.icedos.applications.protonvpn-cli =
     let
-      inherit (icedosLib) mkBoolOption mkStrOption;
+      inherit (icedosLib)
+        mkBoolOption
+        mkStrListOption
+        mkStrOption
+        ;
+
       inherit (lib) readFile;
 
       inherit ((fromTOML (readFile ./config.toml)).icedos.applications.protonvpn-cli)
         connect
+        desktopEntry
         settings
         ;
     in
@@ -19,6 +25,11 @@
         securecore = mkBoolOption { default = connect.securecore; };
         tor = mkBoolOption { default = connect.tor; };
         random = mkBoolOption { default = connect.random; };
+      };
+
+      desktopEntry = {
+        enable = mkBoolOption { default = desktopEntry.enable; };
+        countries = mkStrListOption { default = desktopEntry.countries; };
       };
 
       settings = {
@@ -49,10 +60,21 @@
           ...
         }:
         let
-          inherit (icedosLib) validate;
-          inherit (lib) concatStringsSep optional;
           inherit (config) icedos;
-          inherit (icedos.applications.protonvpn-cli) connect settings;
+
+          inherit (icedos.applications.protonvpn-cli)
+            connect
+            desktopEntry
+            settings
+            ;
+
+          inherit (icedosLib) validate;
+
+          inherit (lib)
+            concatStringsSep
+            mkIf
+            optional
+            ;
 
           sessionTargets = icedosLib.systemd.desktopSessionTargets icedos;
 
@@ -119,6 +141,52 @@
 
             touch "$flag"
           '';
+
+          launcherScript = ''
+            ${icedosLib.bash.exportSystemPath}
+
+            PVPN="${pkgs.proton-vpn-cli}/bin/protonvpn"
+            ZEN="${pkgs.zenity}/bin/zenity"
+
+            action=$("$ZEN" --list --title="ProtonVPN" --column="Action" \
+              Connect Disconnect Status) || exit 0
+
+            case "$action" in
+              Connect)
+                country=$("$ZEN" --list --title="ProtonVPN — Country" \
+                  --column="Country" \
+                  Default ${concatStringsSep " " desktopEntry.countries} "Other…") || exit 0
+                if [ "$country" = "Other…" ]; then
+                  country=$("$ZEN" --entry --title="ProtonVPN — Country" \
+                    --text="ISO country code (e.g. US, GB):") || exit 0
+                fi
+                if [ "$country" = "Default" ] || [ -z "$country" ]; then
+                  out=$("$PVPN" connect 2>&1) || rc=$?
+                else
+                  out=$("$PVPN" connect --country "$country" 2>&1) || rc=$?
+                fi
+                if [ -n "''${rc:-}" ]; then
+                  "$ZEN" --error --title="ProtonVPN" --text="$out"
+                else
+                  "$ZEN" --info --title="ProtonVPN" --text="$out"
+                fi
+                ;;
+              Disconnect)
+                out=$("$PVPN" disconnect 2>&1) || rc=$?
+                if [ -n "''${rc:-}" ]; then
+                  "$ZEN" --error --title="ProtonVPN" --text="$out"
+                else
+                  "$ZEN" --info --title="ProtonVPN" --text="$out"
+                fi
+                ;;
+              Status)
+                "$PVPN" status 2>&1 | "$ZEN" --text-info \
+                  --title="ProtonVPN — Status" --width=520 --height=360
+                ;;
+            esac
+          '';
+
+          launcherBin = pkgs.writeShellScriptBin "protonvpn-launcher" launcherScript;
         in
         {
           home-manager.sharedModules = [
@@ -142,10 +210,29 @@
                   Restart = "on-failure";
                 };
               };
+
+              xdg.desktopEntries.protonvpn = mkIf desktopEntry.enable {
+                name = "ProtonVPN Controller";
+                genericName = "Connect, disconnect, or check ProtonVPN status";
+                icon = "protonvpn";
+                exec = "${launcherBin}/bin/protonvpn-launcher";
+                terminal = false;
+                type = "Application";
+
+                categories = [
+                  "Network"
+                  "Security"
+                ];
+
+                settings.Keywords = "vpn;proton;privacy;";
+              };
             }
           ];
 
-          environment.systemPackages = [ pkgs.proton-vpn-cli ];
+          environment.systemPackages = with pkgs; [
+            proton-vpn-cli
+            zenity
+          ];
         }
       )
     ];

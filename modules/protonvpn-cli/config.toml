@@ -6,6 +6,10 @@ random = false
 securecore = false
 tor = false
 
+[icedos.applications.protonvpn-cli.desktopEntry]
+enable = true
+countries = []
+
 [icedos.applications.protonvpn-cli.settings.netshield]
 malware = false
 full = false
