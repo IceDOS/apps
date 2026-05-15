@@ -1,7 +1,0 @@
-[icedos.applications.steam.millennium]
-defaultTheme = "7dzdgNotKWgNmQYXc6A0" # Adwaita-for-Steam (set "" to leave default theme)
-disableAnimations = true
-disableBlur = true
-enabledPlugins = [] # "all" or list of plugin IDs
-pluginIds = []
-themeIds = []
