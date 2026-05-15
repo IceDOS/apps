@@ -50,7 +50,9 @@
         let
           inherit (lib) mkForce mkIf;
           inherit (config) icedos;
-          inherit (icedos.desktop) codium defaultEditor;
+          inherit (icedos) applications desktop;
+          inherit (applications) codium;
+          inherit (desktop) defaultEditor;
 
           stylixEnabled = config.stylix.enable or false;
         in
@@ -115,20 +117,19 @@
                       ) "'JetBrainsMono Nerd Font', 'Droid Sans Mono', 'monospace', monospace";
 
                       fontLigatures = true;
-
-                      fontSize =
-                        if stylixEnabled then
-                          mkIf (fontSize != 0) (mkForce fontSize)
-                        else if (fontSize != 0) then
-                          fontSize
-                        else
-                          14;
-
                       minimap.enabled = false;
                       renderWhitespace = "trailing";
                       smoothScrolling = true;
                       tabSize = 2;
                     };
+
+                    "editor.fontSize" =
+                      if stylixEnabled then
+                        mkIf (fontSize != 0) (mkForce fontSize)
+                      else if (fontSize != 0) then
+                        fontSize
+                      else
+                        14;
 
                     evenBetterToml.formatter.alignComments = false;
 
@@ -169,15 +170,15 @@
                       cursorBlinking = true;
                       cursorStyle = "line";
                       smoothScrolling = true;
-
-                      fontSize =
-                        if stylixEnabled then
-                          mkIf (fontSize != 0) (mkForce fontSize)
-                        else if (fontSize != 0) then
-                          fontSize
-                        else
-                          14;
                     };
+
+                    "terminal.integrated.fontSize" =
+                      if stylixEnabled then
+                        mkIf (fontSize != 0) (mkForce fontSize)
+                      else if (fontSize != 0) then
+                        fontSize
+                      else
+                        14;
 
                     update.mode = "none";
 
@@ -192,13 +193,13 @@
                       list.smoothScrolling = true;
                       startupEditor = "none";
                       tips.enabled = false;
-
-                      colorTheme =
-                        if stylixEnabled then
-                          mkIf (colorTheme != "") (mkForce colorTheme)
-                        else
-                          mkIf (colorTheme != "") colorTheme;
                     };
+
+                    "workbench.colorTheme" =
+                      if stylixEnabled then
+                        mkIf (colorTheme != "") (mkForce colorTheme)
+                      else
+                        mkIf (colorTheme != "") colorTheme;
                   };
                 };
               }
