@@ -56,13 +56,12 @@
           extraPackages = mapper pkgs applications.steam.extraPackages;
           hasExtraPackages = length extraPackages != 0;
           hasGamescope = hasAttr "gamescope" applications;
-          hasMillennium = hasAttr "millennium" applications.steam;
           hasProtonLaunch = hasAttr "proton-launch" applications;
           optionalGamescope = optional hasGamescope pkgs.gamescope;
           optionalProtonLaunch = optional hasProtonLaunch pkgs.proton-launch;
           session = hasAttr "session" applications.steam;
           steamdeck = hasAttr "steamdeck" devices;
-          steamPkg = if hasMillennium then pkgs.millennium-steam else pkgs.steam;
+          steamPkg = pkgs.steam;
         in
         {
           home-manager.sharedModules = [
@@ -99,7 +98,7 @@
           programs.steam = {
             enable = steamdeck || session;
             extraPackages = extraPackages ++ optionalGamescope ++ optionalProtonLaunch;
-            package = mkIf hasMillennium steamPkg;
+            package = steamPkg;
           };
 
           # The `L+` symlink rule does not auto-create intermediate parent
