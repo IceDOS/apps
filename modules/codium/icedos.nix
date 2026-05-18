@@ -53,8 +53,6 @@
           inherit (icedos) applications desktop;
           inherit (applications) codium;
           inherit (desktop) defaultEditor;
-
-          stylixEnabled = config.stylix.enable or false;
         in
         {
           icedos.applications.codium.users = icedosLib.users.genDefaults {
@@ -76,6 +74,13 @@
                   formatOnSave
                   zoomLevel
                   ;
+
+                # Gate on the per-target state too, not just global
+                # `stylix.enable`: a disabled vscodium target (via
+                # `disabledTargets`) means stylix writes nothing, so fall
+                # through to our own font/theme defaults instead of dropping
+                # them. `config` here is the home-manager config.
+                stylixEnabled = (config.stylix.enable or false) && (config.stylix.targets.vscodium.enable or false);
               in
               {
                 programs.vscodium = {
