@@ -53,7 +53,21 @@
 
           conditionalGamescopeHelp =
             if hasGamescope then
-              ''echo -e "> ${purpleString "--gamescope"}: wrap with gamescope (via scopebuddy)"''
+              ''
+                echo -e "> ${purpleString "--gamescope"}: wrap with gamescope (via scopebuddy)"
+                echo -e "> ${purpleString "--gamescope-args <args>"}: pass extra args to gamescope"
+              ''
+            else
+              "";
+
+          conditionalLowLatencyHelp =
+            if hasGamescope then
+              ''
+                echo -e "> ${purpleString "--low-latency"}: enable low-latency layer (AMD anti-lag)"
+                echo -e "> ${purpleString "--low-latency-force-decoupled"}: low-latency layer decoupled-queue mitigation (mostly there for marvel rivals)"
+                echo -e "> ${purpleString "--low-latency-reflex"}: low-latency layer in NVIDIA Reflex mode (+NVAPI) instead of anti-lag"
+                echo -e "> ${purpleString "--low-latency-reflex-spoof-nvidia"}: low-latency layer in NVIDIA Reflex mode, report GPU as NVIDIA (may trip anti-cheat / break vendor-gated features)"
+              ''
             else
               "";
 
@@ -78,17 +92,21 @@
                   echo "Usage: proton-launch [OPTIONS] [--] <command> [args...]"
                   echo "Available options:"
                   echo -e "> ${purpleString "--deck"}: pretend to be a Steam Deck"
+                  ${conditionalGamemodeHelp}
+                  ${conditionalGamescopeHelp}
                   echo -e "> ${purpleString "--fps-limit <N>"}: cap framerate at N fps"
                   echo -e "> ${purpleString "--fsr4"}: enable FSR 4 frame upscaling"
                   echo -e "> ${purpleString "--fsr4-watermark"}: show FSR4/MLFG watermark overlay"
-                  echo -e "> ${purpleString "--gamescope-args <args>"}: pass extra args to gamescope"
                   echo -e "> ${purpleString "--hdr"}: enable HDR output"
                   echo -e "> ${purpleString "--hidraw"}: enable hidraw device passthrough"
                   echo -e "> ${purpleString "--lod-bias <N>"}: set DXVK/D3D9 sampler LOD bias"
+                  ${conditionalLowLatencyHelp}
                   echo -e "> ${purpleString "--max-frame-latency <N>"}: cap DXGI max frame latency"
                   echo -e "> ${purpleString "--no-dll-overrides"}: clear WINEDLLOVERRIDES"
                   echo -e "> ${purpleString "--no-dxr"}: disable DirectX raytracing in VKD3D"
                   echo -e "> ${purpleString "--no-esync"}: disable esync"
+                  ${conditionalNoGamemodeHelp}
+                  ${conditionalNoGamePerformanceHelp}
                   echo -e "> ${purpleString "--no-gpl"}: disable DXVK graphics pipeline library"
                   echo -e "> ${purpleString "--no-mangohud"}: disable mangohud overlay (when present)"
                   echo -e "> ${purpleString "--no-ntsync"}: disable ntsync"
@@ -98,17 +116,18 @@
                   echo -e "> ${purpleString "--shader-all-cores"}: use all CPU cores for DXVK shader compilation"
                   echo -e "> ${purpleString "--wayland"}: enable Proton's native Wayland backend"
                   echo -e "> ${purpleString "--wow64"}: enable Proton's 64-bit WoW translation"
-                  ${conditionalGamemodeHelp}
-                  ${conditionalGamescopeHelp}
-                  ${conditionalNoGamemodeHelp}
-                  ${conditionalNoGamePerformanceHelp}
                   exit 0
                 fi
 
                 DXVK_CONFIG_OPTS=""
                 DXVK_LOG_LEVEL=warn
+                DISABLE_LOW_LATENCY_LAYER=1
+                LOW_LATENCY_LAYER_FORCE_DECOUPLED=0
+                LOW_LATENCY_LAYER_REFLEX=0
+                LOW_LATENCY_LAYER_SPOOF_NVIDIA=0
                 PROTON_ENABLE_HIDRAW=0
                 PROTON_ENABLE_WAYLAND=0
+                PROTON_FORCE_NVAPI=0
                 PROTON_NO_ESYNC=0
                 PROTON_PREFER_SDL=1
                 PROTON_USE_WOW64=0
@@ -184,6 +203,35 @@
                       PROTON_ENABLE_HIDRAW=1
                       shift
                       ;;
+                      ${
+                        if (hasAttr "low-latency-vulkan-layer" applications) then
+                          ''
+                            --low-latency)
+                              DISABLE_LOW_LATENCY_LAYER=0
+                              shift
+                              ;;
+                            --low-latency-force-decoupled)
+                              DISABLE_LOW_LATENCY_LAYER=0
+                              LOW_LATENCY_LAYER_FORCE_DECOUPLED=1
+                              shift
+                              ;;
+                            --low-latency-reflex)
+                              DISABLE_LOW_LATENCY_LAYER=0
+                              LOW_LATENCY_LAYER_REFLEX=1
+                              PROTON_FORCE_NVAPI=1
+                              shift
+                              ;;
+                            --low-latency-reflex-spoof-nvidia)
+                              DISABLE_LOW_LATENCY_LAYER=0
+                              LOW_LATENCY_LAYER_REFLEX=1
+                              LOW_LATENCY_LAYER_SPOOF_NVIDIA=1
+                              PROTON_FORCE_NVAPI=1
+                              shift
+                              ;;
+                          ''
+                        else
+                          ""
+                      }
                       ${
                         if (hasAttr "gamemode" applications) then
                           ''
@@ -319,10 +367,15 @@
                 DXVK_FRAME_RATE \
                 DXVK_LOG_LEVEL \
                 FSR4_WATERMARK \
+                DISABLE_LOW_LATENCY_LAYER \
+                LOW_LATENCY_LAYER_FORCE_DECOUPLED \
+                LOW_LATENCY_LAYER_REFLEX \
+                LOW_LATENCY_LAYER_SPOOF_NVIDIA \
                 MLFG_WATERMARK \
                 PROTON_ENABLE_HDR \
                 PROTON_ENABLE_HIDRAW \
                 PROTON_ENABLE_WAYLAND \
+                PROTON_FORCE_NVAPI \
                 PROTON_FSR4_UPGRADE \
                 PROTON_NO_ESYNC \
                 PROTON_PREFER_SDL \
