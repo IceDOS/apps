@@ -68,13 +68,10 @@
             {
               xdg.dataFile = {
                 "Steam/package/beta" = mkIf beta {
-                  force = true;
                   text = if steamdeck then "steamdeck_publicbeta" else "publicbeta";
                 };
 
                 "Steam/steam_dev.cfg" = mkIf downloadsWorkaround {
-                  force = true;
-
                   text = ''
                     @nClientDownloadEnableHTTP2PlatformLinux 0
                   '';
