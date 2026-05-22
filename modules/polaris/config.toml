@@ -1,0 +1,25 @@
+[icedos.applications.polaris]
+# Start Polaris automatically with the graphical session.
+autoStart = false
+capSysAdmin = false
+cudaSupport = false
+enableBrowserStream = false
+openFirewall = false
+
+# Declarative apps.json. Mirrors Polaris' apps.json structure, e.g.:
+#   [icedos.applications.polaris.applications]
+#   [[icedos.applications.polaris.applications.apps]]
+#   name = "Desktop"
+# Leave empty to keep the app list editable from the web console.
+[icedos.applications.polaris.applications]
+
+# Freeform polaris.conf settings. ANY documented key is accepted, e.g.:
+#   [icedos.applications.polaris.settings]
+#   port = 47989
+#   encoder = "vaapi"
+#   headless_mode = true
+#   adaptive_bitrate_enabled = true
+#   disconnect_resume_timeout_seconds = 300
+#   trusted_subnets = "192.168.0.0/16"
+# Leave empty to keep the web console fully editable (no config file is passed).
+[icedos.applications.polaris.settings]
