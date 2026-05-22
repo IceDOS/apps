@@ -149,6 +149,53 @@
 
                   help = "-c <commit_hash> -d <destination_directory>";
                 }
+                {
+                  command = "pull";
+
+                  script = ''
+                    set -u
+
+                    case "''${1-}" in
+                      -h | --help | help)
+                        echo "usage: icedos git pull <path>"
+                        echo "fast-forward pull every git repo found under <path> (default: current directory)"
+                        exit 0
+                        ;;
+                    esac
+
+                    root="''${1:-.}"
+                    [ -d "$root" ] || die "not a directory: $root"
+
+                    failed=()
+                    count=0
+
+                    while IFS= read -r -d "" repo; do
+                      count=$((count + 1))
+                      log_step "$repo"
+                      if ! git -C "$repo" pull --ff-only; then
+                        failed+=("$repo")
+                      fi
+                    done < <(find "$root" -type d -exec test -e "{}/.git" ";" -prune -print0)
+
+                    echo
+                    if [ "$count" -eq 0 ]; then
+                      log_warn "no git repositories found under $root"
+                      exit 0
+                    fi
+
+                    if [ ''${#failed[@]} -eq 0 ]; then
+                      log_ok "all $count repositories pulled successfully"
+                    else
+                      log_fail "failed pulls:"
+                      for d in "''${failed[@]}"; do
+                        printf '  - %s\n' "$d"
+                      done
+                      exit 1
+                    fi
+                  '';
+
+                  help = "<path> - fast-forward pull every git repo found recursively under path (default: current directory)";
+                }
               ];
             }
           ];
