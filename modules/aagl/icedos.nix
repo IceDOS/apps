@@ -1,6 +1,22 @@
-{ ... }:
+{ lib, icedosLib, ... }:
 
 {
+  options.icedos.applications.aagl =
+    let
+      inherit (lib) readFile;
+
+      inherit (icedosLib)
+        mkStrListOption
+        ;
+
+      inherit ((fromTOML (readFile ./config.toml)).icedos.applications.aagl)
+        launchers
+        ;
+    in
+    {
+      launchers = mkStrListOption { default = launchers; };
+    };
+
   inputs.aagl = {
     url = "github:ezKEa/aagl-gtk-on-nix";
     inputs.nixpkgs.follows = "nixpkgs";
@@ -12,15 +28,11 @@
       inputs.aagl.nixosModules.default
       (
         {
-          lib,
+          config,
           ...
         }:
         let
-          inherit (lib) readFile;
-
-          inherit ((fromTOML (readFile ./config.toml)).icedos.applications.aagl)
-            launchers
-            ;
+          inherit (config.icedos.applications.aagl) launchers;
         in
         {
           nix.settings = inputs.aagl.nixConfig; # Set up Cachix
