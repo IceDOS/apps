@@ -1,0 +1,2 @@
+[icedos.applications.aagl]
+launchers = ["anime-game-launcher"] # For naming scheme, see: https://github.com/ezKEa/aagl-gtk-on-nix#installation
