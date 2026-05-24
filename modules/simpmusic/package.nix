@@ -21,7 +21,6 @@
   libxrender,
   libxtst,
   makeDesktopItem,
-  makeWrapper,
   stdenv,
   steam-run-free,
   wayland,
@@ -30,7 +29,7 @@
 
 let
   pname = "simpmusic";
-  version = "1.2.1";
+  version = "1.3.0";
 
   appName = "simpmusic";
   desktopFile = "${appName}.desktop";
@@ -38,7 +37,7 @@ let
 
   simpmusicAppimage = fetchurl {
     url = "https://github.com/maxrave-dev/SimpMusic/releases/download/v${version}/SimpMusic-x86_64.AppImage";
-    hash = "sha256-mmfFs2NUUHt4ZFdhE+6UmIlLkFX3JeoG3fGjMdO4+8E=";
+    hash = "sha256-nxVAAjUISxEGzLN6SJ/4c37RBLHgX6AhuQXI9b9A238=";
   };
 
   desktopItem = makeDesktopItem {
@@ -47,7 +46,7 @@ let
     comment = "A cross-platform music app using YouTube Music for backend";
     exec = "/@out@/bin/simpmusic %U";
     icon = "/@out@/share/icons/hicolor/256x256/apps/${icon}";
-    startupWMClass = "kotlinx-coroutines-c-a\$c";
+    startupWMClass = "com-maxrave-simpmusic-MainKt";
     type = "Application";
 
     categories = [
@@ -86,7 +85,6 @@ stdenv.mkDerivation {
 
   nativeBuildInputs = [
     autoPatchelfHook
-    makeWrapper
   ];
 
   buildInputs = runtimeLibs;
@@ -95,8 +93,9 @@ stdenv.mkDerivation {
     "${placeholder "out"}/lib/runtime/lib"
     "${placeholder "out"}/lib/runtime/lib/server"
     "${placeholder "out"}/lib/app"
-    "${placeholder "out"}/lib/app/resources/vlc"
-    "${placeholder "out"}/lib/app/resources/vlc/plugins"
+    "${placeholder "out"}/lib/app/vlc"
+    "${placeholder "out"}/lib/app/vlc/plugins"
+    "${placeholder "out"}/lib/app/plugins"
   ];
 
   # The bundled VLC ships every plugin upstream builds (Qt UI, vdpau,
@@ -121,17 +120,6 @@ stdenv.mkDerivation {
     ${installDesktopEntry { inherit desktopItem desktopFile; }}
 
     runHook postInstall
-  '';
-
-  # jpackage's launcher derives its sibling `.cfg`, jar, and resource
-  # paths from `realpath(/proc/self/exe)`, so renaming the binary
-  # (which `wrapProgram` does) breaks classpath resolution. Instead,
-  # leave `bin/SimpMusic` untouched and create a lowercase
-  # `bin/simpmusic` wrapper that exports env vars and exec's the
-  # launcher under its real name.
-  postFixup = ''
-    makeWrapper $out/bin/SimpMusic $out/bin/simpmusic \
-      --prefix LD_LIBRARY_PATH : "${lib.makeLibraryPath runtimeLibs}"
   '';
 
   meta = {
