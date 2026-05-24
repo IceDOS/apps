@@ -3,6 +3,7 @@
   stdenv,
   fetchFromGitHub,
   autoPatchelfHook,
+  buildGoModule,
   buildNpmPackage,
   cmake,
   pkg-config,
@@ -84,6 +85,16 @@ stdenv.mkDerivation (finalAttrs: {
     '';
   };
 
+  # WebTransport helper (Go) built separately so the in-tree CMake target does
+  # not need network access or a writable $HOME for the Go build cache.
+  browserStreamHelper = buildGoModule {
+    inherit (finalAttrs) src version;
+    pname = "polaris-browser-stream-helper";
+    modRoot = "browser_stream_helper";
+    vendorHash = "sha256-+a9Ueh50nmqor7Alr3HeDMc/2wMlNG7DqfA0QVEW4G8=";
+    subPackages = [ "." ];
+  };
+
   postPatch = ''
     # Web UI is prebuilt; neuter the in-build npm invocation so the web-ui
     # custom target succeeds without npm/network.
@@ -93,6 +104,12 @@ stdenv.mkDerivation (finalAttrs: {
     # Don't install the upstream systemd unit; the IceDOS module ships its own.
     substituteInPlace cmake/packaging/linux.cmake \
       --replace-fail 'find_package(Systemd)' ""
+  ''
+  + lib.optionalString enableBrowserStream ''
+    substituteInPlace cmake/targets/common.cmake \
+      --replace-fail \
+        'COMMAND "''${GO_EXECUTABLE}" build -trimpath -o "''${BROWSER_STREAM_HELPER_OUTPUT}" .' \
+        'COMMAND "''${CMAKE_COMMAND}" -E copy "${finalAttrs.browserStreamHelper}/bin/browser_stream_helper" "''${BROWSER_STREAM_HELPER_OUTPUT}"'
   '';
 
   nativeBuildInputs = [
@@ -198,17 +215,5 @@ stdenv.mkDerivation (finalAttrs: {
     runHook postInstall
   '';
 
-  # `bin/polaris` is left as the raw ELF (no makeWrapper script) so the
-  # IceDOS module's CAP_SYS_ADMIN security wrapper applies to the real
-  # binary -- file capabilities do not survive an exec through a wrapper.
-  # Runtime helpers (labwc, xwayland, ...) are supplied via the systemd
-  # service's PATH instead.
-
-  meta = {
-    description = "Self-hosted game stream host for Moonlight running games in an isolated labwc compositor";
-    homepage = "https://github.com/papi-ux/polaris";
-    license = lib.licenses.gpl3Only;
-    mainProgram = "polaris";
-    platforms = lib.platforms.linux;
-  };
+  meta.mainProgram = "polaris";
 })
