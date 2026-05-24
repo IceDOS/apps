@@ -121,7 +121,7 @@
 
                 DXVK_CONFIG_OPTS=""
                 DXVK_LOG_LEVEL=warn
-                DISABLE_LOW_LATENCY_LAYER=1
+                LOW_LATENCY_LAYER=0
                 LOW_LATENCY_LAYER_FORCE_DECOUPLED=0
                 LOW_LATENCY_LAYER_REFLEX=0
                 LOW_LATENCY_LAYER_SPOOF_NVIDIA=0
@@ -207,22 +207,22 @@
                         if (hasAttr "low-latency-vulkan-layer" applications) then
                           ''
                             --low-latency)
-                              DISABLE_LOW_LATENCY_LAYER=0
+                              LOW_LATENCY_LAYER=1
                               shift
                               ;;
                             --low-latency-force-decoupled)
-                              DISABLE_LOW_LATENCY_LAYER=0
+                              LOW_LATENCY_LAYER=1
                               LOW_LATENCY_LAYER_FORCE_DECOUPLED=1
                               shift
                               ;;
                             --low-latency-reflex)
-                              DISABLE_LOW_LATENCY_LAYER=0
+                              LOW_LATENCY_LAYER=1
                               LOW_LATENCY_LAYER_REFLEX=1
                               PROTON_FORCE_NVAPI=1
                               shift
                               ;;
                             --low-latency-reflex-spoof-nvidia)
-                              DISABLE_LOW_LATENCY_LAYER=0
+                              LOW_LATENCY_LAYER=1
                               LOW_LATENCY_LAYER_REFLEX=1
                               LOW_LATENCY_LAYER_SPOOF_NVIDIA=1
                               PROTON_FORCE_NVAPI=1
@@ -367,7 +367,7 @@
                 DXVK_FRAME_RATE \
                 DXVK_LOG_LEVEL \
                 FSR4_WATERMARK \
-                DISABLE_LOW_LATENCY_LAYER \
+                LOW_LATENCY_LAYER \
                 LOW_LATENCY_LAYER_FORCE_DECOUPLED \
                 LOW_LATENCY_LAYER_REFLEX \
                 LOW_LATENCY_LAYER_SPOOF_NVIDIA \

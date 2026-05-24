@@ -25,7 +25,6 @@
 
           environment.sessionVariables = {
             VK_LOADER_LAYERS_DISABLE = "VK_LAYER_MESA_anti_lag";
-            DISABLE_LOW_LATENCY_LAYER = "1";
           };
         }
       )
