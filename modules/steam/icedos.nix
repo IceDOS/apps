@@ -49,6 +49,7 @@
             length
             mkIf
             optional
+            optionals
             ;
 
           inherit (applications.steam) beta cpuUsageWorkaround downloadsWorkaround;
@@ -102,14 +103,21 @@
           # directories with user ownership; without explicit `d` rules first,
           # systemd-tmpfiles may create them as root and break later HM
           # activation steps that try to write inside Steam/.
-          systemd.tmpfiles.rules = mkIf cpuUsageWorkaround (
-            concatMap (user: [
-              "d /home/${user}/.local/share/Steam 0755 ${user} users -"
-              "d /home/${user}/.local/share/Steam/steamapps 0755 ${user} users -"
-              "d /home/${user}/.local/share/Steam/steamapps/compatdata 0755 ${user} users -"
-              "L+ /home/${user}/.local/share/Steam/steamapps/compatdata/0 - - - - /dev/null"
-            ]) (attrNames users)
-          );
+          systemd.tmpfiles.rules = concatMap (
+            user:
+            let
+              home = config.users.users.${user}.home;
+            in
+            optional (
+              beta || cpuUsageWorkaround || downloadsWorkaround
+            ) "d ${home}/.local/share/Steam 0755 ${user} users -"
+            ++ optional beta "d ${home}/.local/share/Steam/package 0755 ${user} users -"
+            ++ optionals cpuUsageWorkaround [
+              "d ${home}/.local/share/Steam/steamapps 0755 ${user} users -"
+              "d ${home}/.local/share/Steam/steamapps/compatdata 0755 ${user} users -"
+              "L+ ${home}/.local/share/Steam/steamapps/compatdata/0 - - - - /dev/null"
+            ]
+          ) (attrNames users);
         }
       )
     ];
