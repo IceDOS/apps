@@ -143,7 +143,7 @@
                     ''
                       MANGOAPP="--mangoapp"
                       MANGOHUD="${pkgs.mangohud}/bin/mangohud"
-                      MANGOHUD_CONFIGFILE="/home/$USER/.config/MangoHud/MangoHud.conf"
+                      MANGOHUD_CONFIGFILE="$HOME/.config/MangoHud/MangoHud.conf"
                     ''
                   else
                     ""
