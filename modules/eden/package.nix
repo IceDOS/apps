@@ -11,7 +11,7 @@
 let
   name = pname;
   pname = "eden";
-  version = "0.1.1";
+  version = "0.2.1";
 
   appName = "dev.eden_emu.eden";
   desktopFile = "${appName}.desktop";
@@ -24,36 +24,36 @@ let
       {
         aarch64 =
           {
-            clang-pgo = "sha256-6iU5RV5gogxpJUFwWi0p2y4r8IRvAcuxSwcpCIWsG6E=";
-            gcc-standard = "sha256-WzwWpxJm1UzSI2IgpjwFzJ/9Z5DgivxtQLhfyFquHZ4=";
+            clang-pgo = "sha256-tk+SbL90/YcKObFElxCEMj2JXVGRm5HpBjKOf4G+oIc=";
+            gcc-standard = "sha256-SUAU9nQBu759SNpxKNdpc0z5eGO/sjSdSM0qEYFz52k=";
           }
           .${compiledWith};
 
         amd64 =
           {
-            clang-pgo = "sha256-g7x10zM/55z2avdETcpRJ56O1oN8cndbzl9UAiOJZF8=";
-            gcc-standard = "sha256-B3iU8SmwI44hUmbfFuSKQWriemulIXoRJF0atBfioeg=";
+            clang-pgo = "sha256-eii/mIsGSIMZiXIr26qQqzE3G0A4CBmYE+DqfIslum0=";
+            gcc-standard = "sha256-L65lg5fa8TwRgIKj62XWGmUZlnteIuZmd1a67PYADFo=";
           }
           .${compiledWith};
 
         legacy =
           {
-            clang-pgo = "sha256-sArRWvGMEdgJ3JfL/aPXbKbwQS/CE8DSoQS1qu27zsw=";
-            gcc-standard = "sha256-QXMPtplqhtS8qgVnXFpcILRLOCNynVBvvZKDR3FwpJI=";
+            clang-pgo = "sha256-T/9/JNRfq7SvxlLxsIQeOhYVbyc6Og+QS3975gFmVRc=";
+            gcc-standard = "sha256-IAOkCHU7lmOjy3IIAIXff+Xwm3gl9ULBoBrRI723yOI=";
           }
           .${compiledWith};
 
         rog-ally =
           {
-            clang-pgo = "sha256-F0dVNkaiDTR/f8T8A2x7Id5pA+vr9EnU9njEERObcPw=";
-            gcc-standard = "sha256-UI0kYWaAZLFGuATcL6GqSajov0ahy4tPNpf2o/EMst0=";
+            clang-pgo = "sha256-Ak3+MH9+W1ObNUm9kkX2txybqpzHRPMdWNMYGFfYX/w=";
+            gcc-standard = "sha256-5y3aCN+fhB+qZjMYLBYQIuIhR8CphFPq3a6xHfzxVkU=";
           }
           .${compiledWith};
 
         steamdeck =
           {
-            clang-pgo = "sha256-TSqAXu6nZElt6jTyy7NCU6YGmhwlWvucEzDuB5wNShM=";
-            gcc-standard = "sha256-XV/Tl/jx1iEypJN+qx9llyZ8gVQVlyoA4FqJ5HsGBsY=";
+            clang-pgo = "sha256-XMWzWKxkSbQAIbILokMLTRIwJzfbFcjL5bRs6aq4XOU=";
+            gcc-standard = "sha256-JlFwZNcGNYP0KanLfuBnN8iYBYantj7zA94Wm1WbC1Y=";
           }
           .${compiledWith};
       }
@@ -84,6 +84,13 @@ stdenvNoCC.mkDerivation {
       src = edenAppimage;
       preMove = "rm AppDir/lib";
     }}
+
+    # `rm AppDir/lib` above drops the `lib -> shared/lib` symlink that
+    # bin/qt.conf's `Prefix = ../lib/qt6` rides to reach the bundled Qt
+    # plugins/QML. Repoint Prefix at the surviving `shared/lib` tree, else
+    # Qt aborts with "Could not find the Qt platform plugin" (core dump).
+    substituteInPlace $out/bin/qt.conf \
+      --replace-fail "Prefix = ../lib/qt6" "Prefix = ../shared/lib/qt6"
 
     # AppImage sharun wrappers leak into systemPackages and shadow real
     # xdg-utils binaries, breaking link-open in every Electron app
