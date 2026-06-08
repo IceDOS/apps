@@ -1,0 +1,3 @@
+[icedos.applications.opencode]
+baseURL = "http://localhost:11434/v1"
+models = []
