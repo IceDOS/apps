@@ -1,2 +1,7 @@
 [icedos.applications.sunshine]
+applications = {}
 autoStart = false
+capSysAdmin = false # Required for DRM/KMS screen capture.
+openFirewall = false
+
+[icedos.applications.sunshine.settings]
