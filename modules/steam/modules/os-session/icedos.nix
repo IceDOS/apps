@@ -69,6 +69,8 @@
     name = "steamos-session";
 
     dependencies = [
+      { modules = [ "steam" ]; }
+
       {
         url = "github:icedos/providers";
 

@@ -32,5 +32,8 @@
       )
     ];
 
-  meta.name = "steam-session";
+  meta = {
+    name = "steam-session";
+    dependencies = [ { modules = [ "steam" ]; } ];
+  };
 }
