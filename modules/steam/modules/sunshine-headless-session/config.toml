@@ -1,0 +1,17 @@
+[icedos.applications.steam.headlessSession]
+excludeHostControllers = true # Keep host/physical controllers out of the headless Steam: launches Steam in a root-managed systemd scope (authorized via polkit) whose cgroup device policy denies all /dev/input + hidraw to the whole process tree (kernel-enforced, Steam's sandbox can't escape it); only the stream's own virtual pads are allowed back in. NOTE: the host's own paired pad is usually wanted ON the stream, so leave this off unless you specifically want host pads blocked from the stream.
+isolateVirtualControllers = true # Hide the Sunshine virtual pad from the host desktop: udev strips its seat0 uaccess ACL so host games/compositor can't read it, while the injected Steam reaches it via a setgid-`input` wrapper. Stops the stream pad leaking into desktop games during an active stream.
+maxNit = 1000 # HDR peak luminance (nit) baked into the forged EDID. 1000 = HDR10 mastering standard; clients tone-map down. Up to 10000.
+normalSteamSession = true # Inject the default "Steam" app into Sunshine (runs Steam with your normal HOME/account/library). Not injected when false.
+secondarySteamSession = false # Inject a second "Steam (Second Session)" app that runs Steam under secondarySteamSessionPath as HOME — a fully separate account/library. Injected when true.
+secondarySteamSessionPath = "" # HOME directory for the second session (e.g. "/home/ice/.steam-second"). REQUIRED (non-empty) when secondarySteamSession = true; Steam stores .steam/library/account under it.
+output = "" # DRM connector to force-on + lease, e.g. "HDMI-A-1". REQUIRED - has to be a disconnected GPU port
+sdrContentNits = 203 # luminance (nits) SDR content is shown at on the HDR output. 203 = BT.2408 reference white; higher = brighter SDR.
+sdrGamutWideness = 0 # SDR→wide-gamut stretch on the HDR output: 0 = keep SDR in native sRGB/Rec.709 (accurate); 1 = stretch SDR to the display's full BT2020 gamut (vivid, oversaturated)
+upscaleFilter = "" # gamescope upscaler (-F): fsr | nis | linear | nearest | pixel.
+fsrSharpness = 20 # FSR/NIS sharpness: 0 = max sharp .. 20 = min sharp (gamescope default 2). NOTE: 20 = softest — lower it for a crisper upscale.
+width = "" # Gamescope output (scanout) width. REQUIRED. Baked into the forged EDID.
+height = "" # Gamescope output (scanout) height. REQUIRED. Baked into the forged EDID.
+renderWidth = "" # gamescope internal render width, upscaled to `width` by `upscaleFilter`. Empty → render at output width (no upscale).
+renderHeight = "" # gamescope internal render height. Empty → render at output height.
+refresh = 60 # Output refresh (Hz): the forged EDID's single mode + gamescope -r. width×height@refresh must stay under the 655 MHz DTD ceiling (4K caps at 60).
