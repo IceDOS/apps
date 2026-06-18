@@ -10,8 +10,8 @@ sdrContentNits = 203 # luminance (nits) SDR content is shown at on the HDR outpu
 sdrGamutWideness = 0 # SDR→wide-gamut stretch on the HDR output: 0 = keep SDR in native sRGB/Rec.709 (accurate); 1 = stretch SDR to the display's full BT2020 gamut (vivid, oversaturated)
 upscaleFilter = "" # gamescope upscaler (-F): fsr | nis | linear | nearest | pixel.
 fsrSharpness = 20 # FSR/NIS sharpness: 0 = max sharp .. 20 = min sharp (gamescope default 2). NOTE: 20 = softest — lower it for a crisper upscale.
-width = "" # Gamescope output (scanout) width. REQUIRED. Baked into the forged EDID.
-height = "" # Gamescope output (scanout) height. REQUIRED. Baked into the forged EDID.
+width = "1920" # Gamescope output (scanout) width. REQUIRED. Baked into the forged EDID.
+height = "1080" # Gamescope output (scanout) height. REQUIRED. Baked into the forged EDID.
 renderWidth = "" # gamescope internal render width, upscaled to `width` by `upscaleFilter`. Empty → render at output width (no upscale).
 renderHeight = "" # gamescope internal render height. Empty → render at output height.
 refresh = 60 # Output refresh (Hz): the forged EDID's single mode + gamescope -r. width×height@refresh must stay under the 655 MHz DTD ceiling (4K caps at 60).
