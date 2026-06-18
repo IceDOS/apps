@@ -38,8 +38,8 @@
         }:
 
         let
-          inherit (config.icedos) applications hardware users;
-          inherit (hardware) devices;
+          inherit (config) icedos;
+          inherit (icedos) applications users;
           inherit (icedosLib.pkgs) mapper;
 
           inherit (lib)
@@ -61,7 +61,7 @@
           optionalGamescope = optional hasGamescope pkgs.gamescope;
           optionalProtonLaunch = optional hasProtonLaunch pkgs.proton-launch;
           session = hasAttr "session" applications.steam;
-          steamdeck = hasAttr "steamdeck" devices;
+          steamdeck = hasAttr "steamdeck" (icedos.hardware.devices or { });
           steamPkg = pkgs.steam;
         in
         {
