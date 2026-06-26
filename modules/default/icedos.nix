@@ -36,7 +36,6 @@
           "direnv"
           "git"
           "nix-health"
-          "nixfmt"
           "ssh"
           "toolset"
           "zsh"
