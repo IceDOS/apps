@@ -34,7 +34,7 @@
         {
           services.flatpak.enable = true;
 
-          icedos.applications.toolset.rebuild.hooks.preUpdate = [
+          icedos.system.toolset.rebuild.hooks.preUpdate = [
             ''
               ${pkgs.flatpak}/bin/flatpak update || true
             ''

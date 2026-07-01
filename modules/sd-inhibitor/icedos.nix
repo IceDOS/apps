@@ -102,7 +102,7 @@
         {
           imports = icedosLib.getModules ./modules;
 
-          icedos.applications.toolset.commands = [
+          icedos.system.toolset.commands = [
             {
               command = "toggle-inhibit";
               help = "toggle a manual systemd-inhibit (idle|sleep); --time <dur> auto-releases (e.g. 30s, 5m, 1h30m, 90 (sec), 1:30 (h:s), 1:00:00 (d:h:s)); pauses sd-inhibitor watchers while active";

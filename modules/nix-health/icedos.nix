@@ -11,7 +11,7 @@
         }:
 
         {
-          icedos.applications.toolset.commands = [
+          icedos.system.toolset.commands = [
             {
               command = "health";
               script = ''"${pkgs.nix-health}/bin/nix-health" -q "$@"'';

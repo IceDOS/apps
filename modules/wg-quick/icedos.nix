@@ -34,7 +34,7 @@
             }) interfaces
           );
 
-          icedos.applications.toolset.commands = [
+          icedos.system.toolset.commands = [
             {
               command = "wg-config";
 

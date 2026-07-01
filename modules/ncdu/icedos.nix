@@ -11,7 +11,7 @@
         }:
 
         {
-          icedos.applications.toolset.commands = [
+          icedos.system.toolset.commands = [
             {
               command = "du";
               script = ''${pkgs.ncdu}/bin/ncdu "$@"'';
