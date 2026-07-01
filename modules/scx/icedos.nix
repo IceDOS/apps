@@ -23,13 +23,14 @@
 
         let
           inherit (config.icedos.applications) scx;
-          inherit (scx) scheduler;
+          inherit (scx) extraArgs scheduler;
         in
         {
           services.scx = {
             package = pkgs.scx.full;
             enable = true;
             scheduler = "scx_${scheduler}";
+            inherit extraArgs;
           };
         }
       )
