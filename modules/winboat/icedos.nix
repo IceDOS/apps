@@ -47,7 +47,7 @@
             iptables
           ];
 
-          icedos.applications.toolset.commands =
+          icedos.system.toolset.commands =
             let
               docker = "${pkgs.docker}/bin/docker";
             in

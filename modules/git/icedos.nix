@@ -71,7 +71,7 @@
             )
           ];
 
-          icedos.applications.toolset.commands = [
+          icedos.system.toolset.commands = [
             {
               command = "git";
               help = "git related commands";

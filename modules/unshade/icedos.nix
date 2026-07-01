@@ -41,7 +41,7 @@
           environment.systemPackages = [ pkgs.unshade ];
 
           # Append a non-interactive shader-cache sweep before nh clean.
-          icedos.applications.nh.gc.hooks.postGc = mkIf unshade.includeInIcedosGc [
+          icedos.system.gc.hooks.postGc = mkIf unshade.includeInIcedosGc [
             "${getExe pkgs.unshade} --all"
           ];
         }

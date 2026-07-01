@@ -22,7 +22,7 @@ browsers, gaming tooling, media apps, streaming, networking, dev tools. ~70 modu
 - `modules/<name>/{icedos.nix,config.toml}` per module; `flake.nix` exposes them via
   `icedosLib.scanModules { path = ./modules; filename = "icedos.nix"; }`.
 - `modules/default/` declares the baseline dependency set (`bash`, `git`, `direnv`,
-  `zsh`, `ssh`, `toolset`, `nix-health`) via `meta.dependencies`.
+  `zsh`, `ssh`, `nix-health`) via `meta.dependencies`.
 
 ## Module shape here
 Standard IceDOS module: `options.icedos.applications.<name>` (defaults read from the
