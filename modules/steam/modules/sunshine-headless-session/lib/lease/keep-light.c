@@ -30,7 +30,7 @@ static char env_path[4096];
  * target THIS compositor. gamescope sets, for us (its child), DISPLAY=its
  * Xwayland and WAYLAND_DISPLAY=gamescope-0. Written only AFTER the first frame is
  * committed (connector lit) — the prep-cmd waits on this file, so its presence
- * must mean HDMI-A-1 is actually up, else Polaris enumerates it too early and the
+ * must mean HDMI-A-1 is actually up, else Sunshine enumerates it too early and the
  * capture index falls through to a desktop monitor. */
 static void write_env(void)
 {
