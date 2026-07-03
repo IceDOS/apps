@@ -35,7 +35,7 @@
 
           hasGamescope = hasAttr "gamescope" applications;
           hasGamemode = hasAttr "gamemode" applications;
-          hasPowerProfilesDaemon = hasAttr "power-profiles-daemon" applications;
+          hasPowerProfilesDaemon = hasAttr "power-profiles-daemon" (hardware.drivers or { });
 
           packages = [ proton-launch ] ++ optional hasGamescope pkgs.gamescope;
 
@@ -150,7 +150,7 @@
                 }
 
                 ${
-                  if (hasAttr "power-profiles-daemon" applications) then
+                  if hasPowerProfilesDaemon then
                     ''
                       GAME_PERFORMANCE="${pkgs.systemd}/bin/systemd-inhibit --why proton-launch-game-performance ${pkgs.power-profiles-daemon}/bin/powerprofilesctl launch -p performance -r proton-launch-game-performance --"
                     ''
@@ -204,7 +204,7 @@
                       shift
                       ;;
                       ${
-                        if (hasAttr "low-latency-vulkan-layer" applications) then
+                        if (hasAttr "low-latency-vulkan-layer" (hardware.drivers or { })) then
                           ''
                             --low-latency)
                               LOW_LATENCY_LAYER=1
@@ -301,7 +301,7 @@
                       shift
                       ;;
                       ${
-                        if (hasAttr "power-profiles-daemon" applications) then
+                        if hasPowerProfilesDaemon then
                           ''
                             --no-game-performance)
                               GAME_PERFORMANCE=""

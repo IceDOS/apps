@@ -1,4 +1,0 @@
-[icedos.applications.docker]
-requireSudo = true # CAUTION: Disabling this gives every user root privileges!
-
-[icedos.applications.docker.daemonSettings]

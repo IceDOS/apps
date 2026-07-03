@@ -21,8 +21,8 @@ browsers, gaming tooling, media apps, streaming, networking, dev tools. ~70 modu
 ## Layout
 - `modules/<name>/{icedos.nix,config.toml}` per module; `flake.nix` exposes them via
   `icedosLib.scanModules { path = ./modules; filename = "icedos.nix"; }`.
-- `modules/default/` declares the baseline dependency set (`bash`, `git`, `direnv`,
-  `zsh`, `ssh`, `nix-health`) via `meta.dependencies`.
+- `modules/default/` declares the baseline dependency set (`direnv`, `nix-health`,
+  `toolset`) via `meta.dependencies`.
 
 ## Module shape here
 Standard IceDOS module: `options.icedos.applications.<name>` (defaults read from the
@@ -41,6 +41,6 @@ checkout (`path:/abs/path/to/apps`), then `icedos rebuild --build` (no activatio
 ## Notable modules / gotchas
 - `me3` — game mod loader (per-game profiles/natives/packages).
 - `sunshine` + `steam-sunshine-headless-session` — game streaming, incl. headless HDR.
-- `gamescope`, `low-latency-vulkan-layer`, `lsfg-vk`, `mangohud`, `scx` — gaming/perf.
+- `gamescope`, `lsfg-vk`, `mangohud` — gaming/perf.
 - `prefixer`, `proton-launch` — Proton prefix tooling (protontricks is deprecated here;
   use `prefixer <APP_ID> run <exe>`).

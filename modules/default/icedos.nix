@@ -32,13 +32,9 @@
     dependencies = [
       {
         modules = [
-          "bash"
           "direnv"
-          "git"
           "nix-health"
-          "ssh"
           "toolset"
-          "zsh"
         ];
       }
     ];
@@ -48,7 +44,6 @@
         modules = [
           "kitty"
           "neovim"
-          "sudo-rs"
         ];
       }
     ];
