@@ -100,7 +100,7 @@ int libseat_open_device(struct libseat *seat, const char *path, int *fd)
 		return -1;
 
 	/* Optional input allowlist: when DLM_INPUT_ALLOW is set, only expose
-	 * /dev/input devices whose evdev name contains it (e.g. "Polaris" virtual
+	 * /dev/input devices whose evdev name contains it (e.g. "Sunshine" virtual
 	 * pads). Keeps a leased gamescope from grabbing the real desktop
 	 * keyboard/mouse while the host session is in use. */
 	const char *allow = getenv("DLM_INPUT_ALLOW");

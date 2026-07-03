@@ -574,10 +574,16 @@
                   # escalate to SIGTERM on the session's own process(es) if it lingers.
                   # Scoped by $HOME: the second session ($2) targets only its separate-$HOME
                   # Steam and never touches the still-running desktop Steam.
-                  if [ -n "''${2:-}" ]; then
-                    HOME="$2" steam -shutdown 2>/dev/null || true
-                  else
-                    steam -shutdown 2>/dev/null || true
+                  # Guarded on session_steam_alive: `undo`/stop normally fires AFTER this
+                  # session's Steam has already exited (auto-detach=false), and the
+                  # normal-session `steam -shutdown` is GLOBAL — firing it once the session
+                  # Steam is gone would kill a desktop Steam the user reopened mid-stream.
+                  if session_steam_alive; then
+                    if [ -n "''${2:-}" ]; then
+                      HOME="$2" steam -shutdown 2>/dev/null || true
+                    else
+                      steam -shutdown 2>/dev/null || true
+                    fi
                   fi
                   for i in $(seq 1 60); do
                     session_steam_alive || break
