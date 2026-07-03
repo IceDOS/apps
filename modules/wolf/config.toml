@@ -1,8 +1,0 @@
-[icedos.applications.wolf]
-extraOptions = []
-extraPackages = []
-extraVolumes = []
-image = "ghcr.io/games-on-whales/wolf:stable"
-stateFolder = "/etc/wolf"
-
-[icedos.applications.wolf.extraEnvironmentFlags]
