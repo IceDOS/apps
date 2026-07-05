@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-# Forge a non-desktop HDR EDID for the headless gamescope connector.
+# Forge a non-desktop EDID for the headless gamescope connector (HDR when the
+# config's "hdr" is true — the default — else a plain SDR/Rec.709 EDID).
 #
 # Spoofs Valve Index (mfg VLV / product 0x91A8) so the kernel marks the forced
 # connector `non-desktop` (EDID_QUIRK_NON_DESKTOP) and KWin offers it via
@@ -85,9 +86,7 @@ def dtd(t, hmm, vmm):
     return bytes(b)
 
 
-def chromaticity_bt2020():
-    pts = {"rx": 0.708, "ry": 0.292, "gx": 0.170, "gy": 0.797,
-           "bx": 0.131, "by": 0.046, "wx": 0.3127, "wy": 0.3290}
+def _pack_chromaticity(pts):
     q = {k: round(v * 1024) for k, v in pts.items()}
     b = bytearray(10)
     b[0] = ((q["rx"] & 3) << 6) | ((q["ry"] & 3) << 4) | ((q["gx"] & 3) << 2) | (q["gy"] & 3)
@@ -101,6 +100,16 @@ def chromaticity_bt2020():
     b[8] = q["wx"] >> 2
     b[9] = q["wy"] >> 2
     return bytes(b)
+
+
+def chromaticity_bt2020():
+    return _pack_chromaticity({"rx": 0.708, "ry": 0.292, "gx": 0.170, "gy": 0.797,
+                               "bx": 0.131, "by": 0.046, "wx": 0.3127, "wy": 0.3290})
+
+
+def chromaticity_rec709():
+    return _pack_chromaticity({"rx": 0.640, "ry": 0.330, "gx": 0.300, "gy": 0.600,
+                               "bx": 0.150, "by": 0.060, "wx": 0.3127, "wy": 0.3290})
 
 
 def name_desc(text):
@@ -137,6 +146,11 @@ def main():
     cfg = json.load(open(sys.argv[1]))
     out = sys.argv[2]
     max_cv = nits_to_cv(cfg["maxNit"])
+    # hdr=false forges an SDR EDID: Rec.709 primaries, 8 bpc, and no CTA
+    # colorimetry / HDR-static-metadata blocks — so the connector advertises no
+    # HDR and Sunshine streams SDR. The Valve-Index non-desktop spoof stays.
+    hdr = cfg.get("hdr", True)
+    disp_name = "HDR Headless" if hdr else "SDR Headless"
 
     # Flatten to (w,h,rate) modes; preferred resolution's first rate leads.
     modes = []
@@ -189,12 +203,14 @@ def main():
     base[17] = 35      # year 2025 (1990+35)
     base[18] = 1       # EDID 1.4
     base[19] = 4
-    base[20] = 0xB2    # digital, 10 bpc, HDMI
+    base[20] = 0xB2 if hdr else 0xA2  # digital, HDMI; 10 bpc (HDR) / 8 bpc (SDR)
     base[21] = HMM // 10
     base[22] = VMM // 10
     base[23] = 0x78    # gamma 2.2
-    base[24] = 0x02    # preferred timing is native
-    base[25:35] = chromaticity_bt2020()
+    # bit1 = preferred timing is native; bit2 = sRGB default colorspace (SDR only —
+    # its Rec.709 primaries are sRGB, which EDID must signal; BT2020 must not).
+    base[24] = 0x02 if hdr else 0x06
+    base[25:35] = chromaticity_bt2020() if hdr else chromaticity_rec709()
     # established + standard timings: none
     base[35] = 0x20  # established: 640x480@60 (CTA requires VIC 1 to be present)
     base[36] = base[37] = 0
@@ -206,9 +222,9 @@ def main():
         base[72:90] = dtds[1]
         base_dtd_count = 2
     else:
-        base[72:90] = name_desc("HDR Headless")
+        base[72:90] = name_desc(disp_name)
         base_dtd_count = 1
-    base[90:108] = name_desc("HDR Headless")
+    base[90:108] = name_desc(disp_name)
     base[108:126] = range_limits(vmin, vmax, hmin, hmax, max_clk)
     cta_dtds = dtds[base_dtd_count:]
 
@@ -219,10 +235,11 @@ def main():
     coll = bytearray()
     # Video Capability DB: CE + IT underscan, selectable RGB quantization
     coll += bytes([(0x07 << 5) | 2, 0x00, 0x4A])
-    # Colorimetry: BT2020 RGB + YCC
-    coll += bytes([(0x07 << 5) | 3, 0x05, 0xC0, 0x00])
-    # HDR static metadata: EOTF SDR+PQ, static type 1, max/avg/min
-    coll += bytes([(0x07 << 5) | 6, 0x06, 0x05, 0x01, max_cv, max_cv, 0x00])
+    if hdr:
+        # Colorimetry: BT2020 RGB + YCC
+        coll += bytes([(0x07 << 5) | 3, 0x05, 0xC0, 0x00])
+        # HDR static metadata: EOTF SDR+PQ, static type 1, max/avg/min
+        coll += bytes([(0x07 << 5) | 6, 0x06, 0x05, 0x01, max_cv, max_cv, 0x00])
     dtd_start = 4 + len(coll)
     cta[3] = 0x80  # IT formats underscanned (consistent with the VCDB)
     cta[2] = dtd_start
