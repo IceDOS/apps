@@ -18,6 +18,7 @@
       inherit (cfg)
         height
         excludeHostControllers
+        hdr
         isolateVirtualControllers
         maxNit
         normalSteamSession
@@ -65,6 +66,7 @@
         source = ./config.toml;
         default = sdrContentNits;
       } 0 10000;
+
       sdrGamutWideness = mkFloatBetweenOption {
         path = "icedos.applications.steam.headlessSession.sdrGamutWideness";
         source = ./config.toml;
@@ -92,6 +94,12 @@
         source = ./config.toml;
         default = fsrSharpness;
       } 0 20;
+
+      # Master HDR switch. true = the idle gamescope forces HDR10 PQ scanout and the
+      # injected Steam gets DXVK_HDR, so the stream is HDR. false = SDR: the --hdr-* and
+      # SDR-on-HDR gamescope flags plus DXVK_HDR are dropped (SDR scanout → Sunshine
+      # streams SDR). maxNit/sdrContentNits/sdrGamutWideness apply only when true.
+      hdr = mkBoolOption { default = hdr; };
 
       # HDR peak luminance (nit) baked into the forged EDID's static metadata.
       # 1000 = HDR10 mastering standard; clients tone-map down to their own panel.
@@ -126,6 +134,7 @@
           inherit (config.icedos.applications.steam.headlessSession)
             height
             excludeHostControllers
+            hdr
             isolateVirtualControllers
             maxNit
             normalSteamSession
@@ -190,8 +199,12 @@
           deviceAllowRunArgs = lib.concatMapStringsSep " " (a: "-p DeviceAllow='${a}'") deviceAllowBase;
           deviceAllowSetArgs = lib.concatMapStringsSep " " (a: "DeviceAllow='${a}'") deviceAllowBase;
 
-          # Forged non-desktop HDR EDID: Valve-Index spoof (kernel non-desktop quirk)
-          # + BT2020/ST2084 + maxNit, advertising the single width×height@refresh mode.
+          # Forged non-desktop EDID: Valve-Index spoof (kernel non-desktop quirk) +
+          # the single width×height@refresh mode. hdr=true bakes in BT2020/ST2084 +
+          # maxNit (Sunshine then streams HDR — HDR is advertised by the EDID, not just
+          # the gamescope scanout); hdr=false forges a plain SDR (Rec.709) EDID so
+          # Sunshine advertises no HDR. Changing this needs a rebuild + reboot (the
+          # kernel reads the forced EDID firmware at boot).
           # The build gates it on `edid-decode --check`, so a malformed EDID (or one over
           # the 655 MHz DTD ceiling) can't reach the connector.
           forgedEdid = callPackage ./lib/edid-generator/package.nix { } {
@@ -200,11 +213,13 @@
               height
               refresh
               maxNit
+              hdr
               ;
           };
 
           # Persistent IDLE gamescope on HDMI-A-1: leases the connector and drives
-          # it in HDR with a minimal keep-light client — keeping it lit so its KMS
+          # it in HDR (or SDR when `hdr = false`) with a minimal keep-light client —
+          # keeping it lit so its KMS
           # capture index is stable AND it exists at the Moonlight host's encoder
           # probe (at connect, before any stream). Run as a user service. The shim
           # allowlist (DLM_INPUT_ALLOW=Sunshine) only exposes Sunshine's virtual
@@ -280,7 +295,8 @@
               # cross-fd drmModeGetFB2 could no longer import the leased plane (injected output
               # dropped from the capture list). Do NOT re-add it.
               #
-              # GAME HDR is driven here, NOT by Steam. The gamescope WSI layer only
+              # GAME HDR is driven here (when hdr = true), NOT by Steam; hdr = false drops
+              # the --hdr-* flags below for an SDR scanout. The gamescope WSI layer only
               # advertises VK_COLOR_SPACE_HDR10_ST2084_EXT to a client when the
               # GAMESCOPE_HDR_OUTPUT_FEEDBACK atom = 1 (shouldExposeHDR()):
               #   --hdr-debug-force-support → forces GAMESCOPE_HDR_OUTPUT_FEEDBACK=1
@@ -292,11 +308,17 @@
               #     forced commit takes; capture already handles HDR10 (unchanged fb).
               exec lease-runner gamescope \
                 --backend drm \
-                --hdr-enabled \
-                --hdr-debug-force-output \
-                --hdr-debug-force-support \
-                --sdr-gamut-wideness ${toString sdrGamutWideness} \
-                --hdr-sdr-content-nits ${toString sdrContentNits} \
+                ${
+                  if hdr then
+                    ''
+                      --hdr-enabled \
+                                      --hdr-debug-force-output \
+                                      --hdr-debug-force-support \
+                                      --sdr-gamut-wideness ${toString sdrGamutWideness} \
+                                      --hdr-sdr-content-nits ${toString sdrContentNits} \''
+                  else
+                    ''\''
+                }
                 ${
                   if (upscaleFilter != "") then
                     ''-F ${upscaleFilter} --fsr-sharpness ${toString fsrSharpness} \''
@@ -482,14 +504,14 @@
                       -p DevicePolicy=closed ${deviceAllowRunArgs} \
                       -- env DISPLAY="$DISPLAY" WAYLAND_DISPLAY="$WAYLAND_DISPLAY" \
                         PULSE_SINK=steam-sunshine-headless-sink \
-                        ENABLE_GAMESCOPE_WSI=1 DXVK_HDR=1 \
+                        ENABLE_GAMESCOPE_WSI=1 ${lib.optionalString hdr "DXVK_HDR=1 "}\
                         setpriv --inh-caps=-all --ambient-caps=-all -- \
                         "''${gid_wrap[@]}" steam -gamepadui \
                       >/tmp/sunshine-headless-steam.log 2>&1 &
                   else
                     env DISPLAY="$DISPLAY" WAYLAND_DISPLAY="$WAYLAND_DISPLAY" \
                       PULSE_SINK=steam-sunshine-headless-sink \
-                      ENABLE_GAMESCOPE_WSI=1 DXVK_HDR=1 \
+                      ENABLE_GAMESCOPE_WSI=1 ${lib.optionalString hdr "DXVK_HDR=1 "}\
                       setpriv --inh-caps=-all --ambient-caps=-all -- \
                       setsid -f "''${gid_wrap[@]}" steam -gamepadui >/tmp/sunshine-headless-steam.log 2>&1
                   fi

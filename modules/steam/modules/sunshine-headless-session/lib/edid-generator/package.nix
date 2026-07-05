@@ -15,13 +15,19 @@
   height,
   refresh,
   maxNit,
+  hdr,
   manufacturer ? "VLV", # Valve → kernel EDID_QUIRK_NON_DESKTOP
   product ? 37288, # 0x91A8 = Valve Index
 }:
 
 let
   config = builtins.toJSON {
-    inherit maxNit manufacturer product;
+    inherit
+      maxNit
+      manufacturer
+      product
+      hdr
+      ;
     modes = [
       {
         width = lib.toInt width;
