@@ -30,14 +30,30 @@
     { ... }:
     [
       (
-        { config, pkgs, ... }:
+        {
+          config,
+          pkgs,
+          lib,
+          ...
+        }:
+
         let
-          inherit (config.icedos.applications.ollama)
+          inherit (lib)
+            hasAttr
+            listToAttrs
+            mkIf
+            ;
+
+          inherit (config.icedos) applications;
+
+          inherit (applications.ollama)
             vulkan
             host
             port
             loadModels
             ;
+
+          baseURL = "http://${host}:${toString port}/v1";
         in
         {
           services.ollama = {
@@ -45,6 +61,26 @@
             package = if vulkan then pkgs.ollama-vulkan else pkgs.ollama;
             inherit host port loadModels;
           };
+
+          # Expose the local ollama endpoint to opencode when it is enabled.
+          home-manager.sharedModules = mkIf (hasAttr "opencode" applications) [
+            {
+              # @ai-sdk/openai-compatible is fetched from npm on first use
+              # (normal user-runtime network, not a build-time dependency).
+              programs.opencode.settings.provider.ollama = {
+                npm = "@ai-sdk/openai-compatible";
+                name = "Ollama (local)";
+                options.baseURL = baseURL;
+
+                models = listToAttrs (
+                  map (m: {
+                    name = m;
+                    value.name = m;
+                  }) loadModels
+                );
+              };
+            }
+          ];
         }
       )
     ];
