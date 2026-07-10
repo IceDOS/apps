@@ -7,36 +7,45 @@
 }:
 
 let
-  inherit (cfg) hdr sdrGamutWideness sdrContentNits;
+  inherit (cfg) hdr colorManagement sdrGamutWideness sdrContentNits;
 
-  # Gamescope + a PipeWire HDR-metadata patch (advertise BT.2020/PQ on the output so
-  # the portal → Sunshine detects and streams HDR).
-  gamescopeHdr = pkgs.gamescope.overrideAttrs (old: {
+  # Plain gamescope, patched only as needed:
+  # - pipewire-color-mgmt.patch: route dynamic g_ColorMgmtLuts (slider-aware) into the
+  #   PipeWire capture path so Steam's colour sliders actually affect Sunshine's stream.
+  gamescopeBase =
+    if colorManagement then
+      pkgs.gamescope.overrideAttrs (old: {
+        patches = (old.patches or [ ]) ++ [
+          ./lib/pipewire-color-mgmt.patch
+        ];
+      })
+    else
+      pkgs.gamescope;
+
+  # + a PipeWire HDR-metadata patch (advertise BT.2020/PQ on the output so
+  # the portal -> Sunshine detects and streams HDR) + headless HDR colorimetry
+  # patch (makes GetNativeColorimetry() report BT.2020/PQ when bHDR10 is true,
+  # so g_ColorMgmtLuts carry the correct HDR mapping + slider adjustments).
+  gamescopeHdr = gamescopeBase.overrideAttrs (old: {
     patches = (old.patches or [ ]) ++ [
       ./lib/pipewire-hdr-metadata.patch
+      ./lib/headless-hdr-colorimetry.patch
     ];
 
-    # paint_pipewire captures with the hardcoded SDR screenshot profile, so the buffer
-    # is Rec.709/Gamma2.2 even in HDR and the metadata patch mislabels it BT.2020/PQ
-    # ("deep fried"). Follow gamescope's bHDRScreenshot path: when g_bOutputHDREnabled,
-    # emit PQ + the HDR screenshot LUTs so pixels really are BT.2020/PQ, and pin the
-    # SDR→HDR mapping to our options (only the Gamma22 input branch is touched).
+    # paint_pipewire now uses g_ColorMgmtLuts (dynamic, slider-aware) via the
+    # pipewire-color-mgmt patch.  In HDR mode we override outputEncodingEOTF to
+    # PQ, and pin the SDR->HDR mapping to our options.
     postPatch = (old.postPatch or "") + ''
       substituteInPlace src/steamcompmgr.cpp \
         --replace-fail 'frameInfo.outputEncodingEOTF   = EOTF_Gamma22;' \
                        'frameInfo.outputEncodingEOTF   = g_bOutputHDREnabled ? EOTF_PQ : EOTF_Gamma22;' \
-        --replace-fail 'frameInfo.lut3D[nInputEOTF]     = g_ScreenshotColorMgmtLuts[nInputEOTF].vk_lut3d;' \
-                       'frameInfo.lut3D[nInputEOTF]     = (g_bOutputHDREnabled ? g_ScreenshotColorMgmtLutsHDR : g_ScreenshotColorMgmtLuts)[nInputEOTF].vk_lut3d;' \
-        --replace-fail 'frameInfo.shaperLut[nInputEOTF] = g_ScreenshotColorMgmtLuts[nInputEOTF].vk_lut1d;' \
-                       'frameInfo.shaperLut[nInputEOTF] = (g_bOutputHDREnabled ? g_ScreenshotColorMgmtLutsHDR : g_ScreenshotColorMgmtLuts)[nInputEOTF].vk_lut1d;' \
         --replace-fail '.displayColorimetry = displaycolorimetry_2020,' \
                        '.sdrGamutWideness = ${toString sdrGamutWideness}, .flSDROnHDRBrightness = ${toString sdrContentNits}, .displayColorimetry = displaycolorimetry_2020,'
     '';
   });
 
-  # The HDR override is inert unless gamescope enters HDR (all edits gate on
-  # g_bOutputHDREnabled), so SDR-only uses stock (cached) gamescope.
-  gamescopePkg = if hdr then gamescopeHdr else pkgs.gamescope;
+  # No patches needed when both hdr and colorManagement are off.
+  gamescopePkg = if hdr then gamescopeHdr else gamescopeBase;
 
   # jovian's portal, patched for stream size, wrapped onto gamescope-0 and shipped
   # with its D-Bus service + .portal definition.

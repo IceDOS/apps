@@ -11,6 +11,7 @@ let
   inherit (pkgs) writeShellApplication;
 
   inherit (cfg)
+    colorManagement
     width
     height
     refresh
@@ -31,7 +32,9 @@ let
 
   # Two Xwaylands (game windows land on :2); the wait-loop tagger owns focus on :1.
   # QT_QPA_PLATFORM=xcb forces Qt onto X11 (native-Wayland Qt breaks under gamescope).
-  sessionEnv = "GAMESCOPE_WAYLAND_DISPLAY=gamescope-0 STEAM_MULTIPLE_XWAYLANDS=1 QT_QPA_PLATFORM=xcb ";
+  sessionEnv =
+    "GAMESCOPE_WAYLAND_DISPLAY=gamescope-0 STEAM_MULTIPLE_XWAYLANDS=1 QT_QPA_PLATFORM=xcb "
+    + lib.optionalString colorManagement "STEAM_GAMESCOPE_COLOR_MANAGED=1 STEAM_GAMESCOPE_COLOR_TOYS=1 ";
 
   # excludeHostControllers allowlist: a root systemd scope with DevicePolicy=closed
   # denies everything not listed (GPU/audio/uinput/ttys allowed, char-input/hidraw
