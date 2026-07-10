@@ -22,8 +22,10 @@
     };
 
   outputs.nixosModules =
-    { ... }:
+    { inputs, ... }:
     [
+      inputs.jovian.nixosModules.default
+
       (
         {
           config,
