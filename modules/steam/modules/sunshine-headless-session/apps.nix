@@ -5,6 +5,7 @@
   pkgs,
   lib,
   cfg,
+  config,
   sessionApp,
 }:
 
@@ -19,6 +20,13 @@ let
     secondarySteamSessionPath
     ;
 
+  # Cover-label font: the desktop's stylix sans-serif, else DejaVu. Resolved to a
+  # concrete file in the builder (variable fonts have no static bold face, and
+  # imagemagick's fontconfig family lookup mis-picks italic).
+  stylixOn = config.stylix.enable or false;
+  fontPkg = if stylixOn then config.stylix.fonts.sansSerif.package else pkgs.dejavu_fonts;
+  fontFamily = if stylixOn then config.stylix.fonts.sansSerif.name else "DejaVu Sans";
+
   enabledModes = lib.optional sdr "sdr" ++ lib.optional hdr "hdr";
   modeSuffix = mode: lib.optionalString (sdr && hdr) (if mode == "hdr" then " HDR" else " SDR");
 
@@ -32,17 +40,23 @@ let
     let
       label = lib.concatStringsSep " · " (lib.optional second "SECOND" ++ lib.optional hdr "HDR");
       base = "${pkgs.sunshine}/assets/steam.png";
-      font = "${pkgs.dejavu_fonts}/share/fonts/truetype/DejaVuSans-Bold.ttf";
     in
     if label == "" then
       base
     else
       pkgs.runCommand "steam-cover-${lib.toLower (lib.replaceStrings [ " · " ] [ "-" ] label)}.png"
-        { nativeBuildInputs = [ pkgs.imagemagick ]; }
+        {
+          nativeBuildInputs = [
+            pkgs.imagemagick
+            pkgs.fontconfig
+          ];
+          FONTCONFIG_FILE = pkgs.makeFontsConf { fontDirectories = [ fontPkg ]; };
+        }
         ''
+          fontfile="$(fc-match -f '%{file}' "${fontFamily}:style=Bold")"
           magick ${base} \
             -fill 'rgba(0,0,0,0.72)' -draw 'rectangle 0,655 600,800' \
-            \( -background none -fill white -font ${font} -size 540x110 -gravity center label:'${label}' \) \
+            \( -background none -fill white -font "$fontfile" -size 540x110 -gravity center label:'${label}' \) \
             -gravity South -geometry +0+22 -composite \
             "$out"
         '';

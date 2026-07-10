@@ -46,6 +46,7 @@
               pkgs
               lib
               cfg
+              config
               sessionApp
               ;
           };
