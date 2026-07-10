@@ -18,6 +18,7 @@ let
     renderHeight
     sdrContentNits
     sdrGamutWideness
+    steamOS
     upscaleFilter
     fsrSharpness
     excludeHostControllers
@@ -114,6 +115,7 @@ let
     name = "sunshine-headless-session";
 
     runtimeInputs = with pkgs; [
+      bluez # bluetoothctl: re-enable BT when Steam -steamos3 disables it
       coreutils
       procps
       pulseaudio # pactl: create/destroy the on-demand null-sink
@@ -132,6 +134,7 @@ let
       export DBUS_SESSION_BUS_ADDRESS="unix:path=$rt/bus"
       isolate_phys=${if excludeHostControllers then "1" else "0"}
       isolate_virt=${if isolateVirtualControllers then "1" else "0"}
+      steamos_args=(${if steamOS then ''"-steamos3"'' else ""})
 
       # Identify the `steam` belonging to THIS session by $HOME. The normal session
       # shares the desktop's $HOME but closes the desktop Steam in `start`, so it
@@ -275,6 +278,14 @@ let
           #   udev strips its seat0 uaccess ACL (priority 72) so the desktop (no ACL,
           #   user not in `input`) can't open it; THIS Steam reaches it via the
           #   setgid-`input` wrapper, which promotes `input` to the real gid.
+          # Record BT power state BEFORE Steam launches (Steam -steamos3 disables it).
+          if [ "''${#steamos_args[@]}" -gt 0 ]; then
+            if bluetoothctl show 2>/dev/null | grep -q "Powered: yes"; then
+              printf '1' >"$rt/sunshine-headless-bt-was-on"
+            else
+              rm -f "$rt/sunshine-headless-bt-was-on"
+            fi
+          fi
           gid_wrap=()
           if [ "$isolate_virt" = 1 ]; then
             gid_wrap=(/run/wrappers/bin/sunshine-headless-gid)
@@ -295,14 +306,14 @@ let
                 PULSE_SINK=steam-sunshine-headless-sink \
                 ENABLE_GAMESCOPE_WSI=1 ${sessionEnv}\
                 setpriv --inh-caps=-all --ambient-caps=-all -- \
-                "''${gid_wrap[@]}" steam -gamepadui \
+                "''${gid_wrap[@]}" steam -gamepadui "''${steamos_args[@]}" \
               >/tmp/sunshine-headless-steam.log 2>&1 &
           else
             env DISPLAY="$DISPLAY" WAYLAND_DISPLAY="$WAYLAND_DISPLAY" \
               PULSE_SINK=steam-sunshine-headless-sink \
               ENABLE_GAMESCOPE_WSI=1 ${sessionEnv}\
               setpriv --inh-caps=-all --ambient-caps=-all -- \
-              setsid -f "''${gid_wrap[@]}" steam -gamepadui >/tmp/sunshine-headless-steam.log 2>&1
+              setsid -f "''${gid_wrap[@]}" steam -gamepadui "''${steamos_args[@]}" >/tmp/sunshine-headless-steam.log 2>&1
           fi
           sleep 3
           ;;
@@ -317,6 +328,10 @@ let
           # service's login recording.
           last_default="$(cat "$rt/sunshine-headless-default-sink" 2>/dev/null || true)"
           last_baselayer=""
+
+          # Steam -steamos3 disables Bluetooth on launch. Read the pre-launch
+          # state file (written by `start` before Steam was launched).
+          bt_was_on="$(cat "$rt/sunshine-headless-bt-was-on" 2>/dev/null || true)"
 
           # Sunshine-tracked cmd (auto-detach=false): block while the injected Steam
           # lives, return when it exits so Sunshine ends the Moonlight session instead
@@ -335,6 +350,11 @@ let
           while :; do
             if session_steam_alive; then
               gone=0
+              # Steam -steamos3 disables Bluetooth; re-enable it each tick if it
+              # was on before the session started.
+              if [ -n "$bt_was_on" ]; then
+                bluetoothctl power on >/dev/null 2>&1 || true
+              fi
               # excludeHostControllers: the scope denies all /dev/input by
               # default; allow ONLY the stream's uinput pads back in (event/js
               # share major 13 with the host pads, so it is per-device). Recompute
@@ -361,23 +381,43 @@ let
               # gamescope presents it — reset to Steam (769) when no game window remains.
               # Uniform for Steam games, non-Steam shortcuts and emulators; launcher and
               # game share the appid, so focus follows whichever window is live.
-              game_appid=""
-              while read -r w; do
-                wpid="$(DISPLAY=:2 xprop -id "$w" _NET_WM_PID 2>/dev/null | grep -oE '[0-9]+$' || true)"
-                [ -n "$wpid" ] || continue
-                a="$(tr '\0' '\n' <"/proc/$wpid/environ" 2>/dev/null | sed -n 's/^SteamAppId=//p' | head -n1 || true)"
-                case "$a" in "" | 0 | *[!0-9]*) a="$(steam_launch_appid "$wpid" || true)" ;; esac
-                case "$a" in "" | 0 | *[!0-9]*) continue ;; esac
-                if ! DISPLAY=:2 xprop -id "$w" STEAM_GAME 2>/dev/null | grep -q "= $a$"; then
-                  DISPLAY=:2 xprop -id "$w" -f STEAM_GAME 32c -set STEAM_GAME "$a" 2>/dev/null || true
+              #
+              # -steamos3: Steam tags its own games, but non-Steam shortcuts (emulators
+              # like shadps4) lack a valid SteamAppId and remain untagged — gamescope
+              # drops them from focus. Run a lighter tagger for those windows only; skip
+              # the baselayer drive since Steam manages it natively.
+              if [ "''${#steamos_args[@]}" -eq 0 ]; then
+                game_appid=""
+                while read -r w; do
+                  wpid="$(DISPLAY=:2 xprop -id "$w" _NET_WM_PID 2>/dev/null | grep -oE '[0-9]+$' || true)"
+                  [ -n "$wpid" ] || continue
+                  a="$(tr '\0' '\n' <"/proc/$wpid/environ" 2>/dev/null | sed -n 's/^SteamAppId=//p' | head -n1 || true)"
+                  case "$a" in "" | 0 | *[!0-9]*) a="$(steam_launch_appid "$wpid" || true)" ;; esac
+                  case "$a" in "" | 0 | *[!0-9]*) continue ;; esac
+                  if ! DISPLAY=:2 xprop -id "$w" STEAM_GAME 2>/dev/null | grep -q "= $a$"; then
+                    DISPLAY=:2 xprop -id "$w" -f STEAM_GAME 32c -set STEAM_GAME "$a" 2>/dev/null || true
+                  fi
+                  game_appid="$a"
+                done < <(DISPLAY=:2 xwininfo -root -children 2>/dev/null | grep -oE '0x[0-9a-f]+')
+                want="''${game_appid:-769}"
+                if [ "$want" != "$last_baselayer" ]; then
+                  DISPLAY=:1 xprop -root -f GAMESCOPECTRL_BASELAYER_APPID 32c \
+                    -set GAMESCOPECTRL_BASELAYER_APPID "$want" 2>/dev/null || true
+                  last_baselayer="$want"
                 fi
-                game_appid="$a"
-              done < <(DISPLAY=:2 xwininfo -root -children 2>/dev/null | grep -oE '0x[0-9a-f]+')
-              want="''${game_appid:-769}"
-              if [ "$want" != "$last_baselayer" ]; then
-                DISPLAY=:1 xprop -root -f GAMESCOPECTRL_BASELAYER_APPID 32c \
-                  -set GAMESCOPECTRL_BASELAYER_APPID "$want" 2>/dev/null || true
-                last_baselayer="$want"
+              else
+                while read -r w; do
+                  wpid="$(DISPLAY=:2 xprop -id "$w" _NET_WM_PID 2>/dev/null | grep -oE '[0-9]+$' || true)"
+                  [ -n "$wpid" ] || continue
+                  a="$(tr '\0' '\n' <"/proc/$wpid/environ" 2>/dev/null | sed -n 's/^SteamAppId=//p' | head -n1 || true)"
+                  case "$a" in "" | 0 | *[!0-9]*) a="$(steam_launch_appid "$wpid" || true)" ;; esac
+                  # Steam handles its own games; only tag windows with no valid
+                  # SteamAppId (non-Steam shortcuts / emulators like shadps4).
+                  case "$a" in "" | 0 | *[!0-9]*) a="$wpid" ;; esac
+                  if ! DISPLAY=:2 xprop -id "$w" STEAM_GAME 2>/dev/null | grep -q "= $a$"; then
+                    DISPLAY=:2 xprop -id "$w" -f STEAM_GAME 32c -set STEAM_GAME "$a" 2>/dev/null || true
+                  fi
+                done < <(DISPLAY=:2 xwininfo -root -children 2>/dev/null | grep -oE '0x[0-9a-f]+')
               fi
               dname="$(wpctl inspect @DEFAULT_AUDIO_SINK@ 2>/dev/null | grep -oP 'node.name = "\K[^"]+' || true)"
               case "$dname" in
@@ -447,6 +487,7 @@ let
           mod="$(cat "$rt/sunshine-headless-sink-module" 2>/dev/null || true)"
           [ -n "$mod" ] && pactl unload-module "$mod" 2>/dev/null || true
           rm -f "$rt/sunshine-headless-sink-module"
+          rm -f "$rt/sunshine-headless-bt-was-on"
           ;;
         *)
           echo "usage: sunshine-headless-session start [HOME]|wait [HOME]|stop [HOME]" >&2

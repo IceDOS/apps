@@ -26,6 +26,7 @@ let
     renderWidth
     sdrContentNits
     sdrGamutWideness
+    steamOS
     upscaleFilter
     fsrSharpness
     width
@@ -100,4 +101,8 @@ in
     source = ./config.toml;
     default = refresh;
   } 1 360;
+
+  # Steam -steamos3: Steam manages baselayer/focus natively, eliminating the
+  # need for the manual appid tagger in the wait loop.
+  steamOS = mkBoolOption { default = steamOS; };
 }

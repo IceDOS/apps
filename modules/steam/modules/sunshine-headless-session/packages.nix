@@ -91,6 +91,13 @@ let
   gidExec = pkgs.runCommandCC "sunshine-headless-gid" { } ''
     $CC -O2 -Wall ${./lib/sunshine-headless-gid.c} -o $out
   '';
+
+  # SteamOS mode "Switch to Desktop" shim: Steam's -steamos3 mode exposes a menu
+  # entry that calls `steamos-session-select desktop`. This script intercepts that
+  # call and shuts down the headless session cleanly via steam -shutdown.
+  steamosSessionSelect = pkgs.writeShellScriptBin "steamos-session-select" ''
+    exec steam -shutdown
+  '';
 in
 {
   inherit
@@ -98,5 +105,6 @@ in
     xdg-desktop-portal-gamescope
     sunshinePortalConfig
     gidExec
+    steamosSessionSelect
     ;
 }

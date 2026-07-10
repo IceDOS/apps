@@ -60,6 +60,7 @@
           hasProtonLaunch = hasAttr "proton-launch" applications;
           optionalGamescope = optional hasGamescope pkgs.gamescope;
           optionalProtonLaunch = optional hasProtonLaunch pkgs.proton-launch;
+          optionalSunshineHeadlessSteamOS = applications.steam.headlessSession.steamOS or false;
           session = hasAttr "session" applications.steam;
           steamdeck = hasAttr "steamdeck" (icedos.hardware.devices or { });
           steamPkg = pkgs.steam;
@@ -69,7 +70,8 @@
             {
               xdg.dataFile = {
                 "Steam/package/beta" = mkIf beta {
-                  text = if steamdeck then "steamdeck_publicbeta" else "publicbeta";
+                  text =
+                    if (steamdeck || optionalSunshineHeadlessSteamOS) then "steamdeck_publicbeta" else "publicbeta";
                 };
 
                 "Steam/steam_dev.cfg" = mkIf downloadsWorkaround {
