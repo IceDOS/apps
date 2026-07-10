@@ -1,0 +1,52 @@
+--- a/src/pipewire.cpp	2026-07-10 06:34:27.536756039 +0300
++++ b/src/pipewire.cpp	2026-07-10 06:34:28.496116030 +0300
+@@ -118,6 +118,11 @@
+ 							SPA_VIDEO_COLOR_RANGE_16_235,
+ 							SPA_VIDEO_COLOR_RANGE_0_255),
+ 			0);
++	} else if (g_bOutputHDREnabled && format == SPA_VIDEO_FORMAT_xBGR_210LE) {
++		spa_pod_builder_add(builder,
++			SPA_FORMAT_VIDEO_colorPrimaries, SPA_POD_Id(SPA_VIDEO_COLOR_PRIMARIES_BT2020),
++			SPA_FORMAT_VIDEO_transferFunction, SPA_POD_Id(SPA_VIDEO_TRANSFER_SMPTE2084),
++			0);
+ 	}
+ 	spa_pod_builder_prop(builder, SPA_FORMAT_VIDEO_modifier, SPA_POD_PROP_FLAG_MANDATORY);
+ 	spa_pod_builder_push_choice(builder, &choice_frame, SPA_CHOICE_Enum, 0);
+@@ -147,6 +152,11 @@
+ 							SPA_VIDEO_COLOR_RANGE_16_235,
+ 							SPA_VIDEO_COLOR_RANGE_0_255),
+ 			0);
++	} else if (g_bOutputHDREnabled && format == SPA_VIDEO_FORMAT_xBGR_210LE) {
++		spa_pod_builder_add(builder,
++			SPA_FORMAT_VIDEO_colorPrimaries, SPA_POD_Id(SPA_VIDEO_COLOR_PRIMARIES_BT2020),
++			SPA_FORMAT_VIDEO_transferFunction, SPA_POD_Id(SPA_VIDEO_TRANSFER_SMPTE2084),
++			0);
+ 	}
+ 	params.push_back((const struct spa_pod *) spa_pod_builder_pop(builder, &obj_frame));
+ 
+@@ -161,6 +171,8 @@
+ 
+ 	build_format_params(builder, SPA_VIDEO_FORMAT_BGRx, params);
+ 	build_format_params(builder, SPA_VIDEO_FORMAT_NV12, params);
++	if (g_bOutputHDREnabled)
++		build_format_params(builder, SPA_VIDEO_FORMAT_xBGR_210LE, params);
+ 
+ 	return params;
+ }
+@@ -445,6 +457,7 @@
+ 	switch (spa_format)
+ 	{
+ 		case SPA_VIDEO_FORMAT_NV12: return DRM_FORMAT_NV12;
++		case SPA_VIDEO_FORMAT_xBGR_210LE: return DRM_FORMAT_XBGR2101010;
+ 		default:
+ 		case SPA_VIDEO_FORMAT_BGR: return DRM_FORMAT_XRGB8888;
+ 	}
+@@ -502,7 +515,7 @@
+ 	screenshotImageFlags.bMappable = true;
+ 	screenshotImageFlags.bTransferDst = true;
+ 	screenshotImageFlags.bStorage = true;
+-	if (is_dmabuf || drmFormat == DRM_FORMAT_NV12)
++	if (is_dmabuf || drmFormat == DRM_FORMAT_NV12 || drmFormat == DRM_FORMAT_XBGR2101010)
+ 	{
+ 		screenshotImageFlags.bExportable = true;
+ 		screenshotImageFlags.bLinear = true; // TODO: support multi-planar DMA-BUF export via PipeWire
