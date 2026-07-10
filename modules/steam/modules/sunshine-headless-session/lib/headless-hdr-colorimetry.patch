@@ -1,0 +1,27 @@
+--- a/src/Backends/HeadlessBackend.cpp
++++ b/src/Backends/HeadlessBackend.cpp
+@@ -66,10 +66,20 @@
+             displaycolorimetry_t *displayColorimetry, EOTF *displayEOTF,
+             displaycolorimetry_t *outputEncodingColorimetry, EOTF *outputEncodingEOTF ) const override
+         {
+-			*displayColorimetry = displaycolorimetry_709;
+-			*displayEOTF = EOTF_Gamma22;
+-			*outputEncodingColorimetry = displaycolorimetry_709;
+-			*outputEncodingEOTF = EOTF_Gamma22;
++			if (bHDR10)
++			{
++				*displayColorimetry = displaycolorimetry_2020;
++				*displayEOTF = EOTF_PQ;
++				*outputEncodingColorimetry = displaycolorimetry_2020;
++				*outputEncodingEOTF = EOTF_PQ;
++			}
++			else
++			{
++				*displayColorimetry = displaycolorimetry_709;
++				*displayEOTF = EOTF_Gamma22;
++				*outputEncodingColorimetry = displaycolorimetry_709;
++				*outputEncodingEOTF = EOTF_Gamma22;
++			}
+         }
+ 
+         virtual const char *GetName() const override

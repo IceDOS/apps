@@ -16,3 +16,4 @@ renderWidth = "" # gamescope internal render width, upscaled to `width` by `upsc
 renderHeight = "" # gamescope internal render height. Empty → render at output height.
 refresh = 60 # Output refresh (Hz): gamescope -r for the headless mode. Up to 360.
 steamOS = false # Enable gamescope -steamos3: Steam manages baselayer/focus natively, eliminating the need for manual appid tagging.
+colorManagement = false # Enable color management controls in Steam's Display settings (Adjust Display Colors): color vibrance, color temperature sliders. Sets STEAM_GAMESCOPE_COLOR_MANAGED=1 + STEAM_GAMESCOPE_COLOR_TOYS=1 on the injected Steam. Requires the patched gamescope to function.

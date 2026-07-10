@@ -13,6 +13,7 @@ let
   inherit (lib) readFile;
 
   inherit ((fromTOML (readFile ./config.toml)).icedos.applications.steam.headlessSession)
+    colorManagement
     height
     excludeHostControllers
     hdr
@@ -105,4 +106,7 @@ in
   # Steam -steamos3: Steam manages baselayer/focus natively, eliminating the
   # need for the manual appid tagger in the wait loop.
   steamOS = mkBoolOption { default = steamOS; };
+
+  # Color management: expose color controls in Steam's Display settings.
+  colorManagement = mkBoolOption { default = colorManagement; };
 }
