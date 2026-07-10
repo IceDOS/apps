@@ -15,3 +15,4 @@ height = "1080" # Gamescope output (scanout) height. REQUIRED.
 renderWidth = "" # gamescope internal render width, upscaled to `width` by `upscaleFilter`. Empty → render at output width (no upscale).
 renderHeight = "" # gamescope internal render height. Empty → render at output height.
 refresh = 60 # Output refresh (Hz): gamescope -r for the headless mode. Up to 360.
+steamOS = false # Enable gamescope -steamos3: Steam manages baselayer/focus natively, eliminating the need for manual appid tagging.

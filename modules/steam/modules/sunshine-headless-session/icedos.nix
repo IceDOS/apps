@@ -23,6 +23,7 @@
             isolateVirtualControllers
             secondarySteamSession
             secondarySteamSessionPath
+            steamOS
             ;
 
           packages = import ./packages.nix { inherit pkgs inputs cfg; };
@@ -30,6 +31,7 @@
             xdg-desktop-portal-gamescope
             sunshinePortalConfig
             gidExec
+            steamosSessionSelect
             ;
 
           inherit
@@ -104,7 +106,8 @@
           environment.systemPackages = [
             idleApp
             sessionApp
-          ];
+          ]
+          ++ lib.optionals steamOS [ steamosSessionSelect ];
 
           # Merge into the user's apps.json (sunshine's default is {} so lists concat).
           services.sunshine.applications.apps = steamApps;
