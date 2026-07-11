@@ -100,8 +100,10 @@ in
     default = refresh;
   } 1 360;
 
-  # Steam -steamos3: Steam manages baselayer/focus natively, eliminating the
-  # need for the manual appid tagger in the wait loop.
+  # Steam -steamos3 (SteamOS Deck UI mode): Steam manages the gamescope baselayer/
+  # focus natively, eliminating the manual appid tagger in the wait loop. Also makes
+  # Steam take over the host Bluetooth and power it off on launch — the wait loop
+  # re-asserts the pre-launch BT state (see scripts.nix root-cause note).
   steamOS = mkBoolOption { default = steamOS; };
 
   # Color management: expose color controls in Steam's Display settings.

@@ -66,15 +66,35 @@
           # desktop (user not in `input`) can't open it, while the injected Steam still
           # can via the setgid-`input` wrapper. Must be priority 72 (between 71-seat and
           # 73-seat-late); also force MODE 0660 + clear ACL for the racy js* node.
-          services.udev.packages = mkIf isolateVirtualControllers [
-            (pkgs.writeTextDir "etc/udev/rules.d/72-sunshine-headless-no-uaccess.rules" ''
-              SUBSYSTEM=="input", ATTRS{name}=="Sunshine*", TAG-="uaccess", MODE="0660", RUN+="${pkgs.acl}/bin/setfacl -b $env{DEVNAME}"
-            '')
-          ];
+          services.udev.packages =
+            lib.optional isolateVirtualControllers (
+              pkgs.writeTextDir "etc/udev/rules.d/72-sunshine-headless-no-uaccess.rules" ''
+                SUBSYSTEM=="input", ATTRS{name}=="Sunshine*", TAG-="uaccess", MODE="0660", RUN+="${pkgs.acl}/bin/setfacl -b $env{DEVNAME}"
+              ''
+            )
+            # Steam's Deck UI (-steamos3) opens /dev/rfkill O_RDWR to read/monitor/control
+            # the radios. Default perms are root:root 0664 → read-only for a non-active-seat
+            # user; systemd's 70-uaccess.rules grants rw only to the ACTIVE seat session, so a
+            # headless / boot-time -steamos3 Steam has no ACL → its O_RDWR open fails → it
+            # force-disables Bluetooth and its radio UI desyncs from the system.
+            # Hand rfkill to the `input` GROUP (not `users`): that group has NO human members,
+            # so ONLY the injected Steam — which the setgid-`input` shim runs as real gid
+            # `input` — can open the node. Under -steamos3 the launcher always routes Steam
+            # through that shim (scripts.nix gid_wrap), independent of isolateVirtualControllers,
+            # so radio access works whenever steamOS. NB: /dev/rfkill is one node for ALL
+            # radios, so this is BT + Wi-Fi on/off, not BT-only — no per-radio node to scope
+            # to. Priority 70 (must sort before 73-seat-late; extraRules→99-local is too late,
+            # nixpkgs#308681) — ship as a package like the 72- rule above.
+            ++ lib.optional steamOS (
+              pkgs.writeTextDir "etc/udev/rules.d/70-steam-rfkill-access.rules" ''
+                SUBSYSTEM=="misc", KERNEL=="rfkill", GROUP="input", MODE="0660"
+              ''
+            );
 
-          # setgid-`input` shim: only the injected Steam (which execs through it) gets
-          # the `input` group and can open the uaccess-stripped pad.
-          security.wrappers = mkIf isolateVirtualControllers {
+          # setgid-`input` shim: only the injected Steam (which execs through it) gets the
+          # `input` group — needed to open the uaccess-stripped pad (isolateVirtualControllers)
+          # AND the input-group /dev/rfkill node under -steamos3 (radio access). Built for either.
+          security.wrappers = mkIf (isolateVirtualControllers || steamOS) {
             sunshine-headless-gid = {
               setgid = true;
               owner = "root";

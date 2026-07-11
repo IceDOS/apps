@@ -14,5 +14,5 @@ height = "1080" # Gamescope output (scanout) height. REQUIRED.
 renderWidth = "" # gamescope internal render width, upscaled to `width` by `upscaleFilter`. Empty → render at output width (no upscale).
 renderHeight = "" # gamescope internal render height. Empty → render at output height.
 refresh = 60 # Output refresh (Hz): gamescope -r for the headless mode. Up to 360.
-steamOS = false # Enable gamescope -steamos3: Steam manages baselayer/focus natively, eliminating the need for manual appid tagging.
+steamOS = false # Enable Steam's SteamOS Deck UI mode (`steam -steamos3`): Steam manages the gamescope baselayer/focus natively, eliminating manual appid tagging. NOTE: in this mode Steam also takes over the host Bluetooth radio and powers it off on launch (intentional, flag-gated); the session re-asserts your pre-launch BT state as a workaround.
 colorManagement = false # Enable color management controls in Steam's Display settings (Adjust Display Colors): color vibrance, color temperature sliders. Sets STEAM_GAMESCOPE_COLOR_MANAGED=1 + STEAM_GAMESCOPE_COLOR_TOYS=1 on the injected Steam. Requires the patched gamescope to function.
