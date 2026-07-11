@@ -26,7 +26,15 @@
             steamOS
             ;
 
-          packages = import ./packages.nix { inherit pkgs inputs cfg; };
+          packages = import ./packages.nix {
+            inherit
+              pkgs
+              lib
+              inputs
+              cfg
+              ;
+
+          };
           inherit (packages)
             xdg-desktop-portal-gamescope
             sunshinePortalConfig
@@ -175,12 +183,28 @@
 
           # Sunshine's portal client uses the private bus (→ gamescope-0); the injected
           # Steam must NOT inherit it (it resets to the real session bus in scripts.nix).
+          # Ensure gamescope is up before Sunshine probes for displays — without this,
+          # Sunshine caches an empty display list and returns 503 to Moonlight.
           systemd.user.services.sunshine = {
-            after = [ "sunshine-portal.service" ];
+            after = [
+              "sunshine-headless-idle.service"
+              "sunshine-portal.service"
+            ];
+            wants = [ "sunshine-headless-idle.service" ];
             environment = {
               WAYLAND_DISPLAY = "gamescope-0";
               DBUS_SESSION_BUS_ADDRESS = "unix:path=%t/sunshine-portal/bus";
             };
+            serviceConfig.ExecStartPre = [
+              (pkgs.writeShellScript "wait-gamescope" ''
+                for i in $(seq 1 200); do
+                  [ -S "$XDG_RUNTIME_DIR/gamescope-0" ] && exit 0
+                  sleep 0.05
+                done
+                echo "timeout waiting for gamescope-0" >&2
+                exit 1
+              '')
+            ];
           };
         }
       )

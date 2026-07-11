@@ -2,35 +2,35 @@
 # portal frontend, and the setgid-`input` shim.
 {
   pkgs,
+  lib,
   inputs,
   cfg,
 }:
 
 let
-  inherit (cfg) hdr colorManagement sdrGamutWideness sdrContentNits;
+  inherit (cfg)
+    hdr
+    colorManagement
+    sdrGamutWideness
+    sdrContentNits
+    ;
 
-  # Plain gamescope, patched only as needed:
-  # - pipewire-color-mgmt.patch: route dynamic g_ColorMgmtLuts (slider-aware) into the
-  #   PipeWire capture path so Steam's colour sliders actually affect Sunshine's stream.
-  gamescopeBase =
-    if colorManagement then
-      pkgs.gamescope.overrideAttrs (old: {
-        patches = (old.patches or [ ]) ++ [
-          ./lib/pipewire-color-mgmt.patch
-        ];
-      })
-    else
-      pkgs.gamescope;
+  # No patches needed when both hdr and colorManagement are off.
+  gamescopeBase = pkgs.gamescope;
 
-  # + a PipeWire HDR-metadata patch (advertise BT.2020/PQ on the output so
-  # the portal -> Sunshine detects and streams HDR) + headless HDR colorimetry
-  # patch (makes GetNativeColorimetry() report BT.2020/PQ when bHDR10 is true,
-  # so g_ColorMgmtLuts carry the correct HDR mapping + slider adjustments).
+  # + HDR headless patches:
+  # - pipewire-hdr-metadata.patch: advertise BT.2020/PQ on the output so the portal ->
+  #   Sunshine detects and streams HDR.
+  # - headless-hdr-colorimetry.patch: makes GetNativeColorimetry() report BT.2020/PQ when
+  #   bHDR10 is true, so g_ColorMgmtLuts carry the correct HDR mapping + slider adjustments.
   gamescopeHdr = gamescopeBase.overrideAttrs (old: {
-    patches = (old.patches or [ ]) ++ [
-      ./lib/pipewire-hdr-metadata.patch
-      ./lib/headless-hdr-colorimetry.patch
-    ];
+    patches =
+      (old.patches or [ ])
+      ++ lib.optionals colorManagement [ ./lib/pipewire-color-mgmt.patch ]
+      ++ [
+        ./lib/pipewire-hdr-metadata.patch
+        ./lib/headless-hdr-colorimetry.patch
+      ];
 
     # paint_pipewire now uses g_ColorMgmtLuts (dynamic, slider-aware) via the
     # pipewire-color-mgmt patch.  In HDR mode we override outputEncodingEOTF to
@@ -44,8 +44,20 @@ let
     '';
   });
 
-  # No patches needed when both hdr and colorManagement are off.
-  gamescopePkg = if hdr then gamescopeHdr else gamescopeBase;
+  # When only colorManagement is on (no HDR), apply just the color-mgmt patch.
+  gamescopeColorMgmt = gamescopeBase.overrideAttrs (old: {
+    patches = (old.patches or [ ]) ++ [
+      ./lib/pipewire-color-mgmt.patch
+    ];
+  });
+
+  gamescopePkg =
+    if hdr then
+      gamescopeHdr
+    else if colorManagement then
+      gamescopeColorMgmt
+    else
+      gamescopeBase;
 
   # jovian's portal, patched for stream size, wrapped onto gamescope-0 and shipped
   # with its D-Bus service + .portal definition.

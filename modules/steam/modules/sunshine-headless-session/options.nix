@@ -17,7 +17,6 @@ let
     height
     excludeHostControllers
     hdr
-    sdr
     isolateVirtualControllers
     normalSteamSession
     secondarySteamSession
@@ -91,9 +90,7 @@ in
     default = fsrSharpness;
   } 0 20;
 
-  # Which apps to expose per HDR mode. Both may be on — the single headless
-  # gamescope's mode is switched per-app at stream start.
-  sdr = mkBoolOption { default = sdr; };
+  # Enable HDR on the headless gamescope (requires patched gamescope).
   hdr = mkBoolOption { default = hdr; };
 
   # Output refresh (Hz): gamescope -r for the headless mode.
