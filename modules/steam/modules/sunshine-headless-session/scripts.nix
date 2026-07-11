@@ -12,6 +12,7 @@ let
 
   inherit (cfg)
     colorManagement
+    hdr
     width
     height
     refresh
@@ -32,8 +33,12 @@ let
 
   # Two Xwaylands (game windows land on :2); the wait-loop tagger owns focus on :1.
   # QT_QPA_PLATFORM=xcb forces Qt onto X11 (native-Wayland Qt breaks under gamescope).
+  # STEAM_GAMESCOPE_HDR_SUPPORTED=1 tells Steam the gamescope session supports HDR,
+  # which is what makes the HDR toggle appear in Big Picture — the gamescope-control
+  # protocol reports the capability but the env var is the primary signal Steam checks.
   sessionEnv =
     "GAMESCOPE_WAYLAND_DISPLAY=gamescope-0 STEAM_MULTIPLE_XWAYLANDS=1 QT_QPA_PLATFORM=xcb "
+    + lib.optionalString hdr "STEAM_GAMESCOPE_HDR_SUPPORTED=1 DXVK_HDR=1 "
     + lib.optionalString colorManagement "STEAM_GAMESCOPE_COLOR_MANAGED=1 STEAM_GAMESCOPE_COLOR_TOYS=1 ";
 
   # excludeHostControllers allowlist: a root systemd scope with DevicePolicy=closed
@@ -91,15 +96,9 @@ let
           sleep 1
         done
 
-        # HDR mode is switched per-app: read the state file the `start` verb writes
-        # (default sdr), record what we actually launch with, and apply the HDR flags
-        # only for hdr. The pipewire capture + Sunshine metadata follow g_bOutputHDREnabled.
-        mode="$(cat "$rt/sunshine-headless-mode" 2>/dev/null || echo sdr)"
-        printf '%s' "$mode" >"$rt/sunshine-headless-mode.active"
-        hdrFlags=()
-        if [ "$mode" = hdr ]; then
-          hdrFlags=(--hdr-enabled --hdr-debug-force-output --hdr-debug-force-support --sdr-gamut-wideness ${toString sdrGamutWideness} --hdr-sdr-content-nits ${toString sdrContentNits})
-        fi
+        ${lib.optionalString hdr ''
+          export GAMESCOPE_PATCHED_EDID_FILE=/tmp/gamescope-patched-edid.bin
+        ''}
 
         printf 'DISPLAY=:1\nWAYLAND_DISPLAY=gamescope-0\n' >"$rt/sunshine-headless.env"
         exec gamescope \
@@ -107,7 +106,8 @@ let
           --expose-wayland \
           --steam \
           --xwayland-count 2 \
-          "''${hdrFlags[@]}" ${upscaleFlags}\
+          ${lib.optionalString hdr "--hdr-enabled --hdr-debug-force-output --hdr-debug-force-support --sdr-gamut-wideness ${toString sdrGamutWideness} --hdr-sdr-content-nits ${toString sdrContentNits} "} \
+          ${upscaleFlags} \
           -W "$width" -H "$height" -r "$refresh" \
           -w "$render_width" -h "$render_height" \
           -- sleep infinity
@@ -185,16 +185,6 @@ let
 
       case "''${1:-}" in
         start)
-          # Requested HDR mode (3rd arg; home stays $2). Tell the idle gamescope and
-          # restart it ONLY when the running mode differs (same mode = instant); the
-          # gamescope-0 wait below then blocks until the correct-mode compositor is up.
-          mode="''${3:-sdr}"
-          printf '%s' "$mode" >"$rt/sunshine-headless-mode"
-          if [ "$(cat "$rt/sunshine-headless-mode.active" 2>/dev/null || echo sdr)" != "$mode" ]; then
-            rm -f "$rt/sunshine-headless.env"
-            systemctl --user restart sunshine-headless-idle.service 2>/dev/null || true
-          fi
-
           # On-demand stream sink: create the null-sink Sunshine captures by name
           # (audio_sink) and make it the system default, so the injected Steam —
           # which follows the default, NOT PULSE_SINK — routes into it. Created
@@ -254,14 +244,7 @@ let
             mkdir -p "$2" || true
             export HOME="$2"
           fi
-          # HDR mode: give the injected Steam DXVK_HDR (gamescope is already in HDR mode).
-          if [ "$mode" = hdr ]; then
-            export DXVK_HDR=1
-          fi
-          # Injected-Steam env (headless HDR experiment): unified headless path.
-          # Both SDR and HDR use the headless backend with --xwayland-count 2,
-          # so Steam always gets the session env. DXVK_HDR is added for HDR.
-          #
+          # Injected-Steam env: unified headless HDR path.
           # PULSE_SINK is a hint toward steam-sunshine-headless-sink, but Steam follows
           # the SYSTEM DEFAULT (which `start` set to that sink) — so it routes there +
           # Sunshine captures it. Kept as belt-and-suspenders for apps that honour it.

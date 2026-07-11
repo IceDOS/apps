@@ -33,7 +33,25 @@
  
  	return params;
  }
-@@ -445,6 +457,7 @@
+@@ -266,6 +278,7 @@
+ 
+ static void dispatch_nudge(struct pipewire_state *state, int fd)
+ {
++	static bool s_bLastHDREnabled = false;
+ 	while (true) {
+ 		static char buf[1024];
+ 		if (read(fd, buf, sizeof(buf)) < 0) {
+@@ -280,7 +293,8 @@
+ 		s_nOutputHeight = g_nOutputHeight;
+ 		calculate_capture_size();
+ 	}
+-	if (s_nCaptureWidth != state->video_info.size.width || s_nCaptureHeight != state->video_info.size.height) {
++	if (s_nCaptureWidth != state->video_info.size.width || s_nCaptureHeight != state->video_info.size.height || s_bLastHDREnabled != g_bOutputHDREnabled) {
++		s_bLastHDREnabled = g_bOutputHDREnabled;
+ 		pwr_log.debugf("renegotiating stream params (size: %dx%d)", s_nCaptureWidth, s_nCaptureHeight);
+ 
+ 		uint8_t buf[4096];
+@@ -445,6 +459,7 @@
  	switch (spa_format)
  	{
  		case SPA_VIDEO_FORMAT_NV12: return DRM_FORMAT_NV12;
@@ -41,7 +59,7 @@
  		default:
  		case SPA_VIDEO_FORMAT_BGR: return DRM_FORMAT_XRGB8888;
  	}
-@@ -502,7 +515,7 @@
+@@ -502,7 +517,7 @@
  	screenshotImageFlags.bMappable = true;
  	screenshotImageFlags.bTransferDst = true;
  	screenshotImageFlags.bStorage = true;
