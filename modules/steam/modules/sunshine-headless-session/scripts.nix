@@ -118,7 +118,6 @@ let
     name = "sunshine-headless-session";
 
     runtimeInputs = with pkgs; [
-      bluez # bluetoothctl: re-enable BT when Steam -steamos3 disables it
       coreutils
       procps
       pulseaudio # pactl: create/destroy the on-demand null-sink
@@ -264,16 +263,12 @@ let
           #   udev strips its seat0 uaccess ACL (priority 72) so the desktop (no ACL,
           #   user not in `input`) can't open it; THIS Steam reaches it via the
           #   setgid-`input` wrapper, which promotes `input` to the real gid.
-          # Record BT power state BEFORE Steam launches (Steam -steamos3 disables it).
-          if [ "''${#steamos_args[@]}" -gt 0 ]; then
-            if bluetoothctl show 2>/dev/null | grep -q "Powered: yes"; then
-              printf '1' >"$rt/sunshine-headless-bt-was-on"
-            else
-              rm -f "$rt/sunshine-headless-bt-was-on"
-            fi
-          fi
+          # Run the injected Steam through the setgid-`input` shim when isolating virtual
+          # controllers (to open the uaccess-stripped pad) OR under -steamos3 (so Steam runs
+          # as real gid `input` and can open the input-group /dev/rfkill node → it reads/
+          # controls the BT radio instead of force-disabling it; see icedos.nix rfkill rule).
           gid_wrap=()
-          if [ "$isolate_virt" = 1 ]; then
+          if [ "$isolate_virt" = 1 ] || [ "''${#steamos_args[@]}" -gt 0 ]; then
             gid_wrap=(/run/wrappers/bin/sunshine-headless-gid)
           fi
 
@@ -315,10 +310,6 @@ let
           last_default="$(cat "$rt/sunshine-headless-default-sink" 2>/dev/null || true)"
           last_baselayer=""
 
-          # Steam -steamos3 disables Bluetooth on launch. Read the pre-launch
-          # state file (written by `start` before Steam was launched).
-          bt_was_on="$(cat "$rt/sunshine-headless-bt-was-on" 2>/dev/null || true)"
-
           # Sunshine-tracked cmd (auto-detach=false): block while the injected Steam
           # lives, return when it exits so Sunshine ends the Moonlight session instead
           # of streaming the idle black frame. NOT `steam` itself as the cmd
@@ -336,11 +327,6 @@ let
           while :; do
             if session_steam_alive; then
               gone=0
-              # Steam -steamos3 disables Bluetooth; re-enable it each tick if it
-              # was on before the session started.
-              if [ -n "$bt_was_on" ]; then
-                bluetoothctl power on >/dev/null 2>&1 || true
-              fi
               # excludeHostControllers: the scope denies all /dev/input by
               # default; allow ONLY the stream's uinput pads back in (event/js
               # share major 13 with the host pads, so it is per-device). Recompute
@@ -473,7 +459,6 @@ let
           mod="$(cat "$rt/sunshine-headless-sink-module" 2>/dev/null || true)"
           [ -n "$mod" ] && pactl unload-module "$mod" 2>/dev/null || true
           rm -f "$rt/sunshine-headless-sink-module"
-          rm -f "$rt/sunshine-headless-bt-was-on"
           ;;
         *)
           echo "usage: sunshine-headless-session start [HOME]|wait [HOME]|stop [HOME]" >&2
