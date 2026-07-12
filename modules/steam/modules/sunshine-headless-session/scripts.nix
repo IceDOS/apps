@@ -119,8 +119,9 @@ let
 
     runtimeInputs = with pkgs; [
       coreutils
+      gawk # awk: parse pactl output in the per-stream audio mover
       procps
-      pulseaudio # pactl: create/destroy the on-demand null-sink
+      pulseaudio # pactl: create/destroy the on-demand null-sink, move game streams onto it
       systemd # systemd-run/systemctl: cgroup device-policy scope for the injected Steam
       util-linux
       wireplumber
@@ -180,6 +181,56 @@ let
           case "$p" in "" | 0 | 1) break ;; esac
         done
         return 1
+      }
+
+      # Is stream pid $1 in this session's Steam process tree? ($2 = " p1 p2 ... ")
+      # Walk PID → parents (same idiom as steam_launch_appid) until a session Steam PID.
+      audio_pid_in_session() {
+        local p="$1"
+        for _ in $(seq 1 32); do
+          case "$p" in "" | 0 | 1) return 1 ;; esac
+          case "$2" in *" $p "*) return 0 ;; esac
+          p="$(awk '{sub(/^.*\) /, ""); print $2}' "/proc/$p/stat" 2>/dev/null || true)"
+        done
+        return 1
+      }
+      # Move every Steam-subtree audio stream onto the capture sink (native/Proton/
+      # emulator), regardless of PULSE_SINK or the system default. PULSE_SINK only helps
+      # apps that honour it, and the default-sink guard below deliberately keeps the
+      # system default OFF the capture sink — so apps that follow the default (shadPS4,
+      # many Proton titles, games launched mid-session) otherwise escape to real
+      # hardware. Scoped by PID so a coexisting desktop user's audio (second session) is
+      # never moved. Move by sink-input (channel-count agnostic; PipeWire re-links
+      # ports). Skip streams already on target → stable streams are never re-moved (no
+      # glitch); re-running each wait tick beats WirePlumber reconnect + catches new
+      # games. LC_ALL=C: pactl long-format field labels are localized.
+      route_session_audio() {
+        local target sess ci pid idx sinkid
+        target="$(pactl list short sinks 2>/dev/null | awk '$2=="steam-sunshine-headless-sink"{print $1; exit}')"
+        [ -n "$target" ] || return 0
+        sess=" $(session_steam_pids | tr '\n' ' ')"
+        # The owning pid lives on the CLIENT object, not the sink-input node — SDL /
+        # native-PipeWire apps (shadPS4) omit application.process.id on the stream. Build
+        # a pulse-client-index → pid map (prefer application.process.id, fall back to the
+        # daemon-set pipewire.sec.pid), then resolve each sink-input via its Client index.
+        declare -A cpid
+        while IFS=$'\t' read -r ci pid; do cpid[$ci]="$pid"; done < <(
+          LC_ALL=C pactl list clients 2>/dev/null | awk '
+            function flush() { if (c != "") { p = (appid != "" ? appid : secpid); if (p != "") print c "\t" p } }
+            /^Client #/ { flush(); c=substr($2,2); appid=""; secpid=""; next }
+            /application\.process\.id = / { v=$3; gsub(/"/,"",v); appid=v }
+            /pipewire\.sec\.pid = / { v=$3; gsub(/"/,"",v); secpid=v }
+            END { flush() }')
+        while IFS=$'\t' read -r idx sinkid ci; do
+          [ "$sinkid" = "$target" ] && continue
+          pid="''${cpid[$ci]:-}"
+          [ -n "$pid" ] || continue
+          audio_pid_in_session "$pid" "$sess" || continue
+          pactl move-sink-input "$idx" steam-sunshine-headless-sink 2>/dev/null || true
+        done < <(LC_ALL=C pactl list sink-inputs 2>/dev/null | awk '
+          /^Sink Input #/ { idx=substr($3,2); sink=""; cli=""; next }
+          /^[[:space:]]*Client:[[:space:]]/ { cli=$2; next }
+          /^[[:space:]]*Sink:[[:space:]]/ { sink=$2; if (idx!="") print idx"\t"sink"\t"cli }')
       }
 
       case "''${1:-}" in
@@ -327,6 +378,7 @@ let
           while :; do
             if session_steam_alive; then
               gone=0
+              route_session_audio
               # excludeHostControllers: the scope denies all /dev/input by
               # default; allow ONLY the stream's uinput pads back in (event/js
               # share major 13 with the host pads, so it is per-device). Recompute
