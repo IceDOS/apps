@@ -20,6 +20,7 @@ let
     renderHeight
     sdrContentNits
     sdrGamutWideness
+    mangoApp
     steamOS
     upscaleFilter
     fsrSharpness
@@ -39,7 +40,8 @@ let
   sessionEnv =
     "GAMESCOPE_WAYLAND_DISPLAY=gamescope-0 STEAM_MULTIPLE_XWAYLANDS=1 QT_QPA_PLATFORM=xcb "
     + lib.optionalString hdr "STEAM_GAMESCOPE_HDR_SUPPORTED=1 DXVK_HDR=1 "
-    + lib.optionalString colorManagement "STEAM_GAMESCOPE_COLOR_MANAGED=1 STEAM_GAMESCOPE_COLOR_TOYS=1 ";
+    + lib.optionalString colorManagement "STEAM_GAMESCOPE_COLOR_MANAGED=1 STEAM_GAMESCOPE_COLOR_TOYS=1 "
+    + lib.optionalString mangoApp "STEAM_USE_MANGOAPP=1 STEAM_MANGOAPP_HORIZONTAL_SUPPORTED=1 STEAM_MANGOAPP_PRESETS_SUPPORTED=1 STEAM_DISABLE_MANGOAPP_ATOM_WORKAROUND=1 MANGOHUD_CONFIGFILE=\"$rt\"/sunshine-mangoapp.conf ";
 
   # excludeHostControllers allowlist: a root systemd scope with DevicePolicy=closed
   # denies everything not listed (GPU/audio/uinput/ttys allowed, char-input/hidraw
@@ -58,6 +60,17 @@ let
   deviceAllowRunArgs = lib.concatMapStringsSep " " (a: "-p DeviceAllow='${a}'") deviceAllowBase;
   deviceAllowSetArgs = lib.concatMapStringsSep " " (a: "DeviceAllow='${a}'") deviceAllowBase;
 
+  # gamescope --mangoapp exec's `mangoapp` with WAYLAND_DISPLAY set, so GLFW selects the
+  # Wayland platform and coredumps on gamescope's minimal compositor (libdecor "Could not get
+  # required globals" -> "Glfw Error: X11: Platform not initialized", MangoHud #1741). Shadow
+  # `mangoapp` with a wrapper that forces the X11 (Xwayland) platform, so glfwGetX11Display
+  # works and the overlay window (GAMESCOPE_EXTERNAL_OVERLAY) is created + composited.
+  mangoappWrapper = pkgs.writeShellScriptBin "mangoapp" ''
+    unset WAYLAND_DISPLAY
+    export XDG_SESSION_TYPE=x11 GDK_BACKEND=x11
+    exec ${pkgs.mangohud}/bin/mangoapp "$@"
+  '';
+
   idleApp = writeShellApplication {
     name = "sunshine-headless-idle";
 
@@ -65,7 +78,10 @@ let
       gamescopePkg
       pkgs.wireplumber
       pkgs.coreutils
-    ];
+    ]
+    # gamescope --mangoapp exec's `mangoapp` from PATH (and --respawn's it), so the X11
+    # wrapper must be on the idle gamescope service's PATH — NOT Steam's.
+    ++ lib.optional mangoApp mangoappWrapper;
 
     text =
       let
@@ -96,6 +112,16 @@ let
           sleep 1
         done
 
+        ${lib.optionalString mangoApp ''
+          # Share ONE mangoapp config path with the injected Steam. Steam's Quick Access ->
+          # Performance level rewrites this file; mangoapp reloads it live. gamescope --mangoapp
+          # only auto-creates a temp no_display config when MANGOHUD_CONFIGFILE is unset, so
+          # pre-set the fixed path and seed it hidden here (both gamescope's mangoapp and Steam
+          # then agree on the file).
+          export MANGOHUD_CONFIGFILE="$rt/sunshine-mangoapp.conf"
+          printf 'no_display\n' >"$MANGOHUD_CONFIGFILE"
+        ''}
+
         ${lib.optionalString hdr ''
           export GAMESCOPE_PATCHED_EDID_FILE=/tmp/gamescope-patched-edid.bin
         ''}
@@ -106,6 +132,7 @@ let
           --expose-wayland \
           --steam \
           --xwayland-count 2 \
+          ${lib.optionalString mangoApp "--mangoapp "} \
           ${lib.optionalString hdr "--hdr-enabled --hdr-debug-force-output --hdr-debug-force-support --sdr-gamut-wideness ${toString sdrGamutWideness} --hdr-sdr-content-nits ${toString sdrContentNits} "} \
           ${upscaleFlags} \
           -W "$width" -H "$height" -r "$refresh" \

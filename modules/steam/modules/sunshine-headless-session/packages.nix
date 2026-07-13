@@ -11,6 +11,7 @@ let
   inherit (cfg)
     hdr
     colorManagement
+    mangoApp
     sdrGamutWideness
     sdrContentNits
     ;
@@ -51,13 +52,33 @@ let
     ];
   });
 
-  gamescopePkg =
+  gamescopeSelected =
     if hdr then
       gamescopeHdr
     else if colorManagement then
       gamescopeColorMgmt
     else
       gamescopeBase;
+
+  # mangoApp overlay in the STREAM: gamescope's pipewire capture (paint_pipewire) paints only
+  # the focus / override / steam-overlay windows — it never paints externalOverlayWindow, so
+  # the mangoapp overlay reaches scanout but not the Sunshine pipewire stream. Two patches:
+  #  1. paint the external overlay when opaque (mirrors paint_all's cv_paint_external_overlay_plane).
+  #  2. paint_pipewire's repaint gate only re-renders when the focus/override window commits, so
+  #     over a STATIC Steam UI (no game committing frames) the overlay is never (re)painted — it
+  #     only shows in-game. Also skip the early-return whenever a visible external overlay exists,
+  #     so mangoapp's own updates repaint the capture over the Steam UI too.
+  gamescopePkg =
+    if mangoApp then
+      gamescopeSelected.overrideAttrs (old: {
+        postPatch = (old.postPatch or "") + ''
+          substituteInPlace src/steamcompmgr.cpp \
+            --replace-fail 'gamescope::Rc<CVulkanTexture> pRGBTexture = s_pPipewireBuffer->texture->isYcbcr()' 'if ( global_focus_t *pMangoOverlayFocus = GetCurrentFocus() ) { if ( pMangoOverlayFocus->externalOverlayWindow && pMangoOverlayFocus->externalOverlayWindow->opacity ) paint_window( pMangoOverlayFocus->externalOverlayWindow, pMangoOverlayFocus->externalOverlayWindow, &frameInfo, nullptr, PaintWindowFlag::NoScale | PaintWindowFlag::NoFilter | ( cv_overlay_unmultiplied_alpha ? PaintWindowFlag::CoverageMode : 0 ) ); } gamescope::Rc<CVulkanTexture> pRGBTexture = s_pPipewireBuffer->texture->isYcbcr()' \
+            --replace-fail 'ulOverrideCommitId == s_ulLastOverrideCommitId )' 'ulOverrideCommitId == s_ulLastOverrideCommitId && !( GetCurrentFocus() && GetCurrentFocus()->externalOverlayWindow && GetCurrentFocus()->externalOverlayWindow->opacity ) )'
+        '';
+      })
+    else
+      gamescopeSelected;
 
   # jovian's portal, patched for stream size, wrapped onto gamescope-0 and shipped
   # with its D-Bus service + .portal definition.
