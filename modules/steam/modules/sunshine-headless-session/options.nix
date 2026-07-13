@@ -18,6 +18,7 @@ let
     excludeHostControllers
     hdr
     isolateVirtualControllers
+    mangoApp
     normalSteamSession
     secondarySteamSession
     secondarySteamSessionPath
@@ -105,6 +106,12 @@ in
   # Steam take over the host Bluetooth and power it off on launch — the wait loop
   # re-asserts the pre-launch BT state (see scripts.nix root-cause note).
   steamOS = mkBoolOption { default = steamOS; };
+
+  # MangoHud performance overlay (mangoapp). Adds --mangoapp to the idle gamescope
+  # (gamescope itself spawns/respawns + composites the mangoapp overlay window) and sets
+  # STEAM_USE_MANGOAPP=1 on the injected Steam so the overlay level is driven from Steam's
+  # Quick Access -> Performance menu.
+  mangoApp = mkBoolOption { default = mangoApp; };
 
   # Color management: expose color controls in Steam's Display settings.
   colorManagement = mkBoolOption { default = colorManagement; };
