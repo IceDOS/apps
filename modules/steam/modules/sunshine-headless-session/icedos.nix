@@ -161,7 +161,6 @@
             description = "Private D-Bus for the Sunshine headless portal";
             wantedBy = [ "graphical-session.target" ];
             partOf = [ "graphical-session.target" ];
-            after = [ "graphical-session.target" ];
             environment.XDG_DATA_DIRS = "${xdg-desktop-portal-gamescope}/share";
             serviceConfig = {
               ExecStartPre = "${pkgs.coreutils}/bin/mkdir -p %t/sunshine-portal";
