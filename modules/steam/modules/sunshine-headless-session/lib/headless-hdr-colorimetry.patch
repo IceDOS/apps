@@ -22,7 +22,7 @@
  
 +		void SetHDR( bool bEnabled )
 +		{
-+			m_HDRInfo.bExposeHDRSupport = true;
++			m_HDRInfo.bExposeHDRSupport = bEnabled;
 +			m_HDRInfo.bAlwaysPatchEdid = true;
 +			m_FakeEdid = GenerateSimpleEdid( g_nOutputWidth, g_nOutputHeight );
 +

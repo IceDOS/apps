@@ -17,7 +17,8 @@
         let
           cfg = config.icedos.applications.steam.headlessSession;
 
-          inherit (lib) getExe mkDefault mkIf;
+          inherit (lib) mkDefault mkIf;
+
           inherit (cfg)
             excludeHostControllers
             isolateVirtualControllers
@@ -39,15 +40,13 @@
             xdg-desktop-portal-gamescope
             sunshinePortalConfig
             gidExec
-            steamosSessionSelect
             ;
 
           inherit
             (import ./scripts.nix {
               inherit pkgs lib cfg;
-              inherit (packages) gamescopePkg;
+              inherit (packages) gamescopePkg steamosSessionSelect;
             })
-            idleApp
             sessionApp
             ;
 
@@ -115,28 +114,6 @@
             });
           '';
 
-          # Persistent idle gamescope so the injection target is always present.
-          systemd.user.services.sunshine-headless-idle = {
-            description = "Persistent idle gamescope for Sunshine headless";
-            wantedBy = [ "graphical-session.target" ];
-            partOf = [ "graphical-session.target" ];
-            after = [ "graphical-session.target" ];
-
-            serviceConfig = {
-              ExecStart = getExe idleApp;
-              Restart = "always";
-              RestartSec = "5s";
-              KillSignal = "SIGKILL";
-              TimeoutStopSec = "10s";
-            };
-          };
-
-          environment.systemPackages = [
-            idleApp
-            sessionApp
-          ]
-          ++ lib.optionals steamOS [ steamosSessionSelect ];
-
           # Merge into the user's apps.json (sunshine's default is {} so lists concat).
           services.sunshine.applications.apps = steamApps;
 
@@ -200,10 +177,33 @@
             };
           };
 
+          # Boot-time idle gamescope: Sunshine probes the encoder/display at stream LAUNCH,
+          # before it runs the app prep-cmd that would spawn gamescope — so a display must
+          # already exist or the probe fails with 503. Kick the shared gamescope unit
+          # (sunshine-headless-gamescope.service) at an SDR fallback res; the first client
+          # `start` restarts it to the client's resolution/HDR if different.
+          systemd.user.services.sunshine-headless-idle = {
+            description = "Boot-time idle gamescope so Sunshine's display probe passes";
+            wantedBy = [ "graphical-session.target" ];
+            partOf = [ "graphical-session.target" ];
+            after = [ "graphical-session.target" ];
+            serviceConfig = {
+              Type = "oneshot";
+              RemainAfterExit = true;
+              ExecStart = "${lib.getExe sessionApp} idle";
+            };
+          };
+
           # Sunshine's portal client uses the private bus (→ gamescope-0); the injected
           # Steam must NOT inherit it (it resets to the real session bus in scripts.nix).
-          # Ensure gamescope is up before Sunshine probes for displays — without this,
-          # Sunshine caches an empty display list and returns 503 to Moonlight.
+          # Gate startup on the idle gamescope + portal: Sunshine enumerates the display via
+          # the portal ScreenCast at STARTUP and never recovers if it finds nothing (it stays
+          # up returning 503 — the launch-time re-probe does not rescue a failed startup), so
+          # it must not start before gamescope-0 / the portal are ready. The wait also gives
+          # the portal time to be D-Bus-ready. Restart=always because the ~2-3s gate delay can
+          # lose a transient race for port 47984 (Sunshine exits 0 on that bind failure, so
+          # on-failure never retries); a retry binds once the holder releases. On a clean start
+          # Sunshine stays running, so restart only fires on the failure path.
           systemd.user.services.sunshine = {
             after = [
               "sunshine-headless-idle.service"
@@ -214,16 +214,31 @@
               WAYLAND_DISPLAY = "gamescope-0";
               DBUS_SESSION_BUS_ADDRESS = "unix:path=%t/sunshine-portal/bus";
             };
-            serviceConfig.ExecStartPre = [
-              (pkgs.writeShellScript "wait-gamescope" ''
-                for i in $(seq 1 200); do
-                  [ -S "$XDG_RUNTIME_DIR/gamescope-0" ] && exit 0
-                  sleep 0.05
-                done
-                echo "timeout waiting for gamescope-0" >&2
-                exit 1
-              '')
-            ];
+            serviceConfig = {
+              ExecStartPre = [
+                # A stale portal restore token makes Sunshine's startup ScreenCast hang — it
+                # waits to restore a dead session and never binds its ports. Drop it so each
+                # start re-requests a fresh ScreenCast (the gamescope portal auto-grants, no
+                # prompt), so a leftover token from a prior crash can't wedge startup.
+                "${pkgs.coreutils}/bin/rm -f %h/.config/sunshine/portal_token %h/.config/sunshine/portal_token.bak"
+                (pkgs.writeShellScript "wait-gamescope" ''
+                  for _ in $(seq 1 200); do
+                    [ -S "$XDG_RUNTIME_DIR/gamescope-0" ] && exit 0
+                    sleep 0.05
+                  done
+                  echo "timeout waiting for gamescope-0" >&2
+                  exit 1
+                '')
+              ];
+              Restart = lib.mkForce "always";
+              RestartSec = lib.mkForce "3s";
+              # Sunshine's own shutdown watchdog hangs ~10s on SIGTERM (audio teardown), then
+              # force-traps itself (coredump) and leaks its portal ScreenCast session — which
+              # then hangs the NEXT start. Cap the stop so systemd SIGKILLs it quickly instead;
+              # the clean D-Bus disconnect lets the gamescope portal reap the session.
+              TimeoutStopSec = lib.mkForce "5s";
+            };
+            unitConfig.StartLimitIntervalSec = lib.mkForce 0;
           };
         }
       )
