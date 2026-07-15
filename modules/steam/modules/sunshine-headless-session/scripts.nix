@@ -5,6 +5,7 @@
   lib,
   cfg,
   gamescopePkg,
+  steamosSessionSelect,
 }:
 
 let
@@ -13,9 +14,6 @@ let
   inherit (cfg)
     colorManagement
     hdr
-    width
-    height
-    refresh
     renderWidth
     renderHeight
     sdrContentNits
@@ -28,18 +26,21 @@ let
     isolateVirtualControllers
     ;
 
-  # renderWidth/renderHeight empty → render at the output resolution.
-  effectiveRenderWidth = if renderWidth == "" then width else renderWidth;
-  effectiveRenderHeight = if renderHeight == "" then height else renderHeight;
+  # Gamescope upscaler flags (-F ... --fsr-sharpness ...). Empty when no filter.
+  upscaleFlags =
+    if upscaleFilter != "" then "-F ${upscaleFilter} --fsr-sharpness ${toString fsrSharpness} " else "";
+
+  # Gamescope HDR flags, applied per-stream only when the client requests HDR (see the start
+  # case). Empty string when hdr is off (gamescope isn't built HDR-capable).
+  hdrFlags = lib.optionalString hdr "--hdr-enabled --hdr-debug-force-output --hdr-debug-force-support --sdr-gamut-wideness ${toString sdrGamutWideness} --hdr-sdr-content-nits ${toString sdrContentNits} ";
 
   # Two Xwaylands (game windows land on :2); the wait-loop tagger owns focus on :1.
   # QT_QPA_PLATFORM=xcb forces Qt onto X11 (native-Wayland Qt breaks under gamescope).
-  # STEAM_GAMESCOPE_HDR_SUPPORTED=1 tells Steam the gamescope session supports HDR,
-  # which is what makes the HDR toggle appear in Big Picture — the gamescope-control
-  # protocol reports the capability but the env var is the primary signal Steam checks.
+  # The HDR env (STEAM_GAMESCOPE_HDR_SUPPORTED makes the HDR toggle appear in Big Picture;
+  # DXVK_HDR lets games output HDR) is NOT here — it's injected per-stream in the start case
+  # only when the client requests HDR, so SDR streams stay SDR (see steam_hdr_env).
   sessionEnv =
     "GAMESCOPE_WAYLAND_DISPLAY=gamescope-0 STEAM_MULTIPLE_XWAYLANDS=1 QT_QPA_PLATFORM=xcb "
-    + lib.optionalString hdr "STEAM_GAMESCOPE_HDR_SUPPORTED=1 DXVK_HDR=1 "
     + lib.optionalString colorManagement "STEAM_GAMESCOPE_COLOR_MANAGED=1 STEAM_GAMESCOPE_COLOR_TOYS=1 "
     + lib.optionalString mangoApp "STEAM_USE_MANGOAPP=1 STEAM_MANGOAPP_HORIZONTAL_SUPPORTED=1 STEAM_MANGOAPP_PRESETS_SUPPORTED=1 STEAM_DISABLE_MANGOAPP_ATOM_WORKAROUND=1 MANGOHUD_CONFIGFILE=\"$rt\"/sunshine-mangoapp.conf ";
 
@@ -67,84 +68,19 @@ let
   # works and the overlay window (GAMESCOPE_EXTERNAL_OVERLAY) is created + composited.
   mangoappWrapper = pkgs.writeShellScriptBin "mangoapp" ''
     unset WAYLAND_DISPLAY
-    export XDG_SESSION_TYPE=x11 GDK_BACKEND=x11
+    export XDG_SESSION_TYPE=x11 GDK_BACKEND=x11 DISPLAY=:1
     exec ${pkgs.mangohud}/bin/mangoapp "$@"
   '';
-
-  idleApp = writeShellApplication {
-    name = "sunshine-headless-idle";
-
-    runtimeInputs = [
-      gamescopePkg
-      pkgs.wireplumber
-      pkgs.coreutils
-    ]
-    # gamescope --mangoapp exec's `mangoapp` from PATH (and --respawn's it), so the X11
-    # wrapper must be on the idle gamescope service's PATH — NOT Steam's.
-    ++ lib.optional mangoApp mangoappWrapper;
-
-    text =
-      let
-        upscaleFlags =
-          if upscaleFilter != "" then "-F ${upscaleFilter} --fsr-sharpness ${toString fsrSharpness} " else "";
-      in
-      ''
-        width="''${SUNSHINE_HEADLESS_WIDTH:-${width}}"
-        height="''${SUNSHINE_HEADLESS_HEIGHT:-${height}}"
-        refresh="''${SUNSHINE_HEADLESS_REFRESH:-${toString refresh}}"
-        render_width="''${SUNSHINE_HEADLESS_RENDER_WIDTH:-${effectiveRenderWidth}}"
-        render_height="''${SUNSHINE_HEADLESS_RENDER_HEIGHT:-${effectiveRenderHeight}}"
-
-        export ENABLE_GAMESCOPE_WSI=1
-
-        # Record the desktop default audio sink at login, before any stream.
-        rt="''${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
-        for _ in $(seq 1 30); do
-          did="$(wpctl inspect @DEFAULT_AUDIO_SINK@ 2>/dev/null | grep -oP '^id \K[0-9]+' || true)"
-          dname="$(wpctl inspect @DEFAULT_AUDIO_SINK@ 2>/dev/null | grep -oP 'node.name = "\K[^"]+' || true)"
-          case "$dname" in
-            "" | steam-sunshine-headless-sink | sink-sunshine-*) : ;;
-            *)
-              printf '%s' "$did" >"$rt/sunshine-headless-default-sink"
-              break
-              ;;
-          esac
-          sleep 1
-        done
-
-        ${lib.optionalString mangoApp ''
-          # Share ONE mangoapp config path with the injected Steam. Steam's Quick Access ->
-          # Performance level rewrites this file; mangoapp reloads it live. gamescope --mangoapp
-          # only auto-creates a temp no_display config when MANGOHUD_CONFIGFILE is unset, so
-          # pre-set the fixed path and seed it hidden here (both gamescope's mangoapp and Steam
-          # then agree on the file).
-          export MANGOHUD_CONFIGFILE="$rt/sunshine-mangoapp.conf"
-          printf 'no_display\n' >"$MANGOHUD_CONFIGFILE"
-        ''}
-
-        ${lib.optionalString hdr ''
-          export GAMESCOPE_PATCHED_EDID_FILE=/tmp/gamescope-patched-edid.bin
-        ''}
-
-        printf 'DISPLAY=:1\nWAYLAND_DISPLAY=gamescope-0\n' >"$rt/sunshine-headless.env"
-        exec gamescope \
-          --backend headless \
-          --expose-wayland \
-          --steam \
-          --xwayland-count 2 \
-          ${lib.optionalString mangoApp "--mangoapp "} \
-          ${lib.optionalString hdr "--hdr-enabled --hdr-debug-force-output --hdr-debug-force-support --sdr-gamut-wideness ${toString sdrGamutWideness} --hdr-sdr-content-nits ${toString sdrContentNits} "} \
-          ${upscaleFlags} \
-          -W "$width" -H "$height" -r "$refresh" \
-          -w "$render_width" -h "$render_height" \
-          -- sleep infinity
-      '';
-  };
 
   sessionApp = writeShellApplication {
     name = "sunshine-headless-session";
 
-    runtimeInputs = with pkgs; [
+    runtimeInputs = [
+      gamescopePkg
+    ]
+    ++ lib.optional mangoApp mangoappWrapper
+    ++ lib.optional steamOS steamosSessionSelect
+    ++ (with pkgs; [
       coreutils
       gawk # awk: parse pactl output in the per-stream audio mover
       procps
@@ -154,7 +90,7 @@ let
       wireplumber
       xprop # tag game windows Steam left untagged so gamescope (SteamControlled) presents them
       xwininfo # enumerate top-levels on the game Xwayland
-    ];
+    ]);
 
     text = ''
       rt="''${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
@@ -260,6 +196,56 @@ let
           /^[[:space:]]*Sink:[[:space:]]/ { sink=$2; if (idx!="") print idx"\t"sink"\t"cli }')
       }
 
+      stop_gamescope() {
+        systemctl --user stop sunshine-headless-gamescope.service 2>/dev/null || true
+        for _ in $(seq 1 30); do
+          [ ! -S "$rt/gamescope-0" ] && break
+          sleep 0.1
+        done
+        rm -f "$rt/gamescope-0" "$rt/sunshine-headless-gamescope-params" "$rt/sunshine-headless-gamescope-bin"
+      }
+
+      start_gamescope() {
+        local w="$1" h="$2" fps="$3" hdr_on="$4"
+        local rw="${toString renderWidth}" rh="${toString renderHeight}"
+        [ "$rw" = "0" ] && rw="$w"
+        [ "$rh" = "0" ] && rh="$h"
+        # HDR is per-stream: pass the --hdr-enabled flags only when this stream is HDR (and
+        # gamescope was built HDR-capable, so hdrFlags is non-empty). SDR = empty = omit.
+        local hdr_args=()
+        ${lib.optionalString hdr ''[ "$hdr_on" = 1 ] && hdr_args=(${hdrFlags})''}
+        printf 'DISPLAY=:1\nWAYLAND_DISPLAY=gamescope-0\n' >"$rt/sunshine-headless.env"
+        printf '%s %s %s %s' "$w" "$h" "$fps" "$hdr_on" >"$rt/sunshine-headless-gamescope-params"
+        # Record which gamescope store path this instance runs, so a later `start` can detect
+        # a stale gamescope after a rebuild changed the binary and restart it (see start case).
+        printf '%s' "${gamescopePkg}" >"$rt/sunshine-headless-gamescope-bin"
+
+        gamescope_env="DISPLAY=:1 ENABLE_GAMESCOPE_WSI=1 PATH=${mangoappWrapper}/bin:${gamescopePkg}/bin${lib.optionalString mangoApp " MANGOHUD_CONFIGFILE=$rt/sunshine-mangoapp.conf"}"
+        systemd-run --user \
+          --unit=sunshine-headless-gamescope.service \
+          --property=Type=simple \
+          --property=Restart=always \
+          --same-dir \
+          --property="Environment=$gamescope_env" \
+          -- ${gamescopePkg}/bin/gamescope \
+              --backend headless \
+              --expose-wayland \
+              --steam \
+              --xwayland-count 2 \
+              ${lib.optionalString mangoApp "--mangoapp "} \
+              "''${hdr_args[@]}" \
+              ${upscaleFlags} \
+              -W "$w" -H "$h" -r "$fps" \
+              -w "$rw" -h "$rh" \
+              -- ${pkgs.coreutils}/bin/sleep infinity
+
+        for _ in $(seq 1 300); do
+          [ -S "$rt/gamescope-0" ] && break
+          sleep 0.1
+        done
+        sleep 1
+      }
+
       case "''${1:-}" in
         start)
           # On-demand stream sink: create the null-sink Sunshine captures by name
@@ -268,6 +254,26 @@ let
           # per-stream so it never shows in the desktop audio UI and never hijacks
           # the default while idle; `stop` unloads it (module id recorded here). Do
           # this FIRST, before Sunshine probes audio_sink.
+          # Record the desktop default audio sink BEFORE hijacking it so we can
+          # restore it when the stream ends.
+          for _ in $(seq 1 10); do
+            did="$(wpctl inspect @DEFAULT_AUDIO_SINK@ 2>/dev/null | grep -oP '^id \K[0-9]+' || true)"
+            dname="$(wpctl inspect @DEFAULT_AUDIO_SINK@ 2>/dev/null | grep -oP 'node.name = "\K[^"]+' || true)"
+            case "$dname" in
+              "" | steam-sunshine-headless-sink | sink-sunshine-*) : ;;
+              *)
+                printf '%s' "$did" >"$rt/sunshine-headless-default-sink"
+                break
+                ;;
+            esac
+            sleep 0.2
+          done
+
+          # On-demand stream sink: create the null-sink Sunshine captures by name
+          # (audio_sink) and make it the system default, so the injected Steam —
+          # which follows the default, NOT PULSE_SINK — routes into it. Created
+          # per-stream so it never shows in the desktop audio UI and never hijacks
+          # the default while idle; `stop` unloads it (module id recorded here).
           if ! pactl list short sinks 2>/dev/null | grep -qw steam-sunshine-headless-sink; then
             pactl load-module module-null-sink \
               media.class=Audio/Sink \
@@ -278,14 +284,49 @@ let
           fi
           pactl set-default-sink steam-sunshine-headless-sink 2>/dev/null || true
 
-          # Block until the idle gamescope has started: it writes
-          # sunshine-headless.env only after its initialisation, so this gate
-          # guarantees gamescope-0 is up before we launch Steam into it.
-          for _ in $(seq 1 300); do
-            [ -f "$rt/sunshine-headless.env" ] && [ -S "$rt/gamescope-0" ] && break
-            sleep 0.1
-          done
-          sleep 1   # let the first frame render
+          ${lib.optionalString mangoApp ''
+            # Share ONE mangoapp config path with the injected Steam. Steam's Quick Access ->
+            # Performance level rewrites this file; mangoapp reloads it live. gamescope --mangoapp
+            # only auto-creates a temp no_display config when MANGOHUD_CONFIGFILE is unset, so
+            # pre-set the fixed path and seed it hidden here (both gamescope's mangoapp and Steam
+            # then agree on the file).
+            export MANGOHUD_CONFIGFILE="$rt/sunshine-mangoapp.conf"
+            printf 'no_display\n' >"$MANGOHUD_CONFIGFILE"
+          ''}
+
+          client_w="''${SUNSHINE_CLIENT_WIDTH:-}"
+          client_h="''${SUNSHINE_CLIENT_HEIGHT:-}"
+          client_fps="''${SUNSHINE_CLIENT_FPS:-}"
+          # HDR follows the client's Moonlight HDR toggle (SUNSHINE_CLIENT_HDR), decided
+          # per-stream like resolution. Always 0/1 (never empty); forced 0 when gamescope
+          # isn't built HDR-capable so the client request is ignored.
+          client_hdr=0
+          ${lib.optionalString hdr ''case "''${SUNSHINE_CLIENT_HDR:-}" in true | 1 | on) client_hdr=1 ;; esac''}
+
+          if [ -S "$rt/gamescope-0" ]; then
+            saved_params="$(cat "$rt/sunshine-headless-gamescope-params" 2>/dev/null || true)"
+            saved_w="$(printf '%s' "$saved_params" | awk '{print $1}')"
+            saved_h="$(printf '%s' "$saved_params" | awk '{print $2}')"
+            saved_fps="$(printf '%s' "$saved_params" | awk '{print $3}')"
+            saved_hdr="$(printf '%s' "$saved_params" | awk '{print $4}')"
+            # gamescope persists across streams, so a rebuild that changes its binary leaves the
+            # old one running (activation won't restart it). Compare the store path it was
+            # launched from against this build's gamescope and force a restart when they differ
+            # (also fires when the marker is missing → picks up the new binary on first connect).
+            saved_bin="$(cat "$rt/sunshine-headless-gamescope-bin" 2>/dev/null || true)"
+
+            if [ -n "$client_w" ] && [ -n "$client_h" ] && [ -n "$client_fps" ] \
+                && { [ "$saved_w" != "$client_w" ] || [ "$saved_h" != "$client_h" ] || [ "$saved_fps" != "$client_fps" ] || [ "$saved_hdr" != "$client_hdr" ] || [ "$saved_bin" != "${gamescopePkg}" ]; }; then
+              stop_gamescope
+              start_gamescope "$client_w" "$client_h" "$client_fps" "$client_hdr"
+            else
+              printf 'DISPLAY=:1\nWAYLAND_DISPLAY=gamescope-0\n' >"$rt/sunshine-headless.env"
+            fi
+          elif [ -n "$client_w" ] && [ -n "$client_h" ] && [ -n "$client_fps" ]; then
+            start_gamescope "$client_w" "$client_h" "$client_fps" "$client_hdr"
+          else
+            start_gamescope "1920" "1080" "60" "$client_hdr"
+          fi
           # Close the desktop Steam first — NORMAL session only. Steam is
           # single-instance PER $HOME: the normal session shares the desktop's
           # $HOME, so this launch would just bounce Big Picture onto the desktop
@@ -350,6 +391,13 @@ let
             gid_wrap=(/run/wrappers/bin/sunshine-headless-gid)
           fi
 
+          # Advertise HDR to the injected Steam only when this stream is HDR:
+          # STEAM_GAMESCOPE_HDR_SUPPORTED shows the HDR toggle in Big Picture, DXVK_HDR lets
+          # games output HDR. SDR streams get neither, so Steam/games match gamescope's SDR
+          # output. Per-stream, mirrors the gamescope --hdr-enabled decision above.
+          steam_hdr_env=()
+          [ "$client_hdr" = 1 ] && steam_hdr_env=(STEAM_GAMESCOPE_HDR_SUPPORTED=1 DXVK_HDR=1)
+
           if [ "$isolate_phys" = 1 ]; then
             # excludeHostControllers → launch Steam inside a root-managed
             # systemd SCOPE (authorized for this user by a polkit rule) with a
@@ -363,18 +411,40 @@ let
               -p DevicePolicy=closed ${deviceAllowRunArgs} \
               -- env DISPLAY="$DISPLAY" WAYLAND_DISPLAY="$WAYLAND_DISPLAY" \
                 PULSE_SINK=steam-sunshine-headless-sink \
-                ENABLE_GAMESCOPE_WSI=1 ${sessionEnv}\
+                ENABLE_GAMESCOPE_WSI=1 "''${steam_hdr_env[@]}" ${sessionEnv}\
                 setpriv --inh-caps=-all --ambient-caps=-all -- \
                 "''${gid_wrap[@]}" steam -gamepadui "''${steamos_args[@]}" \
               >/tmp/sunshine-headless-steam.log 2>&1 &
           else
             env DISPLAY="$DISPLAY" WAYLAND_DISPLAY="$WAYLAND_DISPLAY" \
               PULSE_SINK=steam-sunshine-headless-sink \
-              ENABLE_GAMESCOPE_WSI=1 ${sessionEnv}\
+              ENABLE_GAMESCOPE_WSI=1 "''${steam_hdr_env[@]}" ${sessionEnv}\
               setpriv --inh-caps=-all --ambient-caps=-all -- \
               setsid -f "''${gid_wrap[@]}" steam -gamepadui "''${steamos_args[@]}" >/tmp/sunshine-headless-steam.log 2>&1
           fi
-          sleep 3
+          # Deterministic settle (replaces a fixed sleep that raced): Sunshine starts
+          # capturing the instant this prep-cmd `do` returns, and returning before
+          # gamescope composites real content handed its rtsp handler a mid-negotiation
+          # (resolution 0x0) portal stream and SIGSEGV'd it. Sunshine's ScreenCast is on
+          # the private bus (its frames aren't observable here), so gate on the proxy we
+          # CAN see: the injected Steam mapping a viewable window on the gamescope
+          # Xwayland (:1) — i.e. gamescope is presenting real content, so the portal
+          # reports the real resolution. Match WM_CLASS ~ steam (skips the mangoapp
+          # overlay window). Cap ~12s so a Steam that never shows can't wedge the launch;
+          # a short floor covers the first composited frame.
+          for _ in $(seq 1 120); do
+            steam_win=""
+            while read -r w; do
+              case "$(DISPLAY=:1 xprop -id "$w" WM_CLASS 2>/dev/null)" in
+                *[Ss]team*)
+                  DISPLAY=:1 xwininfo -id "$w" 2>/dev/null | grep -q IsViewable && steam_win=1 && break
+                  ;;
+              esac
+            done < <(DISPLAY=:1 xwininfo -root -children 2>/dev/null | grep -oE '0x[0-9a-f]+')
+            [ -n "$steam_win" ] && break
+            sleep 0.1
+          done
+          sleep 1
           ;;
         wait)
           # Desktop-default guard. Sunshine makes its OWN virtual sink
@@ -383,8 +453,8 @@ let
           # SEPARATE steam-sunshine-headless-sink, so we just keep the default off
           # the stream/Sunshine sinks: remember the live default when it's a real
           # device, revert to the last remembered one whenever it lands on a
-          # blocklisted sink. Tracks the user's live choice; seeded from the idle
-          # service's login recording.
+          # blocklisted sink. Tracks the user's live choice; seeded from the
+          # start case's login recording.
           last_default="$(cat "$rt/sunshine-headless-default-sink" 2>/dev/null || true)"
           last_baselayer=""
 
@@ -539,8 +609,15 @@ let
           [ -n "$mod" ] && pactl unload-module "$mod" 2>/dev/null || true
           rm -f "$rt/sunshine-headless-sink-module"
           ;;
+        idle)
+          # Boot-time display so Sunshine's launch-time encoder probe passes (else 503).
+          # Idempotent; SDR fallback res — the first client `start` restarts it to the
+          # client's resolution/HDR if different.
+          [ -S "$rt/gamescope-0" ] && exit 0
+          start_gamescope "1" "1" "1" "0"
+          ;;
         *)
-          echo "usage: sunshine-headless-session start [HOME]|wait [HOME]|stop [HOME]" >&2
+          echo "usage: sunshine-headless-session start [HOME]|wait [HOME]|stop [HOME]|idle" >&2
           exit 1
           ;;
       esac
@@ -548,5 +625,5 @@ let
   };
 in
 {
-  inherit idleApp sessionApp;
+  inherit sessionApp;
 }

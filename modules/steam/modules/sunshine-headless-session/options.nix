@@ -6,7 +6,6 @@ let
     mkEnumOption
     mkFloatBetweenOption
     mkIntBetweenOption
-    mkNonEmptyStrOption
     mkStrOption
     ;
 
@@ -14,7 +13,6 @@ let
 
   inherit ((fromTOML (readFile ./config.toml)).icedos.applications.steam.headlessSession)
     colorManagement
-    height
     excludeHostControllers
     hdr
     isolateVirtualControllers
@@ -22,7 +20,6 @@ let
     normalSteamSession
     secondarySteamSession
     secondarySteamSessionPath
-    refresh
     renderHeight
     renderWidth
     sdrContentNits
@@ -30,14 +27,9 @@ let
     steamOS
     upscaleFilter
     fsrSharpness
-    width
     ;
 in
 {
-  # Required, host-specific — error out if left empty.
-  width = mkNonEmptyStrOption { default = width; };
-  height = mkNonEmptyStrOption { default = height; };
-
   # Keep host physical controllers out of the injected Steam (see scripts.nix).
   excludeHostControllers = mkBoolOption { default = excludeHostControllers; };
 
@@ -50,9 +42,18 @@ in
   secondarySteamSession = mkBoolOption { default = secondarySteamSession; };
   secondarySteamSessionPath = mkStrOption { default = secondarySteamSessionPath; };
 
-  # Gamescope render size (upscaled to width/height). Empty → render at output res.
-  renderWidth = mkStrOption { default = renderWidth; };
-  renderHeight = mkStrOption { default = renderHeight; };
+  # Gamescope render size (upscaled to width/height). 0 → render at output res.
+  renderWidth = mkIntBetweenOption {
+    path = "icedos.applications.steam.headlessSession.renderWidth";
+    source = ./config.toml;
+    default = renderWidth;
+  } 0 8192;
+
+  renderHeight = mkIntBetweenOption {
+    path = "icedos.applications.steam.headlessSession.renderHeight";
+    source = ./config.toml;
+    default = renderHeight;
+  } 0 8192;
 
   # SDR-on-HDR tuning: brightness (--hdr-sdr-content-nits) and gamut stretch
   # (--sdr-gamut-wideness, 0 = none .. 1 = full BT.2020).
@@ -91,15 +92,10 @@ in
     default = fsrSharpness;
   } 0 20;
 
-  # Enable HDR on the headless gamescope (requires patched gamescope).
+  # Make the headless gamescope HDR-capable (builds the HDR/colorimetry gamescope patches).
+  # Whether a given stream is actually HDR follows the Moonlight client's HDR setting,
+  # decided per-stream like resolution — this option no longer forces HDR on.
   hdr = mkBoolOption { default = hdr; };
-
-  # Output refresh (Hz): gamescope -r for the headless mode.
-  refresh = mkIntBetweenOption {
-    path = "icedos.applications.steam.headlessSession.refresh";
-    source = ./config.toml;
-    default = refresh;
-  } 1 360;
 
   # Steam -steamos3 (SteamOS Deck UI mode): Steam manages the gamescope baselayer/
   # focus natively, eliminating the manual appid tagger in the wait loop. Also makes
