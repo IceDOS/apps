@@ -59,6 +59,12 @@
               sessionApp
               ;
           };
+
+          # Second, independent Sunshine instance for the REAL physical desktop (opt-in).
+          desktopCapture = import ./desktop-capture.nix {
+            inherit pkgs lib;
+            cfg = cfg.desktopCapture;
+          };
         in
         {
           # Strip the seat0 uaccess ACL from the Sunshine virtual pad so the host
@@ -121,6 +127,12 @@
             {
               assertion = !secondarySteamSession || secondarySteamSessionPath != "";
               message = "icedos.applications.steam.headlessSession.secondarySteamSessionPath must be set (non-empty) when secondarySteamSession is enabled.";
+            }
+            {
+              assertion =
+                !(cfg.desktopCapture.enable && cfg.desktopCapture.backend == "kms")
+                || config.icedos.applications.sunshine.capSysAdmin;
+              message = "icedos.applications.steam.headlessSession.desktopCapture.backend = \"kms\" requires icedos.applications.sunshine.capSysAdmin = true (the setcap wrapper Sunshine needs for raw KMS/DRM capture).";
             }
           ];
 
@@ -240,6 +252,16 @@
             };
             unitConfig.StartLimitIntervalSec = lib.mkForce 0;
           };
+
+          # Second, independent Sunshine instance for the REAL physical desktop (see
+          # desktop-capture.nix). Kept entirely separate from the gamescope-pinned primary:
+          # its own ports, its own isolated state/pairing, and it inherits the real Plasma
+          # Wayland session (so capture=portal → KWin ScreenCast) instead of gamescope-0.
+          systemd.user.services.sunshine-desktop = mkIf cfg.desktopCapture.enable desktopCapture.service;
+
+          networking.firewall = mkIf (
+            cfg.desktopCapture.enable && cfg.desktopCapture.openFirewall
+          ) desktopCapture.firewall;
         }
       )
     ];

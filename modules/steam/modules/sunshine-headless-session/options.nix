@@ -27,6 +27,7 @@ let
     steamOS
     upscaleFilter
     fsrSharpness
+    desktopCapture
     ;
 in
 {
@@ -111,4 +112,40 @@ in
 
   # Color management: expose color controls in Steam's Display settings.
   colorManagement = mkBoolOption { default = colorManagement; };
+
+  # Second, independent Sunshine instance that streams the REAL physical KDE Plasma
+  # (Wayland) desktop (see desktop-capture.nix), coexisting with the headless gamescope
+  # session. Separate daemon: its own ports and its own isolated pairing/state.
+  desktopCapture = {
+    enable = mkBoolOption { default = desktopCapture.enable; };
+
+    # sunshine_name / mDNS name; must differ from the primary so Moonlight can tell them apart.
+    name = mkStrOption { default = desktopCapture.name; };
+
+    # Base port (primary uses 47989); Sunshine derives its whole TCP/UDP block from it.
+    port = mkIntBetweenOption {
+      path = "icedos.applications.steam.headlessSession.desktopCapture.port";
+      source = ./config.toml;
+      default = desktopCapture.port;
+    } 1024 65535;
+
+    # portal = KDE Wayland ScreenCast (no caps); kms = raw DRM scanout (needs capSysAdmin).
+    backend =
+      mkEnumOption
+        {
+          path = "icedos.applications.steam.headlessSession.desktopCapture.backend";
+          source = ./config.toml;
+          default = desktopCapture.backend;
+        }
+        [
+          "portal"
+          "kms"
+        ];
+
+    # Open the instance's derived TCP/UDP port block in the host firewall.
+    openFirewall = mkBoolOption { default = desktopCapture.openFirewall; };
+
+    # Optional specific monitor/output to capture (mainly for kms). Empty = default/portal picker.
+    outputName = mkStrOption { default = desktopCapture.outputName; };
+  };
 }
