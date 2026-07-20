@@ -1,4 +1,4 @@
-{ lib, icedosLib, ... }:
+{ lib, ... }:
 
 {
   options.icedos.applications.opencode =
@@ -16,13 +16,16 @@
     };
 
   outputs.nixosModules =
-    { ... }:
+    { inputs, ... }:
     [
       (
         { config, lib, ... }:
         let
           inherit (lib) recursiveUpdate;
           inherit (config.icedos.applications.opencode) extraSettings skills;
+
+          peonPingUsers = config.icedos.applications.peon-ping.users or { };
+          peonPingEnabled = peonPingUsers != { };
         in
         {
           home-manager.sharedModules = [
@@ -40,6 +43,25 @@
                 skills = skills;
               };
             }
+
+            (
+              { lib, pkgs, ... }:
+
+              lib.mkIf peonPingEnabled {
+                # Upstream plugin writes an OSC set-title escape to stdout with no
+                # TTY guard. Harmless in the TUI, but under Zed's ACP mode opencode's
+                # stdout is the JSON-RPC pipe, so the escape corrupts the stream and
+                # Zed hangs at "loading…". Guard the write on an interactive TTY.
+                xdg.configFile."opencode/plugins/peon-ping.ts".source =
+                  pkgs.runCommand "peon-ping-opencode.ts" { }
+                    ''
+                      substitute ${inputs.peon-ping}/adapters/opencode/peon-ping.ts "$out" \
+                        --replace-fail \
+                          'process.stdout.write(`\x1b]0;' \
+                          'if (process.stdout.isTTY) process.stdout.write(`\x1b]0;'
+                    '';
+              }
+            )
           ];
         }
       )
