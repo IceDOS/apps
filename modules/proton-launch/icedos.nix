@@ -33,9 +33,10 @@
 
           inherit (config.icedos) applications hardware;
 
-          hasGamescope = hasAttr "gamescope" applications;
-          hasGamemode = hasAttr "gamemode" applications;
-          hasPowerProfilesDaemon = hasAttr "power-profiles-daemon" (hardware.drivers or { });
+          hasGamemode = config.programs.gamemode.enable;
+          hasGamescope = config.programs.gamescope.enable;
+          hasKde = config.services.desktopManager.plasma6.enable;
+          hasPowerProfilesDaemon = config.services.power-profiles-daemon.enable;
 
           packages = [ proton-launch ] ++ optional hasGamescope pkgs.gamescope;
 
@@ -71,6 +72,14 @@
             else
               "";
 
+          conditionalKdeHelp =
+            if hasKde then
+              ''
+                echo -e "> ${purpleString "--no-baloo-suspend"}: don't suspend the KDE baloo indexer while gaming"
+              ''
+            else
+              "";
+
           conditionalNoGamePerformanceHelp =
             if hasPowerProfilesDaemon then
               ''echo -e "> ${purpleString "--no-game-performance"}: don't switch to performance power profile"''
@@ -92,6 +101,7 @@
                   echo "Usage: proton-launch [OPTIONS] [--] <command> [args...]"
                   echo "Available options:"
                   echo -e "> ${purpleString "--deck"}: pretend to be a Steam Deck"
+                  echo -e "> ${purpleString "--debug-logs"}: enable VKD3D/DXVK warn logging (off by default)"
                   ${conditionalGamemodeHelp}
                   ${conditionalGamescopeHelp}
                   echo -e "> ${purpleString "--fps-limit <N>"}: cap framerate at N fps"
@@ -102,6 +112,7 @@
                   echo -e "> ${purpleString "--lod-bias <N>"}: set DXVK/D3D9 sampler LOD bias"
                   ${conditionalLowLatencyHelp}
                   echo -e "> ${purpleString "--max-frame-latency <N>"}: cap DXGI max frame latency"
+                  ${conditionalKdeHelp}
                   echo -e "> ${purpleString "--no-dll-overrides"}: clear WINEDLLOVERRIDES"
                   echo -e "> ${purpleString "--no-dxr"}: disable DirectX raytracing in VKD3D"
                   echo -e "> ${purpleString "--no-esync"}: disable esync"
@@ -119,8 +130,9 @@
                   exit 0
                 fi
 
+                BALOO_SUSPEND=1
                 DXVK_CONFIG_OPTS=""
-                DXVK_LOG_LEVEL=warn
+                DXVK_LOG_LEVEL=none
                 LOW_LATENCY_LAYER=0
                 LOW_LATENCY_LAYER_FORCE_DECOUPLED=0
                 LOW_LATENCY_LAYER_REFLEX=0
@@ -133,7 +145,7 @@
                 PROTON_USE_WOW64=0
                 SteamDeck=0
                 VKD3D_CONFIG_OPTS=""
-                VKD3D_DEBUG=warn
+                VKD3D_DEBUG=none
                 WINEDLLOVERRIDES="d3d12=n,b;dbghelp=n,b;dinput8=n,b;dsound=n,b;dwrite=n,b;dxgi=n,b;version=n,b;winhttp=n,b;wininet=n,b;winmm=n,b;$WINEDLLOVERRIDES"
                 WINEFSYNC=1
                 mesa_glthread=true
@@ -149,10 +161,12 @@
                     ""
                 }
 
+                GAME_INHIBIT="${pkgs.systemd}/bin/systemd-inhibit --why proton-launch --what idle:sleep --"
+
                 ${
                   if hasPowerProfilesDaemon then
                     ''
-                      GAME_PERFORMANCE="${pkgs.systemd}/bin/systemd-inhibit --why proton-launch-game-performance ${pkgs.power-profiles-daemon}/bin/powerprofilesctl launch -p performance -r proton-launch-game-performance --"
+                      GAME_PERFORMANCE="${pkgs.power-profiles-daemon}/bin/powerprofilesctl launch -p performance -r proton-launch-game-performance --"
                     ''
                   else
                     ""
@@ -180,6 +194,11 @@
                   case "$1" in
                     --deck)
                       SteamDeck=1
+                      shift
+                      ;;
+                    --debug-logs)
+                      VKD3D_DEBUG=warn
+                      DXVK_LOG_LEVEL=warn
                       shift
                       ;;
                     --fps-limit)
@@ -284,6 +303,17 @@
                       DXVK_ALL_CORES=1
                       shift
                       ;;
+                      ${
+                        if hasKde then
+                          ''
+                            --no-baloo-suspend)
+                              BALOO_SUSPEND=0
+                              shift
+                              ;;
+                          ''
+                        else
+                          ""
+                      }
                     --no-dll-overrides)
                       WINEDLLOVERRIDES=""
                       shift
@@ -392,7 +422,20 @@
 
                 [[ "$MANGOAPP" != "" && "$GAMESCOPE" != "" ]] && MANGOHUD=""
 
-                $GAME_PERFORMANCE $MANGOHUD $GAMEMODE $GAMESCOPE "''${COMMAND[@]}"
+                ${
+                  if hasKde then
+                    ''
+                      BALOOCTL="$(command -v balooctl6 2>/dev/null || command -v balooctl 2>/dev/null)"
+                      if [ "$BALOO_SUSPEND" = "1" ] && [ -n "$BALOOCTL" ]; then
+                        "$BALOOCTL" suspend 2>/dev/null
+                        trap '"$BALOOCTL" resume 2>/dev/null' EXIT INT TERM
+                      fi
+                    ''
+                  else
+                    ""
+                }
+
+                $GAME_INHIBIT $GAME_PERFORMANCE $MANGOHUD $GAMEMODE $GAMESCOPE "''${COMMAND[@]}"
               '';
             }
           );
