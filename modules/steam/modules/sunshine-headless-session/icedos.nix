@@ -143,6 +143,27 @@
           # private portal bus → SIGTRAP → Sunshine core-dumps mid-stream. Disable it.
           services.sunshine.settings.system_tray = mkDefault false;
 
+          # signal-desktop (and any bare-"Chromium" Electron app) shares the generic
+          # PulseAudio application.name "Chromium" with the injected Steam's CEF
+          # steamwebhelper. Each session route_session_audio (scripts.nix) moves the
+          # webhelper's audio onto the capture sink, and WirePlumber persists that as the
+          # saved restore-target for the "Chromium" key — so a desktop Chromium app (Signal)
+          # then inherits it and is pinned to the stream sink instead of the speakers, even
+          # while the system default is the real device. Rename the webhelper's audio so the
+          # session writes its OWN restore key ("Steam") and never poisons the shared
+          # "Chromium" one; helium etc. self-name and were never affected. Routing is
+          # unaffected — route_session_audio matches by PID and Sunshine captures the sink
+          # monitor regardless of client name. Must be a server-side rule: CEF sets
+          # application.name itself, and env (PULSE_PROP*) can't override an app-set prop.
+          services.pipewire.extraConfig.pipewire-pulse."90-steam-headless-audio-name" = {
+            "pulse.rules" = [
+              {
+                matches = [ { "application.process.binary" = "steamwebhelper"; } ];
+                actions.update-props."application.name" = "Steam";
+              }
+            ];
+          };
+
           # Private D-Bus + portal frontend scoped to Sunshine, so gamescope's ScreenCast
           # never touches the host desktop portal and only Sunshine consumes its single
           # pipewire node (two consumers → "out of buffers" → Moonlight crash).
