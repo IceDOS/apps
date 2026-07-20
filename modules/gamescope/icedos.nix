@@ -1,19 +1,30 @@
-{ icedosLib, ... }:
+{ lib, icedosLib, ... }:
 
 {
-  options.icedos.applications.gamescope = icedosLib.mkBoolOption { default = true; };
+  options.icedos.applications.gamescope =
+    let
+      inherit ((fromTOML (lib.readFile ./config.toml)).icedos.applications.gamescope) capSysNice wsi;
+    in
+    {
+      capSysNice = icedosLib.mkBoolOption { default = capSysNice; };
+      wsi = icedosLib.mkBoolOption { default = wsi; };
+    };
 
   outputs.nixosModules =
     { ... }:
     [
       (
         {
-          pkgs,
+          config,
           ...
         }:
 
         {
-          environment.systemPackages = [ pkgs.gamescope ];
+          programs.gamescope = {
+            enable = true;
+            capSysNice = config.icedos.applications.gamescope.capSysNice;
+            enableWsi = config.icedos.applications.gamescope.wsi;
+          };
         }
       )
     ];
