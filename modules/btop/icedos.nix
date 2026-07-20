@@ -86,7 +86,7 @@
           };
 
           btop-sudo = pkgs.writeShellScriptBin "btop-sudo" ''
-            exec /run/wrappers/bin/pkexec ${btopWrapped}/bin/btop "$@"
+            exec ${pkgs.systemd}/bin/run0 ${btopWrapped}/bin/btop "$@"
           '';
         in
         {
