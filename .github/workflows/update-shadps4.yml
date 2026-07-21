@@ -1,0 +1,88 @@
+name: Update shadPS4 Prerelease
+
+on:
+  schedule:
+    # Hourly (UTC). A run with nothing new costs one API call; only an actual bump
+    # clones the repo. GitHub may delay or skip scheduled runs under load, and they
+    # only run on the default branch.
+    - cron: "0 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+# Never run two updaters at once; let an in-flight one finish.
+concurrency:
+  group: update-shadps4
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      # main is ruleset-protected ("changes must be made through a pull request"),
+      # and github-actions[bot] holds no repository role, so role-based bypasses do
+      # not cover it. The App is a bypass actor instead — mint its token up front and
+      # use it for the checkout credentials, the push, and the cache-server dispatch.
+      - name: Mint app token
+        id: app-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.DISPATCH_APP_ID }}
+          private-key: ${{ secrets.DISPATCH_APP_PRIVATE_KEY }}
+          owner: IceDOS
+          repositories: |
+            apps
+            cache-server
+          # Requested explicitly so a missing grant fails here by name, instead of
+          # surfacing later as an opaque 403 on push.
+          permission-contents: write
+          permission-actions: write
+
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+
+      - uses: nixbuild/nix-quick-install-action@v30
+        with:
+          nix_conf: |
+            experimental-features = nix-command flakes
+            nix-path = nixpkgs=channel:nixos-unstable
+
+      - name: Run shadps4 update script
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: nix-shell modules/shadps4/update.sh
+
+      - name: Detect changes
+        id: changes
+        run: |
+          if git diff --quiet modules/shadps4/; then
+            echo "changed=false" >>"$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >>"$GITHUB_OUTPUT"
+          fi
+
+      - name: Commit and push
+        if: steps.changes.outputs.changed == 'true'
+        run: |
+          cd modules/shadps4
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add prerelease.json
+          git commit -m "update(shadps4): prerelease -> $(jq -r '.version' prerelease.json)"
+          git push
+
+      - name: Trigger cache-server build
+        if: steps.changes.outputs.changed == 'true'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ steps.app-token.outputs.token }}
+          script: |
+            await github.rest.actions.createWorkflowDispatch({
+              owner: 'IceDOS',
+              repo: 'cache-server',
+              workflow_id: 'nix-build.yml',
+              ref: 'main',
+            });

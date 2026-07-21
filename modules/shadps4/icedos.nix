@@ -2,26 +2,14 @@
 
 {
 
-  options.icedos.applications.shadps4.customBuild =
+  options.icedos.applications.shadps4 =
     let
       inherit (lib) readFile;
-
-      inherit ((fromTOML (readFile ./config.toml)).icedos.applications.shadps4.customBuild)
-        enable
-        hash
-        owner
-        repo
-        tag
-        ;
-
-      inherit (icedosLib) mkBoolOption mkStrOption;
+      inherit ((fromTOML (readFile ./config.toml)).icedos.applications.shadps4) prerelease;
+      inherit (icedosLib) mkBoolOption;
     in
     {
-      enable = mkBoolOption { default = enable; };
-      hash = mkStrOption { default = hash; };
-      owner = mkStrOption { default = owner; };
-      repo = mkStrOption { default = repo; };
-      tag = mkStrOption { default = tag; };
+      prerelease = mkBoolOption { default = prerelease; };
     };
 
   outputs.nixosModules =
@@ -30,46 +18,23 @@
       (
         {
           config,
+          lib,
           pkgs,
           ...
         }:
 
         let
-          inherit (pkgs) fetchFromGitHub shadps4;
-          inherit (config.icedos.applications.shadps4) customBuild;
+          inherit (lib) mkIf;
+          inherit (config.icedos.applications.shadps4) prerelease;
         in
         {
-          environment.systemPackages =
-            if (customBuild.enable) then
-              [
-                (shadps4.overrideAttrs (
-                  super:
-                  let
-                    inherit (customBuild)
-                      hash
-                      owner
-                      repo
-                      tag
-                      ;
-                  in
-                  {
-                    src = fetchFromGitHub {
-                      inherit (super.src) fetchSubmodules;
+          environment.systemPackages = [ pkgs.shadps4 ];
 
-                      inherit
-                        hash
-                        owner
-                        repo
-                        tag
-                        ;
-                    };
-
-                    version = tag;
-                  }
-                ))
-              ]
-            else
-              [ shadps4 ];
+          # Upstream ships a single rolling prerelease and replaces it in place, so the
+          # pin is a commit (tags disappear) and update.sh / the update-shadps4 workflow
+          # keep prerelease.json fresh. The overlay lives in prerelease.nix because
+          # update.sh evaluates it too — the pin hash depends on how it fetches.
+          nixpkgs.overlays = mkIf prerelease (import ./prerelease.nix).nixpkgs.overlays;
         }
       )
     ];
