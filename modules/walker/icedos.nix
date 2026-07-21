@@ -24,6 +24,28 @@
           inherit (config.icedos) users;
 
           accentHex = (icedosLib.generateAccent config).hexNoHash;
+
+          # Plasma ships its own clipboard manager (the org.kde.plasma.clipboard
+          # applet *is* Klipper in Plasma 6), so wl-clip-persist is redundant
+          # there -- and actively harmful: it takes over the offer, fails
+          # image/png transfers with "Broken pipe", and the source app's
+          # ~WaylandClipboard() then blocks joining its data-source thread for
+          # ~60s. Spectacle exits in ~4s without it and 1-4min with it, and
+          # while it lingers it still owns the single-instance
+          # org.kde.spectacle bus name, so every screenshot launch in that
+          # window fails.
+          #
+          # Gate on the *running* session rather than on plasma6 being installed:
+          # a machine can offer both Plasma and a bare-compositor session, and
+          # the latter still needs this. ExecCondition failure skips the unit
+          # without marking it failed. XDG_CURRENT_DESKTOP is colon-separated
+          # per the desktop-entry spec, hence the case match rather than a
+          # ConditionEnvironment= exact compare.
+          skipUnderPlasma = pkgs.writeShellScript "wl-clip-persist-skip-under-plasma" ''
+            case ":''${XDG_CURRENT_DESKTOP:-}:" in
+              *:KDE:*) exit 1 ;;
+            esac
+          '';
         in
         {
           services.elephant.enable = true;
@@ -182,6 +204,8 @@
                   enable = true;
                   clipboardType = "regular";
                 };
+
+                systemd.user.services.wl-clip-persist.Service.ExecCondition = "${skipUnderPlasma}";
 
                 # The systemd.user.path watcher in the NixOS-side block
                 # only catches changes to ~/.local/share/applications
