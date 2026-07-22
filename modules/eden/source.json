@@ -1,55 +1,55 @@
 {
-  "version": "",
-  "rev": "",
+  "version": "0.2.1",
+  "rev": "v0.2.1",
   "builds": {
     "aarch64": {
       "clang-pgo": {
-        "url": "",
-        "hash": ""
+        "url": "https://stable.eden-emu.dev/v0.2.1/Eden-Linux-v0.2.1-aarch64-clang-pgo.AppImage",
+        "hash": "sha256-tk+SbL90/YcKObFElxCEMj2JXVGRm5HpBjKOf4G+oIc="
       },
       "gcc-standard": {
-        "url": "",
-        "hash": ""
+        "url": "https://stable.eden-emu.dev/v0.2.1/Eden-Linux-v0.2.1-aarch64-gcc-standard.AppImage",
+        "hash": "sha256-SUAU9nQBu759SNpxKNdpc0z5eGO/sjSdSM0qEYFz52k="
       }
     },
     "amd64": {
       "clang-pgo": {
-        "url": "",
-        "hash": ""
+        "url": "https://stable.eden-emu.dev/v0.2.1/Eden-Linux-v0.2.1-amd64-clang-pgo.AppImage",
+        "hash": "sha256-eii/mIsGSIMZiXIr26qQqzE3G0A4CBmYE+DqfIslum0="
       },
       "gcc-standard": {
-        "url": "",
-        "hash": ""
+        "url": "https://stable.eden-emu.dev/v0.2.1/Eden-Linux-v0.2.1-amd64-gcc-standard.AppImage",
+        "hash": "sha256-L65lg5fa8TwRgIKj62XWGmUZlnteIuZmd1a67PYADFo="
       }
     },
     "legacy": {
       "clang-pgo": {
-        "url": "",
-        "hash": ""
+        "url": "https://stable.eden-emu.dev/v0.2.1/Eden-Linux-v0.2.1-legacy-clang-pgo.AppImage",
+        "hash": "sha256-T/9/JNRfq7SvxlLxsIQeOhYVbyc6Og+QS3975gFmVRc="
       },
       "gcc-standard": {
-        "url": "",
-        "hash": ""
+        "url": "https://stable.eden-emu.dev/v0.2.1/Eden-Linux-v0.2.1-legacy-gcc-standard.AppImage",
+        "hash": "sha256-IAOkCHU7lmOjy3IIAIXff+Xwm3gl9ULBoBrRI723yOI="
       }
     },
     "rog-ally": {
       "clang-pgo": {
-        "url": "",
-        "hash": ""
+        "url": "https://stable.eden-emu.dev/v0.2.1/Eden-Linux-v0.2.1-rog-ally-clang-pgo.AppImage",
+        "hash": "sha256-Ak3+MH9+W1ObNUm9kkX2txybqpzHRPMdWNMYGFfYX/w="
       },
       "gcc-standard": {
-        "url": "",
-        "hash": ""
+        "url": "https://stable.eden-emu.dev/v0.2.1/Eden-Linux-v0.2.1-rog-ally-gcc-standard.AppImage",
+        "hash": "sha256-5y3aCN+fhB+qZjMYLBYQIuIhR8CphFPq3a6xHfzxVkU="
       }
     },
     "steamdeck": {
       "clang-pgo": {
-        "url": "",
-        "hash": ""
+        "url": "https://stable.eden-emu.dev/v0.2.1/Eden-Linux-v0.2.1-steamdeck-clang-pgo.AppImage",
+        "hash": "sha256-XMWzWKxkSbQAIbILokMLTRIwJzfbFcjL5bRs6aq4XOU="
       },
       "gcc-standard": {
-        "url": "",
-        "hash": ""
+        "url": "https://stable.eden-emu.dev/v0.2.1/Eden-Linux-v0.2.1-steamdeck-gcc-standard.AppImage",
+        "hash": "sha256-JlFwZNcGNYP0KanLfuBnN8iYBYantj7zA94Wm1WbC1Y="
       }
     }
   }
