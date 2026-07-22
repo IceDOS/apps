@@ -26,6 +26,7 @@
             last
             length
             optional
+            optionalAttrs
             splitString
             ;
 
@@ -39,6 +40,26 @@
           hasPowerProfilesDaemon = config.services.power-profiles-daemon.enable;
 
           packages = [ proton-launch ] ++ optional hasGamescope pkgs.gamescope;
+
+          # Heavy maintenance firing mid-game costs far more than any log spam:
+          # nix GC and fstrim are multi-GB I/O storms, and logrotate plus
+          # fwupd-refresh run hourly. `systemd-inhibit` cannot gate timers, so
+          # reuse the lock GAME_INHIBIT already holds as an ExecCondition. A
+          # failed condition skips that run cleanly and the timer retries on its
+          # next interval.
+          deferWhileGaming = {
+            serviceConfig.ExecCondition = pkgs.writeShellScript "defer-while-proton-launch" ''
+              ! ${pkgs.systemd}/bin/systemd-inhibit --list --no-pager \
+                | ${pkgs.gnugrep}/bin/grep -q proton-launch
+            '';
+          };
+
+          deferredServices =
+            { systemd-tmpfiles-clean = deferWhileGaming; }
+            // optionalAttrs config.programs.nh.clean.enable { nh-clean = deferWhileGaming; }
+            // optionalAttrs config.services.fstrim.enable { fstrim = deferWhileGaming; }
+            // optionalAttrs config.services.logrotate.enable { logrotate = deferWhileGaming; }
+            // optionalAttrs config.services.fwupd.enable { fwupd-refresh = deferWhileGaming; };
 
           conditionalGamemodeHelp =
             if hasGamemode then
@@ -101,7 +122,7 @@
                   echo "Usage: proton-launch [OPTIONS] [--] <command> [args...]"
                   echo "Available options:"
                   echo -e "> ${purpleString "--deck"}: pretend to be a Steam Deck"
-                  echo -e "> ${purpleString "--debug-logs"}: enable VKD3D/DXVK warn logging (off by default)"
+                  echo -e "> ${purpleString "--debug-logs"}: enable VKD3D/DXVK/Proton warn logging into \$XDG_RUNTIME_DIR and stop silencing output (off by default)"
                   ${conditionalGamemodeHelp}
                   ${conditionalGamescopeHelp}
                   echo -e "> ${purpleString "--fps-limit <N>"}: cap framerate at N fps"
@@ -123,6 +144,9 @@
                   echo -e "> ${purpleString "--no-ntsync"}: disable ntsync"
                   echo -e "> ${purpleString "--no-proton-sdl"}: disable proton's SDL preference"
                   echo -e "> ${purpleString "--no-rebar-upload"}: disable VRAM upload via Resizable BAR"
+                  echo -e "> ${purpleString "--no-shader-cache"}: disable DXVK/VKD3D on-disk shader caches (diagnostic only: trades disk writes for much worse compilation stutter)"
+                  echo -e "> ${purpleString "--shader-recording"}: enable steam's fossilize layer to record pipelines to disk while playing"
+                  echo -e "> ${purpleString "--no-steam-overlay"}: disable the steam overlay vulkan layer"
                   echo -e "> ${purpleString "--sdl-x11"}: force SDL to use X11 video driver"
                   echo -e "> ${purpleString "--shader-all-cores"}: use all CPU cores for DXVK shader compilation"
                   echo -e "> ${purpleString "--wayland"}: enable Proton's native Wayland backend"
@@ -131,8 +155,13 @@
                 fi
 
                 BALOO_SUSPEND=1
+                DEBUG_LOGS=0
                 DXVK_CONFIG_OPTS=""
                 DXVK_LOG_LEVEL=none
+                # `none` makes dxvk skip creating the log file entirely, so no
+                # `<exe>_d3d11.log` is written into the game's install dir.
+                DXVK_LOG_PATH=none
+                GST_DEBUG=0
                 LOW_LATENCY_LAYER=0
                 LOW_LATENCY_LAYER_FORCE_DECOUPLED=0
                 LOW_LATENCY_LAYER_REFLEX=0
@@ -140,15 +169,26 @@
                 PROTON_ENABLE_HIDRAW=0
                 PROTON_ENABLE_WAYLAND=0
                 PROTON_FORCE_NVAPI=0
+                PROTON_LOG=0
                 PROTON_NO_ESYNC=0
                 PROTON_PREFER_SDL=1
                 PROTON_USE_WOW64=0
                 SteamDeck=0
                 VKD3D_CONFIG_OPTS=""
                 VKD3D_DEBUG=none
-                WINEDLLOVERRIDES="d3d12=n,b;dbghelp=n,b;dinput8=n,b;dsound=n,b;dwrite=n,b;dxgi=n,b;version=n,b;winhttp=n,b;wininet=n,b;winmm=n,b;$WINEDLLOVERRIDES"
+                # Separate channel from VKD3D_DEBUG, and it also defaults to
+                # `fixme` when unset, so silencing one without the other still
+                # leaves the shader compiler spewing to stderr during the exact
+                # frames where compilation stutter hurts most.
+                VKD3D_SHADER_DEBUG=none
+                # winemenubuilder writes .desktop files, icons and mime entries
+                # into ~/.local/share every time it runs; nothing here wants it.
+                ENABLE_VK_LAYER_VALVE_steam_fossilize_1=0
+                WINEDLLOVERRIDES="d3d12=n,b;dbghelp=n,b;dinput8=n,b;dsound=n,b;dwrite=n,b;dxgi=n,b;version=n,b;winhttp=n,b;wininet=n,b;winmm=n,b;winemenubuilder.exe=d;$WINEDLLOVERRIDES"
                 WINEFSYNC=1
                 mesa_glthread=true
+
+                RUNTIME_DIR="''${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
 
                 ${
                   if (hasAttr "mangohud" applications) then
@@ -197,8 +237,17 @@
                       shift
                       ;;
                     --debug-logs)
+                      DEBUG_LOGS=1
                       VKD3D_DEBUG=warn
+                      VKD3D_SHADER_DEBUG=warn
                       DXVK_LOG_LEVEL=warn
+                      # Point every sink at the tmpfs runtime dir so turning
+                      # logging on never itself becomes the disk I/O problem.
+                      DXVK_LOG_PATH="$RUNTIME_DIR"
+                      VKD3D_LOG_FILE="$RUNTIME_DIR/vkd3d.log"
+                      PROTON_LOG=1
+                      PROTON_LOG_DIR="$RUNTIME_DIR"
+                      GST_DEBUG=2
                       shift
                       ;;
                     --fps-limit)
@@ -362,6 +411,19 @@
                       VKD3D_CONFIG_OPTS="''${VKD3D_CONFIG_OPTS:+$VKD3D_CONFIG_OPTS,}no_upload_hvv"
                       shift
                       ;;
+                    --no-shader-cache)
+                      DXVK_SHADER_CACHE=0
+                      VKD3D_SHADER_CACHE_PATH=0
+                      shift
+                      ;;
+                    --shader-recording)
+                      ENABLE_VK_LAYER_VALVE_steam_fossilize_1=1
+                      shift
+                      ;;
+                    --no-steam-overlay)
+                      DISABLE_VK_LAYER_VALVE_steam_overlay_1=1
+                      shift
+                      ;;
                     --wayland)
                       PROTON_ENABLE_WAYLAND=1
                       shift
@@ -392,11 +454,16 @@
                 [ -n "$VKD3D_CONFIG_OPTS" ] && VKD3D_CONFIG="$VKD3D_CONFIG_OPTS"
 
                 export \
+                DISABLE_VK_LAYER_VALVE_steam_overlay_1 \
                 DXVK_ALL_CORES \
                 DXVK_CONFIG \
                 DXVK_FRAME_RATE \
                 DXVK_LOG_LEVEL \
+                DXVK_LOG_PATH \
+                DXVK_SHADER_CACHE \
+                ENABLE_VK_LAYER_VALVE_steam_fossilize_1 \
                 FSR4_WATERMARK \
+                GST_DEBUG \
                 LOW_LATENCY_LAYER \
                 LOW_LATENCY_LAYER_FORCE_DECOUPLED \
                 LOW_LATENCY_LAYER_REFLEX \
@@ -407,6 +474,8 @@
                 PROTON_ENABLE_WAYLAND \
                 PROTON_FORCE_NVAPI \
                 PROTON_FSR4_UPGRADE \
+                PROTON_LOG \
+                PROTON_LOG_DIR \
                 PROTON_NO_ESYNC \
                 PROTON_PREFER_SDL \
                 PROTON_USE_NTSYNC \
@@ -416,11 +485,41 @@
                 SteamDeck \
                 VKD3D_CONFIG \
                 VKD3D_DEBUG \
+                VKD3D_LOG_FILE \
+                VKD3D_SHADER_CACHE_PATH \
+                VKD3D_SHADER_DEBUG \
                 WINEDLLOVERRIDES \
                 WINEFSYNC \
                 mesa_glthread
 
+                # Proton uses `env.setdefault("WINEDEBUG", "-all")`, so exporting
+                # it unconditionally would neuter PROTON_LOG=1. Only force it
+                # when we are not debugging; it still matters for native wine,
+                # umu and non-Proton commands, which have no such default.
+                if [ "$DEBUG_LOGS" = "0" ]; then
+                  export WINEDEBUG="-all"
+                fi
+
                 [[ "$MANGOAPP" != "" && "$GAMESCOPE" != "" ]] && MANGOHUD=""
+
+                # A crashing game or anti-cheat child otherwise dumps its whole
+                # address space through systemd-coredump mid-session.
+                if [ "$DEBUG_LOGS" = "0" ]; then
+                  ulimit -c 0
+                fi
+
+                # Catch-all for whatever still writes to stderr: proton's python
+                # wrapper, pressure-vessel, anti-cheat, gamescope, mangohud and
+                # any `err:` surviving WINEDEBUG=-all. Under KDE's systemd
+                # startup the game runs in an app-*.scope, so all of that lands
+                # in journald and gets fsynced to disk while playing. Rebinding
+                # the fds with a command-less `exec` leaves the shell (and the
+                # baloo trap below) intact. Point PROTON_LAUNCH_LOG at
+                # "$RUNTIME_DIR/proton-launch.log" for a readable last-run log
+                # that still costs no disk I/O.
+                if [ "$DEBUG_LOGS" = "0" ]; then
+                  exec >"''${PROTON_LAUNCH_LOG:-/dev/null}" 2>&1
+                fi
 
                 ${
                   if hasKde then
@@ -442,6 +541,7 @@
         in
         {
           environment.systemPackages = packages;
+          systemd.services = deferredServices;
 
           nixpkgs.overlays = [
             (final: super: {
