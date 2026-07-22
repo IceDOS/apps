@@ -14,15 +14,19 @@
   qt6,
 }:
 
-stdenv.mkDerivation rec {
+let
+  # Pin refreshed by ./update.sh. Because of `fetchSubmodules`, its hash comes from
+  # nix-prefetch-git rather than the release tarball, which carries no submodule content.
+  source = builtins.fromJSON (builtins.readFile ./source.json);
+in
+stdenv.mkDerivation {
   pname = "bb-launcher";
-  version = "15.07";
+  inherit (source) version;
 
   src = fetchFromGitHub {
     owner = "rainmakerv3";
     repo = "BB_Launcher";
-    rev = "Release${version}";
-    hash = "sha256-0GYB3IcmhTmQ0QctTXRMkaGx9CTA/QBZh54EiF4UiU4=";
+    inherit (source) rev hash;
     fetchSubmodules = true;
   };
 

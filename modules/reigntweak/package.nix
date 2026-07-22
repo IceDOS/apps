@@ -3,26 +3,26 @@
   stdenvNoCC,
 }:
 
-stdenvNoCC.mkDerivation (final: {
+let
+  # Pin refreshed by ./update.sh, which resolves the release asset by name rather than
+  # constructing its URL: upstream shipped `reigntweak.tar.gz` up to ReleaseP1 and a bare
+  # `reigntweak` ELF from Release1.2 on, so the URL is recorded instead of derived.
+  source = builtins.fromJSON (builtins.readFile ./source.json);
+in
+stdenvNoCC.mkDerivation {
   pname = "reigntweak";
-  version = "ReleaseP1";
+  inherit (source) version;
 
   src = fetchurl {
-    url = "https://github.com/Minksh/ReignTweak/releases/download/ReleaseP1/reigntweak.tar.gz";
-    sha256 = "sha256-lvwT9XscZ4DTaaMkRlsNiejWKXc6/qshn+KrokhlPdU=";
+    inherit (source) url hash;
   };
 
-  unpackPhase = ''
-    tar xf $src
-  '';
+  # The asset is the executable itself, not an archive.
+  dontUnpack = true;
 
-  installPhase =
-    let
-      inherit (final) pname;
-      binPath = "$out/bin";
-    in
-    ''
-      mkdir -p ${binPath}
-      mv ${pname} ${binPath}/${pname}
-    '';
-})
+  installPhase = ''
+    runHook preInstall
+    install -Dm755 $src $out/bin/reigntweak
+    runHook postInstall
+  '';
+}

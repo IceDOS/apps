@@ -1,0 +1,56 @@
+{
+  "version": "",
+  "rev": "",
+  "builds": {
+    "aarch64": {
+      "clang-pgo": {
+        "url": "",
+        "hash": ""
+      },
+      "gcc-standard": {
+        "url": "",
+        "hash": ""
+      }
+    },
+    "amd64": {
+      "clang-pgo": {
+        "url": "",
+        "hash": ""
+      },
+      "gcc-standard": {
+        "url": "",
+        "hash": ""
+      }
+    },
+    "legacy": {
+      "clang-pgo": {
+        "url": "",
+        "hash": ""
+      },
+      "gcc-standard": {
+        "url": "",
+        "hash": ""
+      }
+    },
+    "rog-ally": {
+      "clang-pgo": {
+        "url": "",
+        "hash": ""
+      },
+      "gcc-standard": {
+        "url": "",
+        "hash": ""
+      }
+    },
+    "steamdeck": {
+      "clang-pgo": {
+        "url": "",
+        "hash": ""
+      },
+      "gcc-standard": {
+        "url": "",
+        "hash": ""
+      }
+    }
+  }
+}

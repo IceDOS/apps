@@ -28,16 +28,19 @@
 }:
 
 let
+  # Pin refreshed by ./update.sh. The AppImage asset name carries no version, so the
+  # resolved download URL is recorded rather than rebuilt from `version`.
+  source = builtins.fromJSON (builtins.readFile ./source.json);
+
   pname = "simpmusic";
-  version = "1.3.0";
+  inherit (source) version;
 
   appName = "simpmusic";
   desktopFile = "${appName}.desktop";
   icon = "${appName}.png";
 
   simpmusicAppimage = fetchurl {
-    url = "https://github.com/maxrave-dev/SimpMusic/releases/download/v${version}/SimpMusic-x86_64.AppImage";
-    hash = "sha256-nxVAAjUISxEGzLN6SJ/4c37RBLHgX6AhuQXI9b9A238=";
+    inherit (source) url hash;
   };
 
   desktopItem = makeDesktopItem {
