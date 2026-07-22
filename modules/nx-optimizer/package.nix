@@ -11,40 +11,25 @@
 }:
 
 let
-  pname = "nx-optimizer";
-  version = "3.2.0";
+  # Pin refreshed by ./update.sh. Each arch's asset URL is recorded rather than rebuilt
+  # from `version`: the two differ by an `Arm64.` filename infix that only upstream's
+  # naming convention guarantees.
+  source = builtins.fromJSON (builtins.readFile ./source.json);
 
-  # x86_64 and Arm64 assets differ only by this filename infix.
-  archInfix =
-    {
-      x86_64 = "";
-      aarch64 = "Arm64.";
-    }
-    .${build};
+  pname = "nx-optimizer";
+  inherit (source) version;
 
   # Despite the `.AppImage` name, upstream ships a PyInstaller onefile
   # binary (a self-extracting ELF) — there is no squashfs to unpack and
   # `--appimage-extract` is ignored. Install it verbatim and run it under
   # steam-run, which supplies the /lib64 loader the frozen binary needs.
-  src = fetchurl {
-    url = "https://github.com/MaxLastBreath/nx-optimizer/releases/download/manager-${version}/NX.Optimizer.${archInfix}${version}.AppImage";
-
-    hash =
-      {
-        x86_64 = "sha256-a29nCz9KbGFd2vhrMMMUUycKrWqIPCBEO7tFoyaxdNg=";
-        aarch64 = "sha256-vPZY84PULlF2EgDE+lXcuj9yWIkI/eUOWMnlc+5Uztc=";
-      }
-      .${build};
-  };
+  src = fetchurl { inherit (source.builds.${build}) url hash; };
 
   icon = "${pname}.png";
 
   # Onefile binary embeds the icon in its archive; pull the app logo from
   # source for the desktop entry instead.
-  iconSrc = fetchurl {
-    url = "https://raw.githubusercontent.com/MaxLastBreath/nx-optimizer/manager-${version}/src/GUI/LOGO.png";
-    hash = "sha256-c8auhId5jWPkcN4KfYFYoYa/bTht7urgfMoDGkxDKxg=";
-  };
+  iconSrc = fetchurl { inherit (source.icon) url hash; };
 
   desktopFile = "${pname}.desktop";
 

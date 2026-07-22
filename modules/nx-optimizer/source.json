@@ -1,0 +1,18 @@
+{
+  "version": "3.2.0",
+  "rev": "manager-3.2.0",
+  "builds": {
+    "x86_64": {
+      "url": "https://github.com/MaxLastBreath/nx-optimizer/releases/download/manager-3.2.0/NX.Optimizer.3.2.0.AppImage",
+      "hash": "sha256-a29nCz9KbGFd2vhrMMMUUycKrWqIPCBEO7tFoyaxdNg="
+    },
+    "aarch64": {
+      "url": "https://github.com/MaxLastBreath/nx-optimizer/releases/download/manager-3.2.0/NX.Optimizer.Arm64.3.2.0.AppImage",
+      "hash": "sha256-vPZY84PULlF2EgDE+lXcuj9yWIkI/eUOWMnlc+5Uztc="
+    }
+  },
+  "icon": {
+    "url": "https://raw.githubusercontent.com/MaxLastBreath/nx-optimizer/manager-3.2.0/src/GUI/LOGO.png",
+    "hash": "sha256-c8auhId5jWPkcN4KfYFYoYa/bTht7urgfMoDGkxDKxg="
+  }
+}

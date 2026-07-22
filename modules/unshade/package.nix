@@ -14,8 +14,12 @@
 }:
 
 let
+  # Pin refreshed by ./update.sh; `rev` is tracked separately from `version` so an
+  # upstream tag-prefix change does not need a package edit.
+  source = builtins.fromJSON (builtins.readFile ./source.json);
+
   pname = "unshade";
-  version = "0.1.5";
+  inherit (source) version;
 
   runtimeDeps = [
     coreutils
@@ -48,8 +52,7 @@ stdenvNoCC.mkDerivation {
   src = fetchFromGitHub {
     owner = "andy10115";
     repo = "UnShade";
-    rev = "v${version}";
-    hash = "sha256-gGGMbUBVNEAyadfZV13NGnl/c2Xu/pyrlxOE5Px0pek=";
+    inherit (source) rev hash;
   };
 
   nativeBuildInputs = [ makeWrapper ];

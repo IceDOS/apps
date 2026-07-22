@@ -6,15 +6,19 @@
   ninja,
 }:
 
-stdenv.mkDerivation (finalAttrs: {
+let
+  # Pin refreshed by ./update.sh; `rev` is tracked separately from `version` so an
+  # upstream tag-prefix change does not need a package edit.
+  source = builtins.fromJSON (builtins.readFile ./source.json);
+in
+stdenv.mkDerivation {
   pname = "sekirofpsunlock";
-  version = "0.2.3";
+  inherit (source) version;
 
   src = fetchFromGitHub {
     owner = "Lahvuun";
     repo = "sekirofpsunlock";
-    rev = "v${finalAttrs.version}";
-    hash = "sha256-tdKm7VNlOQST2uIXTajD7BCbhLktNRysOuDSYd9ONEU=";
+    inherit (source) rev hash;
   };
 
   nativeBuildInputs = [
@@ -43,4 +47,4 @@ stdenv.mkDerivation (finalAttrs: {
     mainProgram = "sekirofpsunlock";
     platforms = [ "x86_64-linux" ];
   };
-})
+}

@@ -9,56 +9,20 @@
 }:
 
 let
+  # Pin refreshed by ./update.sh. Upstream is a self-hosted Gitea, not GitHub, and each
+  # release ships one AppImage per (build, toolchain) pair — all ten are pinned so any
+  # `build`/`compiledWith` combination stays buildable.
+  source = builtins.fromJSON (builtins.readFile ./source.json);
+
   name = pname;
   pname = "eden";
-  version = "0.2.1";
+  inherit (source) version;
 
   appName = "dev.eden_emu.eden";
   desktopFile = "${appName}.desktop";
   icon = "${appName}.svg";
 
-  edenAppimage = fetchurl {
-    url = "https://git.eden-emu.dev/eden-emu/eden/releases/download/v${version}/Eden-Linux-v${version}-${build}-${compiledWith}.AppImage";
-
-    hash =
-      {
-        aarch64 =
-          {
-            clang-pgo = "sha256-tk+SbL90/YcKObFElxCEMj2JXVGRm5HpBjKOf4G+oIc=";
-            gcc-standard = "sha256-SUAU9nQBu759SNpxKNdpc0z5eGO/sjSdSM0qEYFz52k=";
-          }
-          .${compiledWith};
-
-        amd64 =
-          {
-            clang-pgo = "sha256-eii/mIsGSIMZiXIr26qQqzE3G0A4CBmYE+DqfIslum0=";
-            gcc-standard = "sha256-L65lg5fa8TwRgIKj62XWGmUZlnteIuZmd1a67PYADFo=";
-          }
-          .${compiledWith};
-
-        legacy =
-          {
-            clang-pgo = "sha256-T/9/JNRfq7SvxlLxsIQeOhYVbyc6Og+QS3975gFmVRc=";
-            gcc-standard = "sha256-IAOkCHU7lmOjy3IIAIXff+Xwm3gl9ULBoBrRI723yOI=";
-          }
-          .${compiledWith};
-
-        rog-ally =
-          {
-            clang-pgo = "sha256-Ak3+MH9+W1ObNUm9kkX2txybqpzHRPMdWNMYGFfYX/w=";
-            gcc-standard = "sha256-5y3aCN+fhB+qZjMYLBYQIuIhR8CphFPq3a6xHfzxVkU=";
-          }
-          .${compiledWith};
-
-        steamdeck =
-          {
-            clang-pgo = "sha256-XMWzWKxkSbQAIbILokMLTRIwJzfbFcjL5bRs6aq4XOU=";
-            gcc-standard = "sha256-JlFwZNcGNYP0KanLfuBnN8iYBYantj7zA94Wm1WbC1Y=";
-          }
-          .${compiledWith};
-      }
-      .${build};
-  };
+  edenAppimage = fetchurl { inherit (source.builds.${build}.${compiledWith}) url hash; };
 
   desktopItem = makeDesktopItem {
     name = appName;

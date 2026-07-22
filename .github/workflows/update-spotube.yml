@@ -1,11 +1,11 @@
-name: Update shadPS4 Prerelease
+name: Update Spotube Nightly
 
 on:
   schedule:
-    # Hourly (UTC). A run with nothing new costs one API call; only an actual bump
-    # clones the repo. GitHub may delay or skip scheduled runs under load, and they
-    # only run on the default branch.
-    - cron: "0 * * * *"
+    # Daily (UTC), on its own minute so this repo's updaters never push at the same time.
+    # GitHub may delay or skip scheduled runs under load, and they only run on the
+    # default branch.
+    - cron: "10 9 * * *"
   workflow_dispatch:
 
 permissions:
@@ -13,17 +13,17 @@ permissions:
 
 # Never run two updaters at once; let an in-flight one finish.
 concurrency:
-  group: update-shadps4
+  group: update-spotube
   cancel-in-progress: false
 
 jobs:
   update:
     runs-on: ubuntu-latest
     steps:
-      # main is ruleset-protected ("changes must be made through a pull request"),
-      # and github-actions[bot] holds no repository role, so role-based bypasses do
-      # not cover it. The App is a bypass actor instead — mint its token up front and
-      # use it for the checkout credentials, the push, and the cache-server dispatch.
+      # main may be ruleset-protected ("changes must be made through a pull request"),
+      # and github-actions[bot] holds no repository role, so role-based bypasses would
+      # not cover it. The App is a bypass actor instead — mint its token up front and use
+      # it for the checkout credentials, the push, and the cache-server dispatch.
       - name: Mint app token
         id: app-token
         uses: actions/create-github-app-token@v2
@@ -43,21 +43,33 @@ jobs:
         with:
           token: ${{ steps.app-token.outputs.token }}
 
+      # update.sh sources core/lib/update-lib.sh. CI only checks out this repo, so core
+      # is fetched alongside it; the script falls back to a sibling checkout when run
+      # from a local IceDOS tree, so .icedos-core never exists outside CI.
+      - uses: actions/checkout@v4
+        with:
+          repository: IceDOS/core
+          path: .icedos-core
+
       - uses: nixbuild/nix-quick-install-action@v30
         with:
           nix_conf: |
             experimental-features = nix-command flakes
             nix-path = nixpkgs=channel:nixos-unstable
 
-      - name: Run shadps4 update script
+      - name: Read current pin
+        id: before
+        run: echo "version=$(jq -r '.version' modules/spotube/source.json)" >>"$GITHUB_OUTPUT"
+
+      - name: Run spotube update script
         env:
           GITHUB_TOKEN: ${{ github.token }}
-        run: nix-shell modules/shadps4/update.sh
+        run: nix-shell modules/spotube/update.sh
 
       - name: Detect changes
         id: changes
         run: |
-          if git diff --quiet modules/shadps4/; then
+          if git diff --quiet modules/spotube/; then
             echo "changed=false" >>"$GITHUB_OUTPUT"
           else
             echo "changed=true" >>"$GITHUB_OUTPUT"
@@ -66,12 +78,13 @@ jobs:
       - name: Commit and push
         if: steps.changes.outputs.changed == 'true'
         run: |
-          cd modules/shadps4
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          git add -A .
-          git commit -m "update(shadps4): prerelease -> $(jq -r '.version' prerelease.json)"
+          new=$(jq -r '.version' modules/spotube/source.json)
+          git add -A modules/spotube
+          git commit -m "update(spotube): ${{ steps.before.outputs.version }} -> $new"
+
           # Sibling updaters push to this same branch, so a push can be rejected even
           # after a successful rebase: another job can land in the window between the
           # two. Retry until this one wins.
