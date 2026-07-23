@@ -21,14 +21,11 @@
       (
         { config, lib, ... }:
         let
-          inherit (lib) any attrValues recursiveUpdate;
+          inherit (lib) recursiveUpdate;
           inherit (config.icedos.applications.opencode) extraSettings skills;
 
-          # peon-ping now contributes a nested `peonPing` submodule to the
-          # claude-code per-user option, so its presence on any user signals the
-          # peon-ping module is loaded.
-          claudeUsers = config.icedos.applications.claude-code.users or { };
-          peonPingEnabled = any (u: u ? peonPing) (attrValues claudeUsers);
+          peonPingUsers = config.icedos.applications.peon-ping.users or { };
+          peonPingEnabled = peonPingUsers != { };
         in
         {
           home-manager.sharedModules = [

@@ -11,7 +11,7 @@ let
 
   inherit (lib) readFile;
 
-  inherit ((fromTOML (readFile ./config.toml)).icedos.applications.steam.headlessSession)
+  inherit ((fromTOML (readFile ./config.toml)).icedos.applications.steam.headless-session)
     colorManagement
     excludeHostControllers
     hdr
@@ -27,7 +27,7 @@ let
     steamOS
     upscaleFilter
     fsrSharpness
-    desktopCapture
+    desktop-capture
     ;
 in
 {
@@ -45,13 +45,13 @@ in
 
   # Gamescope render size (upscaled to width/height). 0 → render at output res.
   renderWidth = mkIntBetweenOption {
-    path = "icedos.applications.steam.headlessSession.renderWidth";
+    path = "icedos.applications.steam.headless-session.renderWidth";
     source = ./config.toml;
     default = renderWidth;
   } 0 8192;
 
   renderHeight = mkIntBetweenOption {
-    path = "icedos.applications.steam.headlessSession.renderHeight";
+    path = "icedos.applications.steam.headless-session.renderHeight";
     source = ./config.toml;
     default = renderHeight;
   } 0 8192;
@@ -59,13 +59,13 @@ in
   # SDR-on-HDR tuning: brightness (--hdr-sdr-content-nits) and gamut stretch
   # (--sdr-gamut-wideness, 0 = none .. 1 = full BT.2020).
   sdrContentNits = mkIntBetweenOption {
-    path = "icedos.applications.steam.headlessSession.sdrContentNits";
+    path = "icedos.applications.steam.headless-session.sdrContentNits";
     source = ./config.toml;
     default = sdrContentNits;
   } 0 10000;
 
   sdrGamutWideness = mkFloatBetweenOption {
-    path = "icedos.applications.steam.headlessSession.sdrGamutWideness";
+    path = "icedos.applications.steam.headless-session.sdrGamutWideness";
     source = ./config.toml;
     default = sdrGamutWideness;
   } 0 1;
@@ -74,7 +74,7 @@ in
   upscaleFilter =
     mkEnumOption
       {
-        path = "icedos.applications.steam.headlessSession.upscaleFilter";
+        path = "icedos.applications.steam.headless-session.upscaleFilter";
         source = ./config.toml;
         default = upscaleFilter;
       }
@@ -88,7 +88,7 @@ in
       ];
 
   fsrSharpness = mkIntBetweenOption {
-    path = "icedos.applications.steam.headlessSession.fsrSharpness";
+    path = "icedos.applications.steam.headless-session.fsrSharpness";
     source = ./config.toml;
     default = fsrSharpness;
   } 0 20;
@@ -116,26 +116,26 @@ in
   # Second, independent Sunshine instance that streams the REAL physical KDE Plasma
   # (Wayland) desktop (see desktop-capture.nix), coexisting with the headless gamescope
   # session. Separate daemon: its own ports and its own isolated pairing/state.
-  desktopCapture = {
-    enable = mkBoolOption { default = desktopCapture.enable; };
+  desktop-capture = {
+    enable = mkBoolOption { default = desktop-capture.enable; };
 
     # sunshine_name / mDNS name; must differ from the primary so Moonlight can tell them apart.
-    name = mkStrOption { default = desktopCapture.name; };
+    name = mkStrOption { default = desktop-capture.name; };
 
     # Base port (primary uses 47989); Sunshine derives its whole TCP/UDP block from it.
     port = mkIntBetweenOption {
-      path = "icedos.applications.steam.headlessSession.desktopCapture.port";
+      path = "icedos.applications.steam.headless-session.desktop-capture.port";
       source = ./config.toml;
-      default = desktopCapture.port;
+      default = desktop-capture.port;
     } 1024 65535;
 
     # portal = KDE Wayland ScreenCast (no caps); kms = raw DRM scanout (needs capSysAdmin).
     backend =
       mkEnumOption
         {
-          path = "icedos.applications.steam.headlessSession.desktopCapture.backend";
+          path = "icedos.applications.steam.headless-session.desktop-capture.backend";
           source = ./config.toml;
-          default = desktopCapture.backend;
+          default = desktop-capture.backend;
         }
         [
           "portal"
@@ -143,9 +143,9 @@ in
         ];
 
     # Open the instance's derived TCP/UDP port block in the host firewall.
-    openFirewall = mkBoolOption { default = desktopCapture.openFirewall; };
+    openFirewall = mkBoolOption { default = desktop-capture.openFirewall; };
 
     # Optional specific monitor/output to capture (mainly for kms). Empty = default/portal picker.
-    outputName = mkStrOption { default = desktopCapture.outputName; };
+    outputName = mkStrOption { default = desktop-capture.outputName; };
   };
 }

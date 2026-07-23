@@ -6,12 +6,11 @@
     inputs.nixpkgs.follows = "nixpkgs";
   };
 
-  # Contributes a nested `peonPing` submodule to the claude-code per-user option
-  # (declared in claude-icedos/…/default). peon-ping is wired as a Claude Code
-  # notifier here (installs into ~/.claude/hooks), so its per-user config lives at
-  # icedos.applications.claude-code.users.<name>.peonPing and materialises via that
-  # module's genDefaults.
-  options.icedos.applications.claude-code.users =
+  # Standalone module: peon-ping owns its own per-user option
+  # `icedos.applications.peon-ping.users.<name>`. It is NOT part of claude-code —
+  # claude-code and opencode merely *consume* it (they read this option to detect
+  # the module and wire their hooks/plugins).
+  options.icedos.applications.peon-ping.users =
     let
       inherit (lib) head readFile;
 
@@ -25,7 +24,7 @@
         mkSubmoduleListOption
         ;
 
-      inherit ((fromTOML (readFile ./config.toml)).icedos.applications.claude-code.users.username.peonPing)
+      inherit ((fromTOML (readFile ./config.toml)).icedos.applications.peon-ping.users.username)
         categories
         defaultPack
         desktopNotifications
@@ -35,30 +34,28 @@
         ;
 
       customPackTemplate = head (fromTOML (readFile ./custom-packs.toml))
-        .icedos.applications.claude-code.users.username.peonPing.customPacks;
+        .icedos.applications.peon-ping.users.username.customPacks;
     in
     mkSubmoduleAttrsOption { default = { }; } {
-      peonPing = {
-        defaultPack = mkStrOption { default = defaultPack; };
+      defaultPack = mkStrOption { default = defaultPack; };
 
-        volume = mkFloatBetweenOption {
-          path = "icedos.applications.claude-code.users.<u>.peonPing.volume";
-          source = ./config.toml;
-          default = volume;
-        } 0.0 1.0;
+      volume = mkFloatBetweenOption {
+        path = "icedos.applications.peon-ping.users.<u>.volume";
+        source = ./config.toml;
+        default = volume;
+      } 0.0 1.0;
 
-        desktopNotifications = mkBoolOption { default = desktopNotifications; };
-        suppressSubagentComplete = mkBoolOption { default = suppressSubagentComplete; };
-        categories = mkAttrsOption { default = categories; };
-        packs = mkStrListOption { default = packs; };
+      desktopNotifications = mkBoolOption { default = desktopNotifications; };
+      suppressSubagentComplete = mkBoolOption { default = suppressSubagentComplete; };
+      categories = mkAttrsOption { default = categories; };
+      packs = mkStrListOption { default = packs; };
 
-        customPacks = mkSubmoduleListOption { default = [ ]; } {
-          name = mkStrOption { default = customPackTemplate.name; };
-          owner = mkStrOption { default = customPackTemplate.owner; };
-          repo = mkStrOption { default = customPackTemplate.repo; };
-          rev = mkStrOption { default = customPackTemplate.rev; };
-          hash = mkStrOption { default = customPackTemplate.hash; };
-        };
+      customPacks = mkSubmoduleListOption { default = [ ]; } {
+        name = mkStrOption { default = customPackTemplate.name; };
+        owner = mkStrOption { default = customPackTemplate.owner; };
+        repo = mkStrOption { default = customPackTemplate.repo; };
+        rev = mkStrOption { default = customPackTemplate.rev; };
+        hash = mkStrOption { default = customPackTemplate.hash; };
       };
     };
 
@@ -75,7 +72,7 @@
 
         let
           inherit (lib) filter optionalAttrs;
-          claudeUsers = config.icedos.applications.claude-code.users;
+          peonUsers = config.icedos.applications.peon-ping.users;
           peonPkg = inputs.peon-ping.packages.${pkgs.system}.default;
 
           renderCustomPack = cp: {
@@ -104,11 +101,7 @@
             // optionalAttrs (u.categories != { }) { categories = u.categories; };
         in
         {
-          # Self-sufficient materialisation: fills claude-code.users for every
-          # normal user so peonPing defaults exist even if this module loads
-          # without the claude-code default module. Merges idempotently with that
-          # module's own genDefaults when both are present.
-          icedos.applications.claude-code.users = icedosLib.users.genDefaults {
+          icedos.applications.peon-ping.users = icedosLib.users.genDefaults {
             inherit (config.icedos) users;
           };
 
@@ -118,7 +111,7 @@
               { config, lib, ... }:
 
               let
-                peonUserCfg = claudeUsers.${config.home.username}.peonPing or null;
+                peonUserCfg = peonUsers.${config.home.username} or null;
               in
               lib.mkIf (peonUserCfg != null) {
                 programs.peon-ping = {
