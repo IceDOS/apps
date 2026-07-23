@@ -39,6 +39,11 @@ checkout (`path:/abs/path/to/apps`), then `icedos rebuild --build` (no activatio
 `path:` inputs auto-refresh each build.
 
 ## Notable modules / gotchas
+- `peon-ping` — Warcraft-peon-style agent-event audio. Its per-user config is **not**
+  under `applications.peon-ping.users`; the module contributes a nested `peonPing`
+  submodule to the **claude-code** user (`applications.claude-code.users.<name>.peonPing`)
+  and self-materialises it with `genDefaults`. `opencode` + claude-code's `default` detect
+  it via `userCfg ? peonPing`. See core's *Per-user (`users`) options*.
 - `me3` — game mod loader (per-game profiles/natives/packages).
 - `sunshine` + `steam-sunshine-headless-session` — game streaming, incl. headless HDR.
 - `gamescope`, `lsfg-vk`, `mangohud` — gaming/perf.
