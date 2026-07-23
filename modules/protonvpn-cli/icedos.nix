@@ -13,7 +13,7 @@
 
       inherit ((fromTOML (readFile ./config.toml)).icedos.applications.protonvpn-cli)
         connect
-        desktopEntry
+        desktop-entry
         settings
         ;
     in
@@ -27,9 +27,9 @@
         random = mkBoolOption { default = connect.random; };
       };
 
-      desktopEntry = {
-        enable = mkBoolOption { default = desktopEntry.enable; };
-        countries = mkStrListOption { default = desktopEntry.countries; };
+      desktop-entry = {
+        enable = mkBoolOption { default = desktop-entry.enable; };
+        countries = mkStrListOption { default = desktop-entry.countries; };
       };
 
       settings = {
@@ -64,7 +64,7 @@
 
           inherit (icedos.applications.protonvpn-cli)
             connect
-            desktopEntry
+            desktop-entry
             settings
             ;
 
@@ -155,7 +155,7 @@
               Connect)
                 country=$("$ZEN" --list --title="ProtonVPN — Country" \
                   --column="Country" \
-                  Default ${concatStringsSep " " desktopEntry.countries} "Other…") || exit 0
+                  Default ${concatStringsSep " " desktop-entry.countries} "Other…") || exit 0
                 if [ "$country" = "Other…" ]; then
                   country=$("$ZEN" --entry --title="ProtonVPN — Country" \
                     --text="ISO country code (e.g. US, GB):") || exit 0
@@ -211,7 +211,7 @@
                 };
               };
 
-              xdg.desktopEntries.protonvpn = mkIf desktopEntry.enable {
+              xdg.desktopEntries.protonvpn = mkIf desktop-entry.enable {
                 name = "ProtonVPN Controller";
                 genericName = "Connect, disconnect, or check ProtonVPN status";
                 icon = "protonvpn";

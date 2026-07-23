@@ -6,7 +6,7 @@ random = false
 securecore = false
 tor = false
 
-[icedos.applications.protonvpn-cli.desktopEntry]
+[icedos.applications.protonvpn-cli.desktop-entry]
 enable = true
 countries = []
 

@@ -4,7 +4,7 @@
   options.icedos.applications.steam.os-session =
     let
       inherit (icedosLib) mkBoolOption mkStrOption;
-      inherit (defaultConfig) autoStart user;
+      inherit (defaultConfig) auto-start user;
 
       defaultConfig =
         let
@@ -13,9 +13,9 @@
         (fromTOML (readFile ./config.toml)).icedos.applications.steam.os-session;
     in
     {
-      autoStart = {
-        enable = mkBoolOption { default = autoStart.enable; };
-        desktopSession = mkStrOption { default = autoStart.desktopSession; };
+      auto-start = {
+        enable = mkBoolOption { default = auto-start.enable; };
+        desktopSession = mkStrOption { default = auto-start.desktopSession; };
       };
 
       user = mkStrOption { default = user; };
@@ -35,7 +35,7 @@
         }:
 
         let
-          inherit (applications.steam.os-session) autoStart user;
+          inherit (applications.steam.os-session) auto-start user;
           inherit (config.icedos) applications hardware system;
           inherit (config.services.displayManager) autoLogin;
           inherit (hardware) devices graphics;
@@ -52,14 +52,14 @@
               enable = true;
 
               autoStart =
-                autoStart.enable
+                auto-start.enable
                 && (validate.abort {
                   when = autoLogin.enable;
-                  path = "icedos.applications.steam.os-session.autoStart";
+                  path = "icedos.applications.steam.os-session.auto-start";
                   msg = ''Autologin is enabled for user "${autoLogin.user}" - this configuration is incompatible with steam os session's autostart. Please remove the "icedos.desktop.autologinUser" entry!'';
                 });
 
-              desktopSession = autoStart.desktopSession;
+              desktopSession = auto-start.desktopSession;
               updater.splash = if (hasAttr "steamdeck" devices) then "jovian" else "vendor";
             };
           };

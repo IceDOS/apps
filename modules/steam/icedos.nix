@@ -60,7 +60,7 @@
           hasProtonLaunch = hasAttr "proton-launch" applications;
           optionalGamescope = optional hasGamescope pkgs.gamescope;
           optionalProtonLaunch = optional hasProtonLaunch pkgs.proton-launch;
-          optionalSunshineHeadlessSteamOS = applications.steam.headlessSession.steamOS or false;
+          optionalSunshineHeadlessSteamOS = applications.steam.headless-session.steamOS or false;
           session = hasAttr "session" applications.steam;
           steamdeck = hasAttr "steamdeck" (icedos.hardware.devices or { });
           steamPkg = pkgs.steam;

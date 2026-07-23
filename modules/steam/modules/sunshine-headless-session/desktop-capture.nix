@@ -14,7 +14,7 @@
 {
   pkgs,
   lib,
-  cfg, # icedos.applications.steam.headlessSession.desktopCapture
+  cfg, # icedos.applications.steam.headless-session.desktop-capture
 }:
 
 let

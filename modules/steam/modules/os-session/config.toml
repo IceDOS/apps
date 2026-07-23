@@ -1,6 +1,6 @@
 [icedos.applications.steam.os-session]
 user = ""
 
-[icedos.applications.steam.os-session.autoStart]
+[icedos.applications.steam.os-session.auto-start]
 enable = false
 desktopSession = ""
