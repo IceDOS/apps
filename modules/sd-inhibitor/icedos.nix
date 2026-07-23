@@ -100,6 +100,10 @@
           sessionTargets = icedosLib.systemd.desktopSessionTargets icedos;
         in
         {
+          icedos.applications.sd-inhibitor.users = icedosLib.users.genDefaults {
+            inherit (config.icedos) users;
+          };
+
           imports = icedosLib.getModules ./modules;
 
           icedos.system.toolset.commands = [
