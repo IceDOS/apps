@@ -56,7 +56,7 @@
 
           extraPackages = mapper pkgs applications.steam.extraPackages;
           hasExtraPackages = length extraPackages != 0;
-          hasGamescope = hasAttr "gamescope" applications;
+          hasGamescope = config.programs.gamescope.enable;
           hasProtonLaunch = hasAttr "proton-launch" applications;
           optionalGamescope = optional hasGamescope pkgs.gamescope;
           optionalProtonLaunch = optional hasProtonLaunch pkgs.proton-launch;

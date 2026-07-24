@@ -39,12 +39,13 @@
 
         let
           inherit (lib)
-            hasAttr
+            any
+            attrNames
             listToAttrs
             mkIf
             ;
 
-          inherit (config.icedos) applications;
+          inherit (config.icedos) applications users;
 
           inherit (applications.ollama)
             vulkan
@@ -63,24 +64,26 @@
           };
 
           # Expose the local ollama endpoint to opencode when it is enabled.
-          home-manager.sharedModules = mkIf (hasAttr "opencode" applications) [
-            {
-              # @ai-sdk/openai-compatible is fetched from npm on first use
-              # (normal user-runtime network, not a build-time dependency).
-              programs.opencode.settings.provider.ollama = {
-                npm = "@ai-sdk/openai-compatible";
-                name = "Ollama (local)";
-                options.baseURL = baseURL;
+          home-manager.sharedModules =
+            mkIf (any (user: config.home-manager.users.${user}.programs.opencode.enable) (attrNames users))
+              [
+                {
+                  # @ai-sdk/openai-compatible is fetched from npm on first use
+                  # (normal user-runtime network, not a build-time dependency).
+                  programs.opencode.settings.provider.ollama = {
+                    npm = "@ai-sdk/openai-compatible";
+                    name = "Ollama (local)";
+                    options.baseURL = baseURL;
 
-                models = listToAttrs (
-                  map (m: {
-                    name = m;
-                    value.name = m;
-                  }) loadModels
-                );
-              };
-            }
-          ];
+                    models = listToAttrs (
+                      map (m: {
+                        name = m;
+                        value.name = m;
+                      }) loadModels
+                    );
+                  };
+                }
+              ];
         }
       )
     ];

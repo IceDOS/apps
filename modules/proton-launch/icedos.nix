@@ -21,6 +21,8 @@
 
         let
           inherit (lib)
+            any
+            attrNames
             hasAttr
             head
             last
@@ -32,11 +34,12 @@
 
           inherit (icedosLib.bash) prelude genHelpFlags purpleString;
 
-          inherit (config.icedos) applications hardware;
+          inherit (config.icedos) hardware users;
 
           hasGamemode = config.programs.gamemode.enable;
           hasGamescope = config.programs.gamescope.enable;
           hasKde = config.services.desktopManager.plasma6.enable;
+          hasMangohud = any (user: config.home-manager.users.${user}.programs.mangohud.enable) (attrNames users);
           hasPowerProfilesDaemon = config.services.power-profiles-daemon.enable;
 
           packages = [ proton-launch ] ++ optional hasGamescope pkgs.gamescope;
@@ -54,12 +57,13 @@
             '';
           };
 
-          deferredServices =
-            { systemd-tmpfiles-clean = deferWhileGaming; }
-            // optionalAttrs config.programs.nh.clean.enable { nh-clean = deferWhileGaming; }
-            // optionalAttrs config.services.fstrim.enable { fstrim = deferWhileGaming; }
-            // optionalAttrs config.services.logrotate.enable { logrotate = deferWhileGaming; }
-            // optionalAttrs config.services.fwupd.enable { fwupd-refresh = deferWhileGaming; };
+          deferredServices = {
+            systemd-tmpfiles-clean = deferWhileGaming;
+          }
+          // optionalAttrs config.programs.nh.clean.enable { nh-clean = deferWhileGaming; }
+          // optionalAttrs config.services.fstrim.enable { fstrim = deferWhileGaming; }
+          // optionalAttrs config.services.logrotate.enable { logrotate = deferWhileGaming; }
+          // optionalAttrs config.services.fwupd.enable { fwupd-refresh = deferWhileGaming; };
 
           conditionalGamemodeHelp =
             if hasGamemode then
@@ -191,7 +195,7 @@
                 RUNTIME_DIR="''${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
 
                 ${
-                  if (hasAttr "mangohud" applications) then
+                  if hasMangohud then
                     ''
                       MANGOAPP="--mangoapp"
                       MANGOHUD="${pkgs.mangohud}/bin/mangohud"
@@ -301,7 +305,7 @@
                           ""
                       }
                       ${
-                        if (hasAttr "gamemode" applications) then
+                        if hasGamemode then
                           ''
                             --gamemode)
                               GAMEMODE="${pkgs.gamemode}/bin/gamemoderun"
