@@ -23,6 +23,8 @@
 
           inherit (config.icedos) users;
 
+          nixosConfig = config;
+
           accentHex = (icedosLib.generateAccent config).hexNoHash;
 
           # Plasma ships its own clipboard manager (the org.kde.plasma.clipboard
@@ -177,6 +179,44 @@
                     background: #${inputBgHex};
                   }
                 '';
+
+                # The upstream item_clipboard.xml layout is missing the ItemImage
+                # widget that item.xml has, so clipboard images never render.
+                # Patch the upstream file to insert ItemImageFont + ItemImage before
+                # the text content box.
+                patchedClipboardXml =
+                  replaceStrings
+                    [
+                      ''
+                        <property name="spacing">10</property>
+                        <child>
+                          <object class="GtkBox">
+                      ''
+                    ]
+                    [
+                      ''
+                        <property name="spacing">10</property>
+                        <child>
+                          <object class="GtkLabel" id="ItemImageFont">
+                            <style>
+                              <class name="item-image-text"></class>
+                            </style>
+                            <property name="width-chars">2</property>
+                          </object>
+                        </child>
+                        <child>
+                          <object class="GtkImage" id="ItemImage">
+                            <style>
+                              <class name="item-image"></class>
+                            </style>
+                            <property name="icon-size">large</property>
+                          </object>
+                        </child>
+                        <child>
+                          <object class="GtkBox">
+                      ''
+                    ]
+                    (readFile "${pkgs.walker.src}/resources/themes/default/item_clipboard.xml");
               in
               {
                 services.walker = {
@@ -195,8 +235,8 @@
                     };
 
                   theme = {
-                    name = "theme";
                     style = baseCss + accentOverride;
+                    layout.item_clipboard = lib.mkIf (nixosConfig.services.desktopManager.plasma6.enable) patchedClipboardXml;
                   };
                 };
 
