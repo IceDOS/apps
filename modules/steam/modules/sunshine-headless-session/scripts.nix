@@ -221,7 +221,19 @@ let
         printf '%s' "${gamescopePkg}" >"$rt/sunshine-headless-gamescope-bin"
 
         gamescope_env="DISPLAY=:1 ENABLE_GAMESCOPE_WSI=1 PATH=${mangoappWrapper}/bin:${gamescopePkg}/bin${lib.optionalString mangoApp " MANGOHUD_CONFIGFILE=$rt/sunshine-mangoapp.conf"}"
+        # Free the transient unit name before systemd-run re-creates it. A prior instance
+        # can linger loaded — failed after Restart=always hit its rate limit, or mid
+        # auto-restart (Type=simple is "active" before it makes the socket) — with the
+        # gamescope-0 socket already gone, so the socket guards that gate this function
+        # don't catch it. systemd-run --unit= then refuses the still-loaded name ("was
+        # already loaded or has a fragment file") and, under set -e, aborts the script.
+        # reset-failed clears a failed leftover; stop clears an active/lingering one. We
+        # only reach here with the socket absent, so neither can kill a healthy gamescope.
+        # --collect makes a future failed instance auto-unload, so the name self-frees.
+        systemctl --user reset-failed sunshine-headless-gamescope.service 2>/dev/null || true
+        systemctl --user stop sunshine-headless-gamescope.service 2>/dev/null || true
         systemd-run --user \
+          --collect \
           --unit=sunshine-headless-gamescope.service \
           --property=Type=simple \
           --property=Restart=always \
