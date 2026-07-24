@@ -3,10 +3,10 @@
 {
   options.icedos.applications.steam.session =
     let
-      inherit (lib) readFile types;
+      inherit (lib) importTOML types;
       inherit (icedosLib) mkAttrsOfOption mkStrListOption;
 
-      inherit ((fromTOML (readFile ./config.toml)).icedos.applications.steam.session)
+      inherit ((importTOML ./config.toml).icedos.applications.steam.session)
         args
         env
         steamArgs

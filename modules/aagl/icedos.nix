@@ -3,13 +3,13 @@
 {
   options.icedos.applications.aagl =
     let
-      inherit (lib) readFile;
+      inherit (lib) importTOML;
 
       inherit (icedosLib)
         mkStrListOption
         ;
 
-      inherit ((fromTOML (readFile ./config.toml)).icedos.applications.aagl)
+      inherit ((importTOML ./config.toml).icedos.applications.aagl)
         launchers
         ;
     in

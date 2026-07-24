@@ -9,9 +9,9 @@
         mkStrOption
         ;
 
-      inherit (lib) readFile;
+      inherit (lib) importTOML;
 
-      inherit ((fromTOML (readFile ./config.toml)).icedos.applications.protonvpn-cli)
+      inherit ((importTOML ./config.toml).icedos.applications.protonvpn-cli)
         connect
         desktop-entry
         settings

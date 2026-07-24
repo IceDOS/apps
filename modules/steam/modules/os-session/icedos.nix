@@ -8,9 +8,9 @@
 
       defaultConfig =
         let
-          inherit (lib) readFile;
+          inherit (lib) importTOML;
         in
-        (fromTOML (readFile ./config.toml)).icedos.applications.steam.os-session;
+        (importTOML ./config.toml).icedos.applications.steam.os-session;
     in
     {
       auto-start = {

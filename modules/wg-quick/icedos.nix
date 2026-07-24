@@ -3,8 +3,8 @@
 {
   options.icedos.applications.wg-quick.interfaces =
     let
-      inherit (lib) readFile;
-      inherit ((fromTOML (readFile ./config.toml)).icedos.applications.wg-quick) interfaces;
+      inherit (lib) importTOML;
+      inherit ((importTOML ./config.toml).icedos.applications.wg-quick) interfaces;
     in
     icedosLib.mkStrListOption { default = interfaces; };
 

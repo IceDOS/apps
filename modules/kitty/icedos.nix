@@ -10,9 +10,9 @@
         mkStrOption
         ;
 
-      inherit (lib) readFile;
+      inherit (lib) importTOML;
 
-      inherit ((fromTOML (readFile ./config.toml)).icedos.applications.kitty)
+      inherit ((importTOML ./config.toml).icedos.applications.kitty)
         font
         hideDecorations
         opacity

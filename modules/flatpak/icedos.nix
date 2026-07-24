@@ -5,9 +5,9 @@
 
   options.icedos.applications.flatpak.packages =
     let
-      inherit (lib) readFile;
+      inherit (lib) importTOML;
       inherit (icedosLib) mkStrListOption;
-      inherit ((fromTOML (readFile ./config.toml)).icedos.applications.flatpak) packages;
+      inherit ((importTOML ./config.toml).icedos.applications.flatpak) packages;
     in
     mkStrListOption { default = packages; };
 

@@ -4,9 +4,9 @@
   options.icedos.applications.unshade =
     let
       inherit (icedosLib) mkBoolOption;
-      inherit (lib) readFile;
+      inherit (lib) importTOML;
 
-      inherit ((fromTOML (readFile ./config.toml)).icedos.applications.unshade)
+      inherit ((importTOML ./config.toml).icedos.applications.unshade)
         includeInIcedosGc
         ;
     in

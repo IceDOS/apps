@@ -8,9 +8,9 @@
       inherit
         (
           let
-            inherit (lib) readFile;
+            inherit (lib) importTOML;
           in
-          (fromTOML (readFile ./config.toml)).icedos.applications.steam
+          (importTOML ./config.toml).icedos.applications.steam
         )
         beta
         cpuUsageWorkaround

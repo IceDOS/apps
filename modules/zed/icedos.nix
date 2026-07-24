@@ -7,7 +7,7 @@
 {
   options.icedos.applications.zed =
     let
-      inherit (lib) readFile;
+      inherit (lib) importTOML;
 
       inherit (icedosLib)
         mkAttrsOption
@@ -17,7 +17,7 @@
         mkStrOption
         ;
 
-      inherit ((fromTOML (readFile ./config.toml)).icedos.applications.zed)
+      inherit ((importTOML ./config.toml).icedos.applications.zed)
         autosave
         extensions
         extraPackages

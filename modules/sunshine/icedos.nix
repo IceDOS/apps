@@ -4,9 +4,9 @@
   options.icedos.applications.sunshine =
     let
       inherit (icedosLib) mkAttrsOption mkBoolOption;
-      inherit (lib) readFile;
+      inherit (lib) importTOML;
 
-      inherit ((fromTOML (readFile ./config.toml)).icedos.applications.sunshine)
+      inherit ((importTOML ./config.toml).icedos.applications.sunshine)
         applications
         autoStart
         capSysAdmin

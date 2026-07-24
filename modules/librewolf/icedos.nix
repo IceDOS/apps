@@ -3,9 +3,9 @@
 {
   options.icedos.applications.librewolf.bin =
     let
-      inherit ((fromTOML (readFile ./config.toml)).icedos.applications.librewolf) bin;
+      inherit ((importTOML ./config.toml).icedos.applications.librewolf) bin;
       inherit (icedosLib) mkBoolOption;
-      inherit (lib) readFile;
+      inherit (lib) importTOML;
     in
     mkBoolOption { default = bin; };
 

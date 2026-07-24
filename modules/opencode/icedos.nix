@@ -3,9 +3,9 @@
 {
   options.icedos.applications.opencode =
     let
-      inherit (lib) readFile mkOption;
+      inherit (lib) importTOML mkOption;
 
-      inherit ((fromTOML (readFile ./config.toml)).icedos.applications.opencode)
+      inherit ((importTOML ./config.toml).icedos.applications.opencode)
         extraSettings
         skills
         ;

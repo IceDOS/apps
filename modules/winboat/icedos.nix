@@ -3,8 +3,8 @@
 {
   options.icedos.applications.winboat.autostart =
     let
-      inherit (lib) readFile;
-      inherit ((fromTOML (readFile ./config.toml)).icedos.applications.winboat) autostart;
+      inherit (lib) importTOML;
+      inherit ((importTOML ./config.toml).icedos.applications.winboat) autostart;
     in
     icedosLib.mkBoolOption { default = autostart; };
 
