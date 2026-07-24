@@ -28,7 +28,10 @@
           inherit (config.icedos.applications.shadps4) prerelease;
         in
         {
-          environment.systemPackages = [ pkgs.shadps4 ];
+          environment.systemPackages = with pkgs; [
+            shadps4
+            shadps4-qtlauncher
+          ];
 
           # Upstream ships a single rolling prerelease and replaces it in place, so the
           # pin is a commit (tags disappear) and update.sh / the update-shadps4 workflow
