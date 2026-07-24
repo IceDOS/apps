@@ -12,11 +12,11 @@
         isList
         isString
         mapAttrs
-        readFile
+        importTOML
         types
         ;
 
-      inherit ((fromTOML (readFile ./config.toml)).icedos.applications.me3) games;
+      inherit ((importTOML ./config.toml).icedos.applications.me3) games;
       inherit (icedosLib)
         mkAttrsOption
         mkBoolOption

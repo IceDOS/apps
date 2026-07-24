@@ -3,7 +3,7 @@
 {
   options.icedos.applications.btop =
     let
-      inherit (lib) readFile;
+      inherit (lib) importTOML;
 
       inherit (icedosLib)
         mkBoolOption
@@ -11,7 +11,7 @@
         mkStrOption
         ;
 
-      inherit ((fromTOML (readFile ./config.toml)).icedos.applications.btop)
+      inherit ((importTOML ./config.toml).icedos.applications.btop)
         colorTheme
         speedInBytes
         diskExclusions

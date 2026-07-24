@@ -3,10 +3,10 @@
 {
   options.icedos.applications.obs =
     let
-      inherit (lib) readFile;
+      inherit (lib) importTOML;
       inherit (icedosLib) mkBoolOption mkStrListOption;
 
-      inherit ((fromTOML (readFile ./config.toml)).icedos.applications.obs)
+      inherit ((importTOML ./config.toml).icedos.applications.obs)
         plugins
         virtualCamera
         ;

@@ -4,9 +4,9 @@
   options.icedos.applications.mangohud =
     let
       inherit (icedosLib) mkNumberOption mkStrOption;
-      inherit (lib) readFile;
+      inherit (lib) importTOML;
 
-      inherit ((fromTOML (readFile ./config.toml)).icedos.applications.mangohud)
+      inherit ((importTOML ./config.toml).icedos.applications.mangohud)
         cpuColor
         cpuLoadColor
         engineColor

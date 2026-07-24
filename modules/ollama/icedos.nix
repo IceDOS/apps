@@ -3,7 +3,7 @@
 {
   options.icedos.applications.ollama =
     let
-      inherit (lib) readFile;
+      inherit (lib) importTOML;
 
       inherit (icedosLib)
         mkBoolOption
@@ -12,7 +12,7 @@
         mkStrListOption
         ;
 
-      inherit ((fromTOML (readFile ./config.toml)).icedos.applications.ollama)
+      inherit ((importTOML ./config.toml).icedos.applications.ollama)
         vulkan
         host
         port

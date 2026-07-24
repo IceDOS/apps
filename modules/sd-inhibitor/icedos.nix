@@ -11,9 +11,9 @@
         mkSubmoduleAttrsOption
         ;
 
-      inherit (lib) readFile;
+      inherit (lib) importTOML;
 
-      inherit ((fromTOML (readFile ./config.toml)).icedos.users.username.applications.sd-inhibitor)
+      inherit ((importTOML ./config.toml).icedos.users.username.applications.sd-inhibitor)
         watchers
         ;
     in

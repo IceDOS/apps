@@ -12,7 +12,7 @@
   # the module and wire their hooks/plugins).
   options.icedos.applications.peon-ping.users =
     let
-      inherit (lib) head readFile;
+      inherit (lib) head importTOML;
 
       inherit (icedosLib)
         mkAttrsOption
@@ -24,7 +24,7 @@
         mkSubmoduleListOption
         ;
 
-      inherit ((fromTOML (readFile ./config.toml)).icedos.applications.peon-ping.users.username)
+      inherit ((importTOML ./config.toml).icedos.applications.peon-ping.users.username)
         categories
         defaultPack
         desktopNotifications
@@ -33,7 +33,7 @@
         volume
         ;
 
-      customPackTemplate = head (fromTOML (readFile ./custom-packs.toml))
+      customPackTemplate = head (importTOML ./custom-packs.toml)
         .icedos.applications.peon-ping.users.username.customPacks;
     in
     mkSubmoduleAttrsOption { default = { }; } {

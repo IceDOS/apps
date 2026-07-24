@@ -3,11 +3,11 @@
 {
   options.icedos.applications.helium =
     let
-      inherit ((fromTOML (readFile ./config.toml)).icedos.applications.helium)
+      inherit ((importTOML ./config.toml).icedos.applications.helium)
         drmSupportUsingGoogleChrome
         ;
 
-      inherit ((fromTOML (readFile ./profiles.toml)).icedos.applications.helium)
+      inherit ((importTOML ./profiles.toml).icedos.applications.helium)
         profiles
         ;
 
@@ -18,7 +18,7 @@
         mkSubmoduleListOption
         ;
 
-      inherit (lib) head readFile;
+      inherit (lib) head importTOML;
     in
     {
       drmSupportUsingGoogleChrome = mkBoolOption { default = drmSupportUsingGoogleChrome; };

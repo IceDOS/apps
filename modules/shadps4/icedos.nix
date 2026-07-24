@@ -4,8 +4,8 @@
 
   options.icedos.applications.shadps4 =
     let
-      inherit (lib) readFile;
-      inherit ((fromTOML (readFile ./config.toml)).icedos.applications.shadps4) prerelease;
+      inherit (lib) importTOML;
+      inherit ((importTOML ./config.toml).icedos.applications.shadps4) prerelease;
       inherit (icedosLib) mkBoolOption;
     in
     {

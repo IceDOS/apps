@@ -9,9 +9,9 @@ let
     mkStrOption
     ;
 
-  inherit (lib) readFile;
+  inherit (lib) importTOML;
 
-  inherit ((fromTOML (readFile ./config.toml)).icedos.applications.steam.headless-session)
+  inherit ((importTOML ./config.toml).icedos.applications.steam.headless-session)
     colorManagement
     excludeHostControllers
     hdr
