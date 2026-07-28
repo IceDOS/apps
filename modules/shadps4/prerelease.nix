@@ -28,14 +28,16 @@
             inherit (source) rev hash;
 
             # nixpkgs' hook (submodule init plus the COMMIT/SOURCE_DATE_EPOCH files its
-            # postPatch reads), followed by the two submodules the prerelease newly
-            # needs: protobuf is an unguarded add_subdirectory in externals, and
-            # np_handler.cpp includes <httplib.h> unconditionally.
+            # postPatch reads), followed by the submodules the prerelease newly needs:
+            # protobuf (unguarded add_subdirectory in externals), zstd and zarchive
+            # (added after v0.16), and cpp-httplib (unconditional include in np_handler.cpp).
             postCheckout = old.src.postCheckout + ''
 
               git -C externals submodule update --init --recursive \
                 cpp-httplib \
-                protobuf
+                protobuf \
+                zarchive \
+                zstd
             '';
           };
 
