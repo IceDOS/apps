@@ -1,9 +1,10 @@
-{ lib, ... }:
+{ icedosLib, lib, ... }:
 
 {
   options.icedos.applications.opencode =
     let
-      inherit (lib) importTOML mkOption;
+      inherit (icedosLib) mkAttrsOfOption;
+      inherit (lib) importTOML;
 
       inherit ((importTOML ./config.toml).icedos.applications.opencode)
         extraSettings
@@ -11,8 +12,8 @@
         ;
     in
     {
-      extraSettings = mkOption { default = extraSettings; };
-      skills = mkOption { default = skills; };
+      extraSettings = mkAttrsOfOption { default = extraSettings; } lib.types.anything;
+      skills = mkAttrsOfOption { default = skills; } lib.types.anything;
     };
 
   outputs.nixosModules =
