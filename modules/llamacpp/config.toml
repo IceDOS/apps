@@ -1,0 +1,18 @@
+[icedos.applications.llamacpp]
+cacheTypeK = ""
+cacheTypeV = ""
+contextSize = 4096
+flashAttn = false
+batchSize = 2048
+gpuLayers = 99
+host = "127.0.0.1"
+model = ""
+mmproj = ""
+prio = 2
+prioBatch = 3
+port = 8080
+reasoningBudgetDivider = 1.25
+reasoningPreserve = true
+service = false
+threads = -1
+ubatchSize = 512
