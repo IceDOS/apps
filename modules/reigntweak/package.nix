@@ -1,5 +1,7 @@
 {
+  autoPatchelfHook,
   fetchurl,
+  gcc,
   stdenvNoCC,
 }:
 
@@ -19,6 +21,9 @@ stdenvNoCC.mkDerivation {
 
   # The asset is the executable itself, not an archive.
   dontUnpack = true;
+
+  nativeBuildInputs = [ autoPatchelfHook ];
+  buildInputs = [ gcc.cc.lib ];
 
   installPhase = ''
     runHook preInstall
