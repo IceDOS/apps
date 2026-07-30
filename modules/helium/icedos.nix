@@ -48,32 +48,57 @@
         let
           inherit (config.icedos) applications desktop;
           inherit (desktop) defaultBrowser;
-          inherit (applications.helium) drmSupportUsingGoogleChrome profiles;
+          inherit (applications.helium) drmSupportUsingGoogleChrome;
           inherit (pkgs) google-chrome nur;
           inherit (nur.repos.Ev357) helium;
 
           inherit (lib)
-            concatStringsSep
-            length
             mkIf
-            optional
             optionals
             ;
 
-          flags = concatStringsSep " " (
-            [ "--enable-features=AcceleratedVideoEncoder" ]
-            ++ optional ((length profiles) != 0) "--profile-directory=Default"
-          );
-
-          package = pkgs.runCommand "helium" { } ''
-            mkdir -p $out/bin
-
-            echo '#!/bin/sh' > $out/bin/helium
-            echo "${helium}/bin/helium ${flags} \"\$@\"" >> $out/bin/helium
-            chmod +x $out/bin/helium
-
-            ln -s ${helium}/share $out
+          wrapperScript = pkgs.writeShellScriptBin "helium-wrapper" ''
+            case " $* " in
+              *" --profile-directory"*) ;;
+              *) set -- --profile-directory=Default "$@" ;;
+            esac
+            exec ${helium}/bin/helium --enable-features=AcceleratedVideoEncoder "$@"
           '';
+
+          package = pkgs.symlinkJoin {
+            name = "helium";
+            paths = [ helium ];
+            postBuild = ''
+              rm -rf $out/bin
+              mkdir -p $out/bin
+              for f in ${helium}/bin/*; do
+                ln -s "$f" "$out/bin/$(basename "$f")"
+              done
+              rm -f $out/bin/helium
+              ln -s ${wrapperScript}/bin/helium-wrapper $out/bin/helium
+
+              desktop="$out/share/applications/helium.desktop"
+              if [ -f "$desktop" ] && [ -s "$desktop" ]; then
+                rm -f "$desktop"
+                cp "${helium}/share/applications/helium.desktop" "$desktop"
+                substituteInPlace "$desktop" \
+                  --replace-fail "Exec=helium" "Exec=$out/bin/helium"
+              else
+                rm -f "$desktop"
+                mkdir -p "$(dirname "$desktop")"
+                cat > "$desktop" << DESKTOPFILE
+[Desktop Entry]
+Exec=$out/bin/helium %U
+Icon=helium
+Terminal=false
+Type=Application
+Categories=Network;WebBrowser;
+MimeType=x-scheme-handler/http;x-scheme-handler/https;text/html;
+Name=Helium
+DESKTOPFILE
+              fi
+            '';
+          };
         in
         {
           environment = {
@@ -111,7 +136,7 @@
         }:
 
         let
-          inherit (lib) listToAttrs;
+          inherit (lib) concatStringsSep escapeShellArg listToAttrs map;
           inherit (config.icedos.applications.helium) profiles;
           inherit (pkgs.nur.repos.Ev357) helium;
         in
@@ -119,7 +144,8 @@
           environment.systemPackages = map (
             profile:
             pkgs.writeShellScriptBin profile.exec ''
-              helium --profile-directory="${profile.exec}" ${toString profile.sites}
+              helium --profile-directory=${escapeShellArg profile.exec} \
+                ${concatStringsSep " " (map escapeShellArg profile.sites)} "$@"
             ''
           ) profiles;
 
