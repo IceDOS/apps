@@ -3,6 +3,11 @@ defaultPack = "peon"
 volume = 0.5
 desktopNotifications = false
 suppressSubagentComplete = true
+silentWindowSeconds = 0
 packs = ["peon"]
 
 [icedos.applications.peon-ping.users.username.categories]
+"session.start" = false
+"task.error" = false
+"resource.limit" = false
+"user.spam" = false

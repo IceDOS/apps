@@ -18,6 +18,7 @@
         mkAttrsOption
         mkBoolOption
         mkFloatBetweenOption
+        mkIntBetweenOption
         mkStrListOption
         mkStrOption
         mkSubmoduleAttrsOption
@@ -29,6 +30,7 @@
         defaultPack
         desktopNotifications
         packs
+        silentWindowSeconds
         suppressSubagentComplete
         volume
         ;
@@ -47,7 +49,23 @@
 
       desktopNotifications = mkBoolOption { default = desktopNotifications; };
       suppressSubagentComplete = mkBoolOption { default = suppressSubagentComplete; };
+
+      # `Stop` fires at the end of *every* assistant turn, not once per task, so
+      # `task.complete` alone is noisy. Non-zero suppresses it when the turn took
+      # less than N seconds; the idle/stuck ping bypasses this window entirely.
+      silentWindowSeconds = mkIntBetweenOption {
+        path = "icedos.applications.peon-ping.users.<u>.silentWindowSeconds";
+        source = ./config.toml;
+        default = silentWindowSeconds;
+      } 0 3600;
+
+      # Per-category sound switches. Keys (all default on except task.acknowledge):
+      #   session.start  task.acknowledge  task.complete  task.error
+      #   input.required  resource.limit  user.spam
+      # task.complete covers both turn-end and idle/stuck; input.required covers
+      # permission prompts and elicitation questions.
       categories = mkAttrsOption { default = categories; };
+
       packs = mkStrListOption { default = packs; };
 
       customPacks = mkSubmoduleListOption { default = [ ]; } {
@@ -97,6 +115,7 @@
               volume = u.volume;
               desktop_notifications = u.desktopNotifications;
               suppress_subagent_complete = u.suppressSubagentComplete;
+              silent_window_seconds = u.silentWindowSeconds;
             }
             // optionalAttrs (u.categories != { }) { categories = u.categories; };
         in
