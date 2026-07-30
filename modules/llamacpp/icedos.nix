@@ -121,13 +121,12 @@
               --prio ${toString prio} \
               --prio-batch ${toString prioBatch} \
               --ctx-size ${toString contextSize} \
-              --reasoning-budget ${toString (contextSize / reasoningBudgetDivider)} \
+              --reasoning-budget ${toString (builtins.floor (contextSize / reasoningBudgetDivider))} \
               ${lib.optionalString (cacheTypeK != "") "--cache-type-k ${cacheTypeK}"} \
               ${lib.optionalString (cacheTypeV != "") "--cache-type-v ${cacheTypeV}"} \
-              ${lib.optionalString flashAttn "--flash-attn"} \
+              --flash-attn ${if flashAttn then "on" else "off"} \
               ${lib.optionalString reasoningPreserve "--reasoning-preserve"} \
-              ${lib.optionalString (mmproj != "") "--mmproj ${mmproj}"} \
-              ${lib.optionalString (mmproj != "") "--image-min-tokens 1024"} \
+              ${lib.optionalString (mmproj != "") "--mmproj ${mmproj} --image-min-tokens 1024"} \
               "$@"
           '';
         in
@@ -144,20 +143,74 @@
               commands = [
                 {
                   command = "serve";
-                  help = "Run configured model";
+                  help = "Run configured model with optional --flags";
 
                   script = ''
-                    case "$1" in
-                      "")
-                        exec systemd-run --user --scope ${llamaServer}
-                        ;;
-                      -d|--detached)
-                        nohup systemd-run --user --scope ${llamaServer} 2>&1 >/dev/null &
-                        ;;
-                      *)
-                        die "unknown arg: $1"
-                        ;;
-                    esac
+                    ${icedosLib.bash.mkFlags {
+                      prefix = "LLAMACPP";
+                      passthroughUnknown = true;
+                      flags = [
+                        { name = "host"; short = "H"; type = "string"; default = host; description = "Listen address"; }
+                        { name = "port"; short = "p"; type = "int"; default = port; description = "Listen port"; }
+                        { name = "model"; short = "m"; type = "string"; default = model; description = "Model path"; }
+                        { name = "gpu-layers"; short = "ngl"; type = "int"; default = gpuLayers; description = "GPU layers"; }
+                        { name = "threads"; short = "t"; type = "int"; default = threads; description = "CPU threads"; }
+                        { name = "ctx-size"; short = "c"; type = "int"; default = contextSize; description = "Context size"; }
+                        { name = "batch-size"; short = "b"; type = "int"; default = batchSize; description = "Batch size"; }
+                        { name = "ubatch-size"; type = "int"; default = ubatchSize; description = "Microbatch size"; }
+                        { name = "cache-type-k"; short = "ctk"; type = "string"; default = cacheTypeK; description = "KV cache type for K"; }
+                        { name = "cache-type-v"; short = "ctv"; type = "string"; default = cacheTypeV; description = "KV cache type for V"; }
+                        { name = "mmproj"; type = "string"; default = mmproj; description = "Multimodal projector path"; }
+                        { name = "prio"; type = "int"; default = prio; description = "Prioritization (0 = no priority)"; }
+                        { name = "prio-batch"; type = "int"; default = prioBatch; description = "Prioritization batch size"; }
+                        { name = "flash-attn"; type = "enum"; default = if flashAttn then "on" else "off"; description = "Flash attention"; choices = ["on" "off" "auto"]; }
+                        { name = "reasoning-budget"; type = "int"; default = contextSize / reasoningBudgetDivider; description = "Reasoning budget tokens"; }
+                        { name = "reasoning-preserve"; type = "bool"; default = reasoningPreserve; description = "Preserve reasoning trace"; }
+                        { name = "detached"; short = "d"; type = "bool"; default = false; description = "Run in background"; }
+                      ];
+                    }}
+
+                    # Single-session guard
+                    PIDFILE="''${XDG_RUNTIME_DIR:?XDG_RUNTIME_DIR unset}/icedos/llamacpp.pid"
+                    if [[ -f "$PIDFILE" ]]; then
+                      PID=$(cat "$PIDFILE")
+                      if kill -0 "$PID" 2>/dev/null; then
+                        die "llamacpp is already running (PID $PID)"
+                      fi
+                      rm -f "$PIDFILE"
+                    fi
+
+                    # Build override args for flags that were explicitly set
+                    ARGS=()
+                    if [[ "$LLAMACPP_HOST_SET" == "1" ]]; then ARGS+=(--host "$LLAMACPP_HOST"); fi
+                    if [[ "$LLAMACPP_PORT_SET" == "1" ]]; then ARGS+=(--port "$LLAMACPP_PORT"); fi
+                    if [[ "$LLAMACPP_MODEL_SET" == "1" ]]; then ARGS+=(--model "$LLAMACPP_MODEL"); fi
+                    if [[ "$LLAMACPP_GPU_LAYERS_SET" == "1" ]]; then ARGS+=(--gpu-layers "$LLAMACPP_GPU_LAYERS"); fi
+                    if [[ "$LLAMACPP_THREADS_SET" == "1" ]]; then ARGS+=(--threads "$LLAMACPP_THREADS"); fi
+                    if [[ "$LLAMACPP_CTX_SIZE_SET" == "1" ]]; then ARGS+=(--ctx-size "$LLAMACPP_CTX_SIZE"); fi
+                    if [[ "$LLAMACPP_BATCH_SIZE_SET" == "1" ]]; then ARGS+=(--batch-size "$LLAMACPP_BATCH_SIZE"); fi
+                    if [[ "$LLAMACPP_UBATCH_SIZE_SET" == "1" ]]; then ARGS+=(--ubatch-size "$LLAMACPP_UBATCH_SIZE"); fi
+                    if [[ "$LLAMACPP_CACHE_TYPE_K_SET" == "1" ]]; then ARGS+=(--cache-type-k "$LLAMACPP_CACHE_TYPE_K"); fi
+                    if [[ "$LLAMACPP_CACHE_TYPE_V_SET" == "1" ]]; then ARGS+=(--cache-type-v "$LLAMACPP_CACHE_TYPE_V"); fi
+                    if [[ "$LLAMACPP_MMPROJ_SET" == "1" ]]; then ARGS+=(--mmproj "$LLAMACPP_MMPROJ" --image-min-tokens 1024); fi
+                    if [[ "$LLAMACPP_PRIO_SET" == "1" ]]; then ARGS+=(--prio "$LLAMACPP_PRIO"); fi
+                    if [[ "$LLAMACPP_PRIO_BATCH_SET" == "1" ]]; then ARGS+=(--prio-batch "$LLAMACPP_PRIO_BATCH"); fi
+                    if [[ "$LLAMACPP_FLASH_ATTN_SET" == "1" ]]; then ARGS+=(--flash-attn "$LLAMACPP_FLASH_ATTN"); fi
+                    if [[ "$LLAMACPP_REASONING_BUDGET_SET" == "1" ]]; then ARGS+=(--reasoning-budget "$LLAMACPP_REASONING_BUDGET"); fi
+                    if [[ "$LLAMACPP_REASONING_PRESERVE_SET" == "1" ]]; then
+                      if [[ "$LLAMACPP_REASONING_PRESERVE" == "true" ]]; then
+                        ARGS+=(--reasoning-preserve)
+                      else
+                        ARGS+=(--no-reasoning-preserve)
+                      fi
+                    fi
+                    ARGS+=("$@")
+
+                    if [[ "$LLAMACPP_DETACHED" == "true" ]]; then
+                      nohup systemd-run --user --scope ${llamaServer} "''${ARGS[@]}" >/dev/null 2>&1 &
+                    else
+                      exec systemd-run --user --scope ${llamaServer} "''${ARGS[@]}"
+                    fi
                   '';
                 }
               ];
