@@ -39,7 +39,9 @@
           hasGamemode = config.programs.gamemode.enable;
           hasGamescope = config.programs.gamescope.enable;
           hasKde = config.services.desktopManager.plasma6.enable;
-          hasMangohud = any (user: config.home-manager.users.${user}.programs.mangohud.enable) (attrNames users);
+          hasMangohud = any (user: config.home-manager.users.${user}.programs.mangohud.enable) (
+            attrNames users
+          );
           hasPowerProfilesDaemon = config.services.power-profiles-daemon.enable;
 
           packages = [ proton-launch ] ++ optional hasGamescope pkgs.gamescope;
