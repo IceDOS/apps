@@ -83,19 +83,6 @@
                 cp "${helium}/share/applications/helium.desktop" "$desktop"
                 substituteInPlace "$desktop" \
                   --replace-fail "Exec=helium" "Exec=$out/bin/helium"
-              else
-                rm -f "$desktop"
-                mkdir -p "$(dirname "$desktop")"
-                cat > "$desktop" << DESKTOPFILE
-[Desktop Entry]
-Exec=$out/bin/helium %U
-Icon=helium
-Terminal=false
-Type=Application
-Categories=Network;WebBrowser;
-MimeType=x-scheme-handler/http;x-scheme-handler/https;text/html;
-Name=Helium
-DESKTOPFILE
               fi
             '';
           };
@@ -136,7 +123,7 @@ DESKTOPFILE
         }:
 
         let
-          inherit (lib) concatStringsSep escapeShellArg listToAttrs map;
+          inherit (lib) concatStringsSep escapeShellArg listToAttrs;
           inherit (config.icedos.applications.helium) profiles;
           inherit (pkgs.nur.repos.Ev357) helium;
         in

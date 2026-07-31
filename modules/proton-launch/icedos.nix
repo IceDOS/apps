@@ -552,7 +552,7 @@
           nixpkgs.overlays = [
             (final: super: {
               inherit proton-launch;
-              scopebuddy = inputs.scopebuddy.packages.${pkgs.stdenv.system}.default;
+              scopebuddy = inputs.scopebuddy.packages.${pkgs.stdenv.hostPlatform.system}.default;
             })
           ];
         }

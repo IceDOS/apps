@@ -13,7 +13,7 @@
         { pkgs, ... }:
         {
           environment.systemPackages = [
-            inputs.ambiled.packages.${pkgs.stdenv.system}.default
+            inputs.ambiled.packages.${pkgs.stdenv.hostPlatform.system}.default
           ];
         }
       )

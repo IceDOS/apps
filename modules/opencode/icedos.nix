@@ -65,7 +65,12 @@
             }
 
             (
-              { config, lib, pkgs, ... }:
+              {
+                config,
+                lib,
+                pkgs,
+                ...
+              }:
 
               lib.mkIf peonPingEnabled (
                 let
@@ -105,7 +110,8 @@
                   xdg.configFile."opencode/peon-ping/config.json" = lib.mkIf (userCfg != null) {
                     source = (pkgs.formats.json { }).generate "opencode-peon-ping.json" fullConfig;
                   };
-                })
+                }
+              )
             )
           ];
         }
