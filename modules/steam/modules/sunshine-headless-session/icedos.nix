@@ -110,6 +110,11 @@
             };
           };
 
+          # Steam in -steamos3 mode expects InputPlumber for controller ordering and
+          # input routing (composite devices, D-Bus API). Without it the Controller Order
+          # UI in Settings is hidden entirely.
+          services.inputplumber.enable = mkIf steamOS true;
+
           # Let a local active session create + tune ONLY the sunshine-headless-steam
           # scope (the cgroup device policy for the injected Steam), without sudo.
           security.polkit.extraConfig = mkIf excludeHostControllers ''
