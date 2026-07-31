@@ -150,23 +150,123 @@
                       prefix = "LLAMACPP";
                       passthroughUnknown = true;
                       flags = [
-                        { name = "host"; short = "H"; type = "string"; default = host; description = "Listen address"; }
-                        { name = "port"; short = "p"; type = "int"; default = port; description = "Listen port"; }
-                        { name = "model"; short = "m"; type = "string"; default = model; description = "Model path"; }
-                        { name = "gpu-layers"; short = "ngl"; type = "int"; default = gpuLayers; description = "GPU layers"; }
-                        { name = "threads"; short = "t"; type = "int"; default = threads; description = "CPU threads"; }
-                        { name = "ctx-size"; short = "c"; type = "int"; default = contextSize; description = "Context size"; }
-                        { name = "batch-size"; short = "b"; type = "int"; default = batchSize; description = "Batch size"; }
-                        { name = "ubatch-size"; type = "int"; default = ubatchSize; description = "Microbatch size"; }
-                        { name = "cache-type-k"; short = "ctk"; type = "string"; default = cacheTypeK; description = "KV cache type for K"; }
-                        { name = "cache-type-v"; short = "ctv"; type = "string"; default = cacheTypeV; description = "KV cache type for V"; }
-                        { name = "mmproj"; type = "string"; default = mmproj; description = "Multimodal projector path"; }
-                        { name = "prio"; type = "int"; default = prio; description = "Prioritization (0 = no priority)"; }
-                        { name = "prio-batch"; type = "int"; default = prioBatch; description = "Prioritization batch size"; }
-                        { name = "flash-attn"; type = "enum"; default = if flashAttn then "on" else "off"; description = "Flash attention"; choices = ["on" "off" "auto"]; }
-                        { name = "reasoning-budget"; type = "int"; default = contextSize / reasoningBudgetDivider; description = "Reasoning budget tokens"; }
-                        { name = "reasoning-preserve"; type = "bool"; default = reasoningPreserve; description = "Preserve reasoning trace"; }
-                        { name = "detached"; short = "d"; type = "bool"; default = false; description = "Run in background"; }
+                        {
+                          name = "host";
+                          short = "H";
+                          type = "string";
+                          default = host;
+                          description = "Listen address";
+                        }
+                        {
+                          name = "port";
+                          short = "p";
+                          type = "int";
+                          default = port;
+                          description = "Listen port";
+                        }
+                        {
+                          name = "model";
+                          short = "m";
+                          type = "string";
+                          default = model;
+                          description = "Model path";
+                        }
+                        {
+                          name = "gpu-layers";
+                          short = "ngl";
+                          type = "int";
+                          default = gpuLayers;
+                          description = "GPU layers";
+                        }
+                        {
+                          name = "threads";
+                          short = "t";
+                          type = "int";
+                          default = threads;
+                          description = "CPU threads";
+                        }
+                        {
+                          name = "ctx-size";
+                          short = "c";
+                          type = "int";
+                          default = contextSize;
+                          description = "Context size";
+                        }
+                        {
+                          name = "batch-size";
+                          short = "b";
+                          type = "int";
+                          default = batchSize;
+                          description = "Batch size";
+                        }
+                        {
+                          name = "ubatch-size";
+                          type = "int";
+                          default = ubatchSize;
+                          description = "Microbatch size";
+                        }
+                        {
+                          name = "cache-type-k";
+                          short = "ctk";
+                          type = "string";
+                          default = cacheTypeK;
+                          description = "KV cache type for K";
+                        }
+                        {
+                          name = "cache-type-v";
+                          short = "ctv";
+                          type = "string";
+                          default = cacheTypeV;
+                          description = "KV cache type for V";
+                        }
+                        {
+                          name = "mmproj";
+                          type = "string";
+                          default = mmproj;
+                          description = "Multimodal projector path";
+                        }
+                        {
+                          name = "prio";
+                          type = "int";
+                          default = prio;
+                          description = "Prioritization (0 = no priority)";
+                        }
+                        {
+                          name = "prio-batch";
+                          type = "int";
+                          default = prioBatch;
+                          description = "Prioritization batch size";
+                        }
+                        {
+                          name = "flash-attn";
+                          type = "enum";
+                          default = if flashAttn then "on" else "off";
+                          description = "Flash attention";
+                          choices = [
+                            "on"
+                            "off"
+                            "auto"
+                          ];
+                        }
+                        {
+                          name = "reasoning-budget";
+                          type = "int";
+                          default = contextSize / reasoningBudgetDivider;
+                          description = "Reasoning budget tokens";
+                        }
+                        {
+                          name = "reasoning-preserve";
+                          type = "bool";
+                          default = reasoningPreserve;
+                          description = "Preserve reasoning trace";
+                        }
+                        {
+                          name = "detached";
+                          short = "d";
+                          type = "bool";
+                          default = false;
+                          description = "Run in background";
+                        }
                       ];
                     }}
 

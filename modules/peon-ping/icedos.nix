@@ -91,7 +91,7 @@
         let
           inherit (lib) filter optionalAttrs;
           peonUsers = config.icedos.applications.peon-ping.users;
-          peonPkg = inputs.peon-ping.packages.${pkgs.system}.default;
+          peonPkg = inputs.peon-ping.packages.${pkgs.stdenv.hostPlatform.system}.default;
 
           renderCustomPack = cp: {
             inherit (cp) name;
