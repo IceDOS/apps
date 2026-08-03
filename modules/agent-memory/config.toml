@@ -1,0 +1,35 @@
+[icedos.applications.agent-memory]
+coreImage = "docker.io/agentmemory/memory-core:latest"
+hubImage = "docker.io/agentmemory/memory-hub:latest"
+
+# "newer" re-checks the registry on every start, so :latest actually tracks
+# upstream instead of freezing at whatever was cached first. Costs a registry
+# round-trip per start and needs network at boot; "missing" avoids both but
+# then only ever pulls once.
+pullPolicy = "newer"
+
+corePort = 8420
+panelPort = 8125
+knowledgePort = 8424
+
+# OpenAI-compatible endpoint used for wiki ingest and memory extraction.
+# The API key is NOT here — it lives in envFile, outside the nix store.
+llmBaseUrl = "https://ollama.com/v1"
+llmModel = "gpt-oss:120b"
+llmProtocol = "openai"
+
+# chat = extract memory from ordinary conversation; code = code-engineering focus
+promptMode = "chat"
+
+# Path relative to the user's home; the module joins it with users.users.<user>.home.
+# Must be an absolute path once joined, because podman --env-file does not expand
+# systemd specifiers. Mode 0600, kept out of the nix store on purpose.
+# Needs BOTH names, same value: MEMORY_LLM_API_KEY (read by the unit to render the
+# gateway config) and LLM_API_KEY (passed into the hub container).
+envFile = ".config/agent-memory/env"
+
+# User whose systemd session runs the containers.
+user = "ice"
+
+# Start the containers automatically. false = options only, nothing runs.
+service = true
