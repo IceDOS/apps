@@ -3,16 +3,31 @@
 {
   options.icedos.applications.opencode =
     let
-      inherit (icedosLib) mkAttrsOfOption;
+      inherit (icedosLib)
+        mkAttrsOfOption
+        mkNumberOption
+        mkStrListOption
+        mkStrOption
+        ;
       inherit (lib) importTOML;
 
       inherit ((importTOML ./config.toml).icedos.applications.opencode)
+        agentMemory
         extraSettings
         peonPingOverrides
         skills
         ;
     in
     {
+      # Knowledge MCP server (code graph + wiki) from the apps `agent-memory`
+      # module. Kept here rather than in that module so each client owns its own
+      # wiring, matching how claude-icedos owns the Claude Code side.
+      agentMemory = {
+        users = mkStrListOption { default = agentMemory.users; };
+        containerName = mkStrOption { default = agentMemory.containerName; };
+        knowledgePort = mkNumberOption { default = agentMemory.knowledgePort; };
+      };
+
       extraSettings = mkAttrsOfOption { default = extraSettings; } lib.types.anything;
 
       # Merged on top of the resolved peon-ping user settings when generating
@@ -37,8 +52,9 @@
       (
         { config, lib, ... }:
         let
-          inherit (lib) recursiveUpdate;
+          inherit (lib) elem optionalAttrs recursiveUpdate;
           inherit (config.icedos.applications.opencode)
+            agentMemory
             extraSettings
             peonPingOverrides
             skills
@@ -46,23 +62,63 @@
 
           peonPingUsers = config.icedos.applications.peon-ping.users or { };
           peonPingEnabled = peonPingUsers != { };
+
+          # Merged into the mcp block rather than defined as an extraSettings
+          # option value, so it composes with the entries declared in
+          # config/configs/opencode.toml instead of fighting them.
+          agentMemoryMcpFor =
+            user:
+            optionalAttrs (elem user agentMemory.users) {
+              mcp.agent-memory = {
+                type = "local";
+                enabled = true;
+
+                command = [
+                  # podman, not docker: the `docker` shim only exists when some
+                  # other module enables virtualisation.podman.dockerCompat.
+                  "podman"
+                  "exec"
+                  "-i"
+                  # Mandatory. The image defaults to LOG_LEVEL=info and the server
+                  # logs its startup lines through console.log — stdout, the same
+                  # channel as JSON-RPC — which corrupts the MCP handshake.
+                  "-e"
+                  "LOG_LEVEL=warn"
+                  # The server defaults to :8421 and appends /v3 itself, so this
+                  # is the bare origin.
+                  "-e"
+                  "KNOWLEDGE_API_URL=http://127.0.0.1:${toString agentMemory.knowledgePort}"
+                  agentMemory.containerName
+                  "node"
+                  "/app/knowledge/dist/mcp/server.mjs"
+                ];
+              };
+            };
         in
         {
           home-manager.sharedModules = [
-            {
-              programs.opencode = {
-                enable = true;
+            (
+              # Takes the home-manager config so the agent-memory entry can be
+              # scoped per user, matching claude-code's per-user model. Note the
+              # inner `config` shadows the NixOS one — everything read from the
+              # NixOS side is captured in the outer `let`.
+              { config, ... }:
 
-                settings = recursiveUpdate {
-                  "$schema" = "https://opencode.ai/config.json";
+              {
+                programs.opencode = {
+                  enable = true;
 
-                  # Auto-allow skills discovered from ~/.claude/skills (Claude-compatible).
-                  permission.skill."*" = "allow";
-                } extraSettings;
+                  settings = recursiveUpdate {
+                    "$schema" = "https://opencode.ai/config.json";
 
-                skills = skills;
-              };
-            }
+                    # Auto-allow skills discovered from ~/.claude/skills (Claude-compatible).
+                    permission.skill."*" = "allow";
+                  } (recursiveUpdate extraSettings (agentMemoryMcpFor config.home.username));
+
+                  skills = skills;
+                };
+              }
+            )
 
             (
               {
