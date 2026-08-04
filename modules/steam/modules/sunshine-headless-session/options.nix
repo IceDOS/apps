@@ -15,6 +15,7 @@ let
     colorManagement
     excludeHostControllers
     hdr
+    inputInjection
     isolateVirtualControllers
     mangoApp
     normalSteamSession
@@ -97,6 +98,10 @@ in
   # Whether a given stream is actually HDR follows the Moonlight client's HDR setting,
   # decided per-stream like resolution — this option no longer forces HDR on.
   hdr = mkBoolOption { default = hdr; };
+
+  # Forward Moonlight keyboard/mouse to the headless gamescope via Sunshine's
+  # inputtino passthrough devices (named for seat-headless; see scripts.nix).
+  inputInjection = mkBoolOption { default = inputInjection; };
 
   # Steam -steamos3 (SteamOS Deck UI mode): Steam manages the gamescope baselayer/
   # focus natively, eliminating the manual appid tagger in the wait loop. Also makes

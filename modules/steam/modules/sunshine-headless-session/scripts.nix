@@ -4,6 +4,7 @@
   pkgs,
   lib,
   cfg,
+  headlessSeat,
   gamescopePkg,
   steamosSessionSelect,
 }:
@@ -23,6 +24,7 @@ let
     upscaleFilter
     fsrSharpness
     excludeHostControllers
+    inputInjection
     isolateVirtualControllers
     ;
 
@@ -100,6 +102,27 @@ let
       export DBUS_SESSION_BUS_ADDRESS="unix:path=$rt/bus"
       isolate_phys=${if excludeHostControllers then "1" else "0"}
       isolate_virt=${if isolateVirtualControllers then "1" else "0"}
+      # inputInjection: forward Moonlight keyboard/mouse into the headless
+      # gamescope. With a non-seat0 XDG_SEAT Sunshine suffixes the device names
+      # with the seat (e.g. "Mouse passthrough (seat-headless) (absolute)"), so
+      # the patched gamescope matches these exact names (strcmp-exact, fail
+      # closed: no match = no input, never a wrong device). gamescope runs
+      # through the setgid-`input` shim so it can open the /dev/input/event*
+      # nodes (the user is not in `input`). The marker fingerprints the full
+      # systemd-run argv (store path + wrapper + the three --setenv filters) so
+      # toggling inputInjection / the seat forces a restart of a stale gamescope.
+      input_inject=${if inputInjection then "1" else "0"}
+      gscope_wrap=()
+      input_args=()
+      if [ "$input_inject" = 1 ]; then
+        gscope_wrap=(/run/wrappers/bin/sunshine-headless-gid)
+        input_args=(
+          --setenv=HEADLESS_INPUT_KEYBOARD="Keyboard passthrough (${headlessSeat})"
+          --setenv=HEADLESS_INPUT_MOUSE="Mouse passthrough (${headlessSeat})"
+          --setenv=HEADLESS_INPUT_MOUSE_ABS="Mouse passthrough (${headlessSeat}) (absolute)"
+        )
+      fi
+      gamescope_marker="${gamescopePkg}|''${input_inject}|''${gscope_wrap[*]:-}|''${input_args[*]:-}"
       steamos_args=(${if steamOS then ''"-steamos3"'' else ""})
 
       # Identify the `steam` belonging to THIS session by $HOME. The normal session
@@ -216,9 +239,11 @@ let
         ${lib.optionalString hdr ''[ "$hdr_on" = 1 ] && hdr_args=(${hdrFlags})''}
         printf 'DISPLAY=:1\nWAYLAND_DISPLAY=gamescope-0\n' >"$rt/sunshine-headless.env"
         printf '%s %s %s %s' "$w" "$h" "$fps" "$hdr_on" >"$rt/sunshine-headless-gamescope-params"
-        # Record which gamescope store path this instance runs, so a later `start` can detect
-        # a stale gamescope after a rebuild changed the binary and restart it (see start case).
-        printf '%s' "${gamescopePkg}" >"$rt/sunshine-headless-gamescope-bin"
+        # Record which gamescope store path + input-injection argv this instance
+        # runs, so a later `start` can detect a stale gamescope after a rebuild
+        # changed the binary or the inputInjection/seat settings and restart it
+        # (see start case).
+        printf '%s' "$gamescope_marker" >"$rt/sunshine-headless-gamescope-bin"
 
         gamescope_env="DISPLAY=:1 ENABLE_GAMESCOPE_WSI=1 PATH=${mangoappWrapper}/bin:${gamescopePkg}/bin${lib.optionalString mangoApp " MANGOHUD_CONFIGFILE=$rt/sunshine-mangoapp.conf"}"
         # Free the transient unit name before systemd-run re-creates it. A prior instance
@@ -239,7 +264,8 @@ let
           --property=Restart=always \
           --same-dir \
           --property="Environment=$gamescope_env" \
-          -- ${gamescopePkg}/bin/gamescope \
+          "''${input_args[@]}" \
+          -- "''${gscope_wrap[@]}" ${gamescopePkg}/bin/gamescope \
               --backend headless \
               --expose-wayland \
               --steam \
@@ -328,7 +354,7 @@ let
             saved_bin="$(cat "$rt/sunshine-headless-gamescope-bin" 2>/dev/null || true)"
 
             if [ -n "$client_w" ] && [ -n "$client_h" ] && [ -n "$client_fps" ] \
-                && { [ "$saved_w" != "$client_w" ] || [ "$saved_h" != "$client_h" ] || [ "$saved_fps" != "$client_fps" ] || [ "$saved_hdr" != "$client_hdr" ] || [ "$saved_bin" != "${gamescopePkg}" ]; }; then
+                && { [ "$saved_w" != "$client_w" ] || [ "$saved_h" != "$client_h" ] || [ "$saved_fps" != "$client_fps" ] || [ "$saved_hdr" != "$client_hdr" ] || [ "$saved_bin" != "$gamescope_marker" ]; }; then
               stop_gamescope
               start_gamescope "$client_w" "$client_h" "$client_fps" "$client_hdr"
             else
@@ -398,6 +424,8 @@ let
           # controllers (to open the uaccess-stripped pad) OR under -steamos3 (so Steam runs
           # as real gid `input` and can open the input-group /dev/rfkill node → it reads/
           # controls the BT radio instead of force-disabling it; see icedos.nix rfkill rule).
+          # inputInjection is NOT a reason: gamescope grabs the inputtino nodes itself
+          # (EVIOCGRAB) and feeds Steam over Wayland, so Steam never needs `input`.
           gid_wrap=()
           if [ "$isolate_virt" = 1 ] || [ "''${#steamos_args[@]}" -gt 0 ]; then
             gid_wrap=(/run/wrappers/bin/sunshine-headless-gid)

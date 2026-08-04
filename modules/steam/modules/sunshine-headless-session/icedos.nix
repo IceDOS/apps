@@ -23,11 +23,25 @@
 
           inherit (cfg)
             excludeHostControllers
+            inputInjection
             isolateVirtualControllers
             secondarySteamSession
             secondarySteamSessionPath
             steamOS
             ;
+
+          # Seat under which the primary Sunshine's inputtino devices are created
+          # (inputInjection). A non-seat0 XDG_SEAT makes inputtino suffix every
+          # device name with the seat; the patched gamescope matches those exact
+          # names. The desktop-capture instance leaves the seat unset → plain
+          # names, so the two Sunshine instances' devices never collide.
+          headlessSeat = "seat-headless";
+
+          # The setgid-`input` shim is needed for all three modes: the injected
+          # Steam (isolateVirtualControllers, steamOS) and the patched gamescope
+          # (inputInjection). One flag gates the wrapper, the marker group and
+          # the membership assertion below so they can't drift apart.
+          bridgeNeeded = isolateVirtualControllers || steamOS || inputInjection;
 
           packages = import ./packages.nix {
             inherit
@@ -36,17 +50,19 @@
               inputs
               cfg
               ;
-
+            steamPkg = config.programs.steam.package or pkgs.steam;
           };
           inherit (packages)
             xdg-desktop-portal-gamescope
             sunshinePortalConfig
             gidExec
+            inputBridgeGroup
             ;
 
           inherit
             (import ./scripts.nix {
               inherit pkgs lib cfg;
+              inherit headlessSeat;
               inherit (packages) gamescopePkg steamosSessionSelect;
             })
             sessionApp
@@ -84,8 +100,9 @@
             # user; systemd's 70-uaccess.rules grants rw only to the ACTIVE seat session, so a
             # headless / boot-time -steamos3 Steam has no ACL → its O_RDWR open fails → it
             # force-disables Bluetooth and its radio UI desyncs from the system.
-            # Hand rfkill to the `input` GROUP (not `users`): that group has NO human members,
-            # so ONLY the injected Steam — which the setgid-`input` shim runs as real gid
+            # Hand rfkill to the `input` GROUP (not `users`): that group has NO human members
+            # (the assertion below rejects any normal user in `input`), so ONLY the injected
+            # Steam — which the setgid-`input` shim runs as real gid
             # `input` — can open the node. Under -steamos3 the launcher always routes Steam
             # through that shim (scripts.nix gid_wrap), independent of isolateVirtualControllers,
             # so radio access works whenever steamOS. NB: /dev/rfkill is one node for ALL
@@ -98,10 +115,19 @@
               ''
             );
 
-          # setgid-`input` shim: only the injected Steam (which execs through it) gets the
-          # `input` group — needed to open the uaccess-stripped pad (isolateVirtualControllers)
-          # AND the input-group /dev/rfkill node under -steamos3 (radio access). Built for either.
-          security.wrappers = mkIf (isolateVirtualControllers || steamOS) {
+          # setgid-`input` shim: the injected Steam (execs through it) gets the
+          # `input` group — needed to open the uaccess-stripped pad
+          # (isolateVirtualControllers) AND the input-group /dev/rfkill node under
+          # -steamos3 (radio access); inputInjection's patched gamescope also execs
+          # through it so it can open the inputtino passthrough devices (the user
+          # is not in `input`). Built for any of the three. Access is gated on the
+          # caller being root or a member of the `sunshine-headless` marker group
+          # (below) — every IceDOS user is a member, so all users of this feature
+          # work without per-user config; the `input` group itself keeps NO human
+          # members, so the wrapper stays the only path to it (the assertion
+          # below hard-fails the build if a normal user ever lands in `input`
+          # by any route, keeping this invariant true).
+          security.wrappers = mkIf bridgeNeeded {
             sunshine-headless-gid = {
               setgid = true;
               owner = "root";
@@ -109,6 +135,19 @@
               source = "${gidExec}";
             };
           };
+
+          # The marker group the shim checks: the wrapper's own gate. Grants
+          # nothing by itself (no kernel rights, `input` membership untouched) —
+          # only executing the wrapper turns it into gid `input`. Adding every
+          # IceDOS user via `users.users` merges with core's extraGroups assembly
+          # (users.nix) per user.
+          users.groups = mkIf bridgeNeeded {
+            ${inputBridgeGroup} = { };
+          };
+
+          users.users = mkIf bridgeNeeded (
+            icedosLib.users.mkGroupInjector inputBridgeGroup (config.icedos.users)
+          );
 
           # Steam in -steamos3 mode expects InputPlumber for controller ordering and
           # input routing (composite devices, D-Bus API). Without it the Controller Order
@@ -140,6 +179,34 @@
                 !(cfg.desktop-capture.enable && cfg.desktop-capture.backend == "kms")
                 || config.icedos.applications.sunshine.capSysAdmin;
               message = "icedos.applications.steam.headless-session.desktop-capture.backend = \"kms\" requires icedos.applications.sunshine.capSysAdmin = true (the setcap wrapper Sunshine needs for raw KMS/DRM capture).";
+            }
+            {
+              # The shim's security model is that `input` has no human members
+              # (only the wrapper bridges to it). Assert on the effective
+              # membership of HUMAN accounts, covering every way a normal user
+              # can land in `input`: extraGroups (the input-remapper module
+              # injects every user via mkGroupInjector, and a hand-written
+              # icedos.users.<name>.extraGroups = ["input"] does the same
+              # directly), a primary group, or users.groups.input.members —
+              # all void the caller gate and the uaccess isolation this backs.
+              # System/service accounts (e.g. evdevremapkeys' daemon user) are
+              # excluded: they have no login session, so they can't bridge to
+              # the shim's caller gate.
+              assertion =
+                !bridgeNeeded
+                || !(lib.any (
+                  name:
+                  let
+                    u = config.users.users.${name};
+                  in
+                  u.isNormalUser
+                  && (
+                    lib.elem "input" (u.extraGroups or [ ])
+                    || lib.elem name (config.users.groups.input.members or [ ])
+                    || u.group == "input"
+                  )
+                ) (lib.attrNames config.users.users));
+              message = "The setgid-`input` shim assumes the `input` group has no human members, but at least one normal (human) user is in `input` (hand-written icedos.users.<name>.extraGroups, or the input-remapper module which injects every user — remove `input-remapper` from the apps repo's `modules` list, not a user entry). Remove input-remapper, or turn off isolateVirtualControllers/steamOS/inputInjection (then the shim is not built); input membership defeats the uaccess isolation the shim backs.";
             }
           ];
 
@@ -253,7 +320,19 @@
             environment = {
               WAYLAND_DISPLAY = "gamescope-0";
               DBUS_SESSION_BUS_ADDRESS = "unix:path=%t/sunshine-portal/bus";
-            };
+            }
+            # inputInjection: create this instance's inputtino devices under a
+            # non-seat0 name so they (a) get the seat-suffixed names the patched
+            # gamescope matches and (b) never collide with the desktop-capture
+            # instance's plain-named devices.
+            #
+            # NB: NixOS activation does NOT restart running user services. When
+            # inputInjection is toggled, gamescope restarts itself on the next
+            # stream via the gamescope_marker fingerprint, but a still-running
+            # Sunshine would keep creating plain-named inputtino devices the new
+            # gamescope never matches (injection silently no-ops until the next
+            # login). Restart it: systemctl --user restart sunshine.
+            // lib.optionalAttrs inputInjection { XDG_SEAT = headlessSeat; };
             serviceConfig = {
               ExecStartPre = [
                 # A stale portal restore token makes Sunshine's startup ScreenCast hang — it

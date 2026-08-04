@@ -1,0 +1,982 @@
+diff --git a/src/HeadlessInput.cpp b/src/HeadlessInput.cpp
+new file mode 100644
+index 0000000..9450beb
+--- /dev/null
++++ b/src/HeadlessInput.cpp
+@@ -0,0 +1,796 @@
++#include "HeadlessInput.hpp"
++
++#include <cerrno>
++#include <chrono>
++#include <cstdlib>
++#include <cstring>
++#include <utility>
++
++#include <dirent.h>
++#include <fcntl.h>
++#include <linux/input.h>
++#include <poll.h>
++#include <pthread.h>
++#include <sys/eventfd.h>
++#include <sys/inotify.h>
++#include <sys/ioctl.h>
++#include <sys/resource.h>
++#include <unistd.h>
++
++#include "log.hpp"
++#include "main.hpp"
++#include "wlserver.hpp"
++
++// Output geometry and the focused-window letterbox transform. Declared at
++// global scope in steamcompmgr.cpp; mirrors wlserver_touchmotion()'s mapping.
++// Kept outside `namespace gamescope` so these bind to the globals, not to
++// gamescope-qualified symbols.
++extern uint32_t g_nOutputWidth;
++extern uint32_t g_nOutputHeight;
++extern float focusedWindowScaleX;
++extern float focusedWindowScaleY;
++extern float focusedWindowOffsetX;
++extern float focusedWindowOffsetY;
++
++namespace gamescope
++{
++
++static LogScope log_HeadlessInput( "HeadlessInput" );
++
++static constexpr char k_szInputDeviceDir[] = "/dev/input";
++
++static constexpr int k_nPollTimeoutMs = 2000;
++// Short retry interval used until every expected device has appeared: udev may
++// not have applied the input ACL by the time inotify reports IN_CREATE, so we
++// poll briefly and retry Rescan() instead of sleeping through the EACCES window.
++static constexpr int k_nPollRescanMs = 100;
++// How long the k_nPollRescanMs fast scan runs after startup / a device change
++// before falling back to the k_nPollTimeoutMs periodic rescan, so an idle
++// gamescope (no stream → no inputtino devices) does not sit in a 10 Hz loop.
++static constexpr int k_nFastScanWindowMs = 10000;
++
++static uint32_t MonotonicTimeMs()
++{
++	return ( uint32_t )std::chrono::duration_cast<std::chrono::milliseconds>(
++		std::chrono::steady_clock::now().time_since_epoch() ).count();
++}
++
++// Converts an input_event timestamp (CLOCK_MONOTONIC after EVIOCSCLOCKID) into
++// the millisecond epoch used by the wlserver input APIs.
++static uint32_t EventTimeMs( const struct timeval &tv )
++{
++	return ( uint32_t )( ( uint64_t )tv.tv_sec * 1000ull + tv.tv_usec / 1000 );
++}
++
++enum HeadlessDeviceType : uint32_t
++{
++	HEADLESS_DEVICE_KEYBOARD  = ( 1u << 0 ),
++	HEADLESS_DEVICE_MOUSE     = ( 1u << 1 ),
++	HEADLESS_DEVICE_MOUSE_ABS = ( 1u << 2 ),
++};
++
++static bool FilterEnvSet( const char *pszName )
++{
++	const char *pszValue = getenv( pszName );
++	return pszValue != nullptr && pszValue[0] != '\0';
++}
++
++static bool ReadFilterEnv( const char *pszName, std::string &sOut )
++{
++	const char *pszValue = getenv( pszName );
++	if ( pszValue == nullptr || pszValue[0] == '\0' )
++		return false;
++
++	sOut = pszValue;
++	return true;
++}
++
++static bool TestEventBit( const uint8_t *pBits, size_t cBytes, unsigned int nBit )
++{
++	size_t iByte = nBit / 8;
++	if ( iByte >= cBytes )
++		return false;
++	return ( pBits[ iByte ] & ( 1u << ( nBit % 8 ) ) ) != 0;
++}
++
++static void KeyStateSetDown( std::vector<uint8_t> &vKeyState, uint16_t uCode, bool bDown )
++{
++	size_t iByte = uCode / 8;
++	uint8_t iBit = uCode % 8;
++	if ( iByte >= vKeyState.size() )
++		return;
++
++	if ( bDown )
++		vKeyState[ iByte ] |= ( uint8_t )( 1u << iBit );
++	else
++		vKeyState[ iByte ] &= ( uint8_t )~( 1u << iBit );
++}
++
++static bool KeyStateIsDown( const std::vector<uint8_t> &vKeyState, uint16_t uCode )
++{
++	size_t iByte = uCode / 8;
++	uint8_t iBit = uCode % 8;
++	return iByte < vKeyState.size() && ( vKeyState[ iByte ] & ( 1u << iBit ) ) != 0;
++}
++
++CHeadlessInputThread::~CHeadlessInputThread()
++{
++	if ( m_thread.joinable() )
++	{
++		Stop();
++		Join();
++	}
++	if ( m_nStopEvent >= 0 )
++	{
++		close( m_nStopEvent );
++		m_nStopEvent = -1;
++	}
++}
++
++bool CHeadlessInputThread::EnabledByEnvironment()
++{
++	return FilterEnvSet( "HEADLESS_INPUT_KEYBOARD" ) ||
++	       FilterEnvSet( "HEADLESS_INPUT_MOUSE" ) ||
++	       FilterEnvSet( "HEADLESS_INPUT_MOUSE_ABS" );
++}
++
++bool CHeadlessInputThread::Init()
++{
++	if ( !EnabledByEnvironment() )
++		return false;
++
++	ReadFilterEnv( "HEADLESS_INPUT_KEYBOARD", m_sFilterKeyboard );
++	ReadFilterEnv( "HEADLESS_INPUT_MOUSE", m_sFilterMouse );
++	ReadFilterEnv( "HEADLESS_INPUT_MOUSE_ABS", m_sFilterMouseAbs );
++
++	m_nStopEvent = eventfd( 0, EFD_NONBLOCK | EFD_CLOEXEC );
++	if ( m_nStopEvent < 0 )
++	{
++		log_HeadlessInput.errorf_errno( "eventfd() failed" );
++		return false;
++	}
++
++	log_HeadlessInput.infof( "Headless input injection enabled (keyboard: '%s', mouse: '%s', mouse_abs: '%s')",
++		m_sFilterKeyboard.c_str(), m_sFilterMouse.c_str(), m_sFilterMouseAbs.c_str() );
++	m_thread = std::thread( PollLoop, this );
++	return true;
++}
++
++void CHeadlessInputThread::Stop()
++{
++	m_bStop = true;
++	if ( m_nStopEvent >= 0 )
++	{
++		uint64_t uValue = 1;
++		( void )write( m_nStopEvent, &uValue, sizeof( uValue ) );
++	}
++}
++
++void CHeadlessInputThread::Join()
++{
++	if ( m_thread.joinable() )
++		m_thread.join();
++}
++
++void CHeadlessInputThread::PollLoop( CHeadlessInputThread *pThis )
++{
++	pThis->Run();
++}
++
++void CHeadlessInputThread::Run()
++{
++	pthread_setname_np( pthread_self(), "headless-input" );
++	// Best-effort priority bump; a negative nice level needs privileges we may
++	// not have, in which case the thread keeps its inherited priority.
++	setpriority( PRIO_PROCESS, 0, -10 );
++
++	m_nNotify = inotify_init1( IN_NONBLOCK | IN_CLOEXEC );
++	if ( m_nNotify >= 0 )
++	{
++		if ( inotify_add_watch( m_nNotify, k_szInputDeviceDir, IN_CREATE | IN_DELETE | IN_ATTRIB ) < 0 )
++		{
++			log_HeadlessInput.warnf( "inotify_add_watch() on %s failed: %s; using periodic rescan", k_szInputDeviceDir, strerror( errno ) );
++			close( m_nNotify );
++			m_nNotify = -1;
++		}
++	}
++	else
++	{
++		log_HeadlessInput.warnf( "inotify_init1() failed: %s; using periodic rescan", strerror( errno ) );
++	}
++
++	m_uExpectedMask =
++		( !m_sFilterKeyboard.empty() ? HEADLESS_DEVICE_KEYBOARD : 0u ) |
++		( !m_sFilterMouse.empty() ? HEADLESS_DEVICE_MOUSE : 0u ) |
++		( !m_sFilterMouseAbs.empty() ? HEADLESS_DEVICE_MOUSE_ABS : 0u );
++
++	// Fast-scan window: poll at k_nPollRescanMs until it expires so the udev
++	// ACL race is retried promptly, then fall back to the k_nPollTimeoutMs
++	// periodic rescan. Each notify event re-opens the window.
++	m_uFastScanDeadlineMs = MonotonicTimeMs() + k_nFastScanWindowMs;
++
++	Rescan();
++
++	while ( !m_bStop )
++	{
++		if ( m_bPollFDsDirty )
++			BuildPollFDs();
++
++		// Count which expected filter types are currently bound. Until every
++		// one is, keep the poll short (while within the fast-scan window) so
++		// Rescan() keeps retrying the udev ACL race (a device can exist before
++		// its access rules are applied); once the window lapses, fall back to
++		// the k_nPollTimeoutMs periodic rescan instead of a steady-state loop.
++		uint32_t uBoundMask = 0;
++		for ( auto &pDevice : m_devices )
++			uBoundMask |= pDevice->uType;
++
++		const bool bAllBound = ( uBoundMask & m_uExpectedMask ) == m_uExpectedMask;
++		if ( bAllBound )
++			m_bEverComplete = true;
++
++		int nTimeoutMs = k_nPollTimeoutMs;
++		if ( m_nNotify >= 0 )
++		{
++			if ( bAllBound )
++				nTimeoutMs = -1;
++			else if ( ( int32_t )( MonotonicTimeMs() - m_uFastScanDeadlineMs ) < 0 )
++				nTimeoutMs = k_nPollRescanMs;
++		}
++
++		int nPollRet = poll( m_vPollFDs.data(), m_vPollFDs.size(), nTimeoutMs );
++		if ( nPollRet < 0 )
++		{
++			if ( errno == EINTR )
++				continue;
++			log_HeadlessInput.errorf_errno( "poll() failed" );
++			break;
++		}
++
++		if ( m_bStop )
++			break;
++
++		if ( nPollRet == 0 )
++		{
++			Rescan();
++			// One-shot diagnostic: a wrong filter string looks identical to
++			// "no client streaming", so warn once (only ever in the never-bound
++			// case) that no expected device appeared before the fast-scan
++			// window lapsed.
++			if ( !m_bEverComplete && !m_bWarnedNoDevices && ( int32_t )( MonotonicTimeMs() - m_uFastScanDeadlineMs ) >= 0 )
++			{
++				m_bWarnedNoDevices = true;
++				log_HeadlessInput.warnf( "No input passthrough device has appeared yet (keyboard: '%s', mouse: '%s', mouse_abs: '%s')",
++					m_sFilterKeyboard.c_str(), m_sFilterMouse.c_str(), m_sFilterMouseAbs.c_str() );
++			}
++			continue;
++		}
++
++		// Snapshot the device count as of poll(): DrainNotify()/Rescan() below
++		// resize m_devices, so the revents loop must be bounded by the set that
++		// was actually polled (m_vPollFDs is only rebuilt when dirty).
++		const size_t nPolled = m_vPollFDs.size() - m_nDeviceBase;
++
++		for ( size_t i = 0; i < nPolled; i++ )
++		{
++			short nRevents = m_vPollFDs[ m_nDeviceBase + i ].revents;
++			if ( nRevents == 0 )
++				continue;
++
++			auto *pDevice = m_devices[ i ].get();
++			bool bDeviceDead = ( nRevents & ( POLLERR | POLLHUP ) ) != 0;
++			if ( ( nRevents & POLLIN ) != 0 && !ReadDeviceEvents( pDevice ) )
++				bDeviceDead = true;
++
++			if ( bDeviceDead )
++			{
++				ReleaseDevice( pDevice );
++				m_devices.erase( m_devices.begin() + i );
++				m_bPollFDsDirty = true;
++				break;
++			}
++		}
++
++		if ( m_nNotifyIndex >= 0 )
++		{
++			const short nNotifyRevents = m_vPollFDs[ m_nNotifyIndex ].revents;
++			if ( ( nNotifyRevents & ( POLLERR | POLLHUP ) ) != 0 )
++			{
++				// inotify fd went stale: drop it and fall back to the periodic
++				// rescan (same path as inotify_add_watch failing) instead of
++				// spinning on an unconsumed revents bit forever.
++				log_HeadlessInput.warnf( "inotify fd error (revents 0x%x); using periodic rescan", (unsigned)nNotifyRevents );
++				close( m_nNotify );
++				m_nNotify = -1;
++				m_nNotifyIndex = -1;
++				m_bPollFDsDirty = true;
++			}
++			else if ( ( nNotifyRevents & POLLIN ) != 0 )
++			{
++				m_uFastScanDeadlineMs = MonotonicTimeMs() + k_nFastScanWindowMs;
++				DrainNotify();
++				Rescan();
++			}
++		}
++	}
++
++	for ( auto &pDevice : m_devices )
++		close( pDevice->nFD );
++	m_devices.clear();
++
++	if ( m_nNotify >= 0 )
++	{
++		close( m_nNotify );
++		m_nNotify = -1;
++	}
++	// The stop eventfd is deliberately left open: Stop() may run on the main
++	// thread at any time, and writing to a closed/reused fd would be a race
++	// (close here while Stop() writes there). It is closed by the destructor,
++	// which only runs after Join().
++}
++
++void CHeadlessInputThread::BuildPollFDs()
++{
++	m_vPollFDs.clear();
++	m_vPollFDs.push_back( { m_nStopEvent, POLLIN, 0 } );
++
++	m_nNotifyIndex = -1;
++	m_nDeviceBase = 1;
++	if ( m_nNotify >= 0 )
++	{
++		m_vPollFDs.push_back( { m_nNotify, POLLIN, 0 } );
++		m_nNotifyIndex = 1;
++		m_nDeviceBase = 2;
++	}
++
++	for ( auto &pDevice : m_devices )
++		m_vPollFDs.push_back( { pDevice->nFD, POLLIN | POLLERR | POLLHUP, 0 } );
++
++	m_bPollFDsDirty = false;
++}
++
++void CHeadlessInputThread::Rescan()
++{
++	bool bRemoved = false;
++	for ( auto it = m_devices.begin(); it != m_devices.end(); )
++	{
++		if ( access( ( *it )->sPath.c_str(), F_OK ) != 0 )
++		{
++			ReleaseDevice( it->get() );
++			it = m_devices.erase( it );
++			bRemoved = true;
++		}
++		else
++			++it;
++	}
++	if ( bRemoved )
++		m_bPollFDsDirty = true;
++
++	// Scan /dev/input for event devices instead of probing a fixed event0..
++	// event63 range, so a busy system that has reached high device numbers
++	// still gets its input injected.
++	DIR *pDir = opendir( k_szInputDeviceDir );
++	if ( pDir == nullptr )
++	{
++		log_HeadlessInput.errorf_errno( "opendir() on %s failed", k_szInputDeviceDir );
++		return;
++	}
++
++	std::vector<std::string> vCandidates;
++	while ( struct dirent *pEntry = readdir( pDir ) )
++	{
++		if ( strncmp( pEntry->d_name, "event", 5 ) != 0 )
++			continue;
++		vCandidates.emplace_back( std::string( k_szInputDeviceDir ) + "/" + pEntry->d_name );
++	}
++	closedir( pDir );
++
++	for ( auto &sPath : vCandidates )
++	{
++		bool bAlreadyOpen = false;
++		for ( auto &pDevice : m_devices )
++		{
++			if ( pDevice->sPath == sPath )
++			{
++				bAlreadyOpen = true;
++				break;
++			}
++		}
++		if ( bAlreadyOpen )
++			continue;
++
++		// A path we already probed (name resolved, nothing matched) only gets
++		// re-opened after inotify reports it created/changed or a grabbed
++		// device was released, so an idle gamescope does not open/close every
++		// host device on each 2 s tick (which would also defeat autosuspend).
++		// Without inotify nothing would ever invalidate the cache (and evdev
++		// minors get reused), so fall back to probing everything every tick.
++		if ( m_nNotify >= 0 && m_mapKnownNames.count( sPath ) != 0 )
++			continue;
++
++		if ( access( sPath.c_str(), F_OK ) != 0 )
++			continue;
++
++		TryOpenDevice( sPath );
++	}
++}
++
++void CHeadlessInputThread::TryOpenDevice( const std::string &sPath )
++{
++	int nFD = open( sPath.c_str(), O_RDONLY | O_NONBLOCK | O_CLOEXEC );
++	if ( nFD < 0 )
++	{
++		if ( errno == EACCES || errno == EPERM )
++			log_HeadlessInput.errorf_errno( "Failed to open %s (input device access denied)", sPath.c_str() );
++		return;
++	}
++
++	auto pDevice = std::make_unique<SHeadlessInputDevice>();
++	pDevice->sPath = sPath;
++	pDevice->nFD = nFD;
++
++	char szName[ 256 ] = {};
++	if ( ioctl( nFD, EVIOCGNAME( sizeof( szName ) - 1 ), szName ) < 0 )
++	{
++		log_HeadlessInput.errorf_errno( "EVIOCGNAME failed on %s", sPath.c_str() );
++		close( nFD );
++		return;
++	}
++	pDevice->sName = szName;
++
++	if ( !m_sFilterKeyboard.empty() && pDevice->sName == m_sFilterKeyboard )
++		pDevice->uType = HEADLESS_DEVICE_KEYBOARD;
++	else if ( !m_sFilterMouse.empty() && pDevice->sName == m_sFilterMouse )
++		pDevice->uType = HEADLESS_DEVICE_MOUSE;
++	else if ( !m_sFilterMouseAbs.empty() && pDevice->sName == m_sFilterMouseAbs )
++		pDevice->uType = HEADLESS_DEVICE_MOUSE_ABS;
++	else
++	{
++		// Definitive negative: this host device never matches a filter, so
++		// cache its name and stop re-opening it on every tick. Matching
++		// devices that fail the checks below are deliberately NOT cached so
++		// the periodic Rescan() keeps retrying them (e.g. EVIOCGRAB busy on
++		// the other gamescope during a restart).
++		if ( m_mapKnownNames.size() > 512 )
++			m_mapKnownNames.clear();
++		m_mapKnownNames.emplace( sPath, pDevice->sName );
++		close( nFD );
++		return;
++	}
++
++	for ( auto &pExisting : m_devices )
++	{
++		if ( ( pExisting->uType & pDevice->uType ) != 0 )
++		{
++			log_HeadlessInput.warnf( "Ignoring duplicate %s (%s)", pDevice->sName.c_str(), sPath.c_str() );
++			close( nFD );
++			return;
++		}
++	}
++
++	uint8_t aEventTypes[ ( EV_MAX + 1 + 7 ) / 8 ] = {};
++	if ( ioctl( nFD, EVIOCGBIT( 0, sizeof( aEventTypes ) ), aEventTypes ) < 0 )
++	{
++		log_HeadlessInput.errorf_errno( "EVIOCGBIT failed on %s", sPath.c_str() );
++		close( nFD );
++		return;
++	}
++
++	bool bHasEvKey = TestEventBit( aEventTypes, sizeof( aEventTypes ), EV_KEY );
++	bool bHasEvRel = TestEventBit( aEventTypes, sizeof( aEventTypes ), EV_REL );
++	bool bHasEvAbs = TestEventBit( aEventTypes, sizeof( aEventTypes ), EV_ABS );
++
++	const char *pszTypeName = pDevice->uType == HEADLESS_DEVICE_KEYBOARD ? "keyboard" : ( pDevice->uType == HEADLESS_DEVICE_MOUSE ? "mouse" : "absolute mouse" );
++	if ( ( pDevice->uType == HEADLESS_DEVICE_KEYBOARD && !bHasEvKey ) ||
++	     ( pDevice->uType == HEADLESS_DEVICE_MOUSE && ( !bHasEvKey || !bHasEvRel ) ) ||
++	     ( pDevice->uType == HEADLESS_DEVICE_MOUSE_ABS && ( !bHasEvKey || !bHasEvAbs ) ) )
++	{
++		log_HeadlessInput.errorf( "Refusing %s (%s): does not expose the expected %s events", pDevice->sName.c_str(), sPath.c_str(), pszTypeName );
++		close( nFD );
++		return;
++	}
++
++	uint8_t aRel[ ( REL_MAX + 1 + 7 ) / 8 ] = {};
++	if ( ioctl( nFD, EVIOCGBIT( EV_REL, sizeof( aRel ) ), aRel ) >= 0 )
++	{
++		pDevice->bHasWheelHiRes = TestEventBit( aRel, sizeof( aRel ), REL_WHEEL_HI_RES );
++		pDevice->bHasHWheelHiRes = TestEventBit( aRel, sizeof( aRel ), REL_HWHEEL_HI_RES );
++	}
++
++	if ( pDevice->uType == HEADLESS_DEVICE_MOUSE_ABS )
++	{
++		if ( ioctl( nFD, EVIOCGABS( ABS_X ), &pDevice->absX ) < 0 ||
++		     ioctl( nFD, EVIOCGABS( ABS_Y ), &pDevice->absY ) < 0 )
++		{
++			log_HeadlessInput.errorf_errno( "EVIOCGABS failed on %s", sPath.c_str() );
++			close( nFD );
++			return;
++		}
++	}
++
++	if ( ioctl( nFD, EVIOCGRAB, 1 ) < 0 )
++	{
++		if ( errno == EBUSY )
++			log_HeadlessInput.errorf( "%s (%s) is already grabbed by another client", pDevice->sName.c_str(), sPath.c_str() );
++		else
++			log_HeadlessInput.errorf_errno( "EVIOCGRAB failed on %s", sPath.c_str() );
++		close( nFD );
++		return;
++	}
++
++	// Switch the event timestamps to CLOCK_MONOTONIC so they line up with the
++	// steady_clock-based timestamps the wlserver input APIs expect.
++	int nClockId = CLOCK_MONOTONIC;
++	if ( ioctl( nFD, EVIOCSCLOCKID, &nClockId ) == 0 )
++		pDevice->bClockMonotonic = true;
++	else
++		log_HeadlessInput.warnf( "EVIOCSCLOCKID failed on %s: %s", sPath.c_str(), strerror( errno ) );
++
++	pDevice->vKeyState.assign( ( KEY_MAX + 8 ) / 8, 0 );
++	if ( ioctl( nFD, EVIOCGKEY( pDevice->vKeyState.size() ), pDevice->vKeyState.data() ) < 0 )
++		log_HeadlessInput.warnf( "EVIOCGKEY failed on %s: %s", sPath.c_str(), strerror( errno ) );
++
++	log_HeadlessInput.infof( "Grabbed %s (%s)", pDevice->sName.c_str(), sPath.c_str() );
++	m_devices.push_back( std::move( pDevice ) );
++	m_bPollFDsDirty = true;
++}
++
++bool CHeadlessInputThread::ReadDeviceEvents( SHeadlessInputDevice *pDevice )
++{
++	struct input_event aEvents[ 64 ];
++
++	// Coalesce every event in the drain under a single wlserver lock; high-rate
++	// devices can emit many SYN frames per read(), and taking the lock per frame
++	// adds latency and lock churn for no extra correctness.
++	wlserver_lock();
++	if ( m_bStop )
++	{
++		wlserver_unlock( false );
++		return true;
++	}
++
++	for ( ;; )
++	{
++		ssize_t nRead = read( pDevice->nFD, aEvents, sizeof( aEvents ) );
++		if ( nRead < 0 )
++		{
++			if ( errno == EINTR )
++				continue;
++			if ( errno == EAGAIN )
++			{
++				wlserver_unlock();
++				return true;
++			}
++			wlserver_unlock( false );
++			return false;
++		}
++		if ( nRead == 0 )
++		{
++			wlserver_unlock( false );
++			return false;
++		}
++
++		size_t cEvents = ( size_t )nRead / sizeof( struct input_event );
++		for ( size_t i = 0; i < cEvents; i++ )
++			HandleInputEvent( pDevice, aEvents[ i ] );
++	}
++}
++
++void CHeadlessInputThread::HandleInputEvent( SHeadlessInputDevice *pDevice, const struct input_event &ev )
++{
++	switch ( ev.type )
++	{
++		case EV_KEY:
++			// value 2 is a kernel auto-repeat; the remote client already
++			// generates repeats, so forwarding them would duplicate keys.
++			if ( ev.value == 2 )
++				break;
++			KeyStateSetDown( pDevice->vKeyState, ev.code, ev.value != 0 );
++			pDevice->vKeyEvents.emplace_back( ev.code, ev.value != 0 );
++			break;
++		case EV_REL:
++			HandleRelEvent( pDevice, ev.code, ev.value );
++			break;
++		case EV_ABS:
++			HandleAbsEvent( pDevice, ev.code, ev.value );
++			break;
++		case EV_SYN:
++			if ( ev.code == SYN_REPORT )
++			{
++				uint32_t uTime = pDevice->bClockMonotonic ? EventTimeMs( ev.time ) : MonotonicTimeMs();
++				FlushDevice( pDevice, true, uTime );
++			}
++			break;
++		default:
++			break;
++	}
++}
++
++void CHeadlessInputThread::HandleRelEvent( SHeadlessInputDevice *pDevice, uint16_t uCode, int32_t nValue )
++{
++	switch ( uCode )
++	{
++		case REL_X:
++			pDevice->nRelX += nValue;
++			break;
++		case REL_Y:
++			pDevice->nRelY += nValue;
++			break;
++	case REL_WHEEL:
++		// evdev positive is wheel-away-from-user (scroll up); the wlserver axis
++		// convention is positive = scroll down, matching libinput's negated value.
++		if ( !pDevice->bHasWheelHiRes )
++			pDevice->flScrollY -= nValue;
++		break;
++	case REL_HWHEEL:
++		if ( !pDevice->bHasHWheelHiRes )
++			pDevice->flScrollX += nValue;
++		break;
++	case REL_WHEEL_HI_RES:
++		if ( pDevice->bHasWheelHiRes )
++			pDevice->flScrollY -= ( double )nValue / 120.0;
++		break;
++	case REL_HWHEEL_HI_RES:
++		if ( pDevice->bHasHWheelHiRes )
++			pDevice->flScrollX += ( double )nValue / 120.0;
++		break;
++		default:
++			break;
++	}
++}
++
++void CHeadlessInputThread::HandleAbsEvent( SHeadlessInputDevice *pDevice, uint16_t uCode, int32_t nValue )
++{
++	switch ( uCode )
++	{
++		case ABS_X:
++			pDevice->nAbsX = nValue;
++			pDevice->bAbsPending = true;
++			break;
++		case ABS_Y:
++			pDevice->nAbsY = nValue;
++			pDevice->bAbsPending = true;
++			break;
++		default:
++			break;
++	}
++}
++
++void CHeadlessInputThread::FlushDevice( SHeadlessInputDevice *pDevice, bool bLockHeld, uint32_t uTime )
++{
++	if ( !bLockHeld )
++	{
++		wlserver_lock();
++		if ( m_bStop )
++		{
++			wlserver_unlock( false );
++			return;
++		}
++	}
++
++	if ( pDevice->nRelX != 0 || pDevice->nRelY != 0 )
++	{
++		wlserver_mousemotion( pDevice->nRelX, pDevice->nRelY, uTime );
++		pDevice->nRelX = 0;
++		pDevice->nRelY = 0;
++	}
++
++	if ( pDevice->flScrollX != 0.0 || pDevice->flScrollY != 0.0 )
++	{
++		wlserver_mousewheel( pDevice->flScrollX, pDevice->flScrollY, uTime );
++		pDevice->flScrollX = 0.0;
++		pDevice->flScrollY = 0.0;
++	}
++
++	if ( pDevice->bAbsPending )
++	{
++		pDevice->bAbsPending = false;
++		if ( g_nOutputWidth != 0 && g_nOutputHeight != 0 )
++		{
++			// Normalize the raw range to [0,1], then map through the same
++			// output + focused-window letterbox transform wlserver_touchmotion
++			// uses; wlserver_mousewarp() clamps to the actual cursor bounds.
++			double flX = pDevice->absX.maximum > pDevice->absX.minimum
++			                 ? ( double )( pDevice->nAbsX - pDevice->absX.minimum ) / ( double )( pDevice->absX.maximum - pDevice->absX.minimum )
++			                 : 0.0;
++			double flY = pDevice->absY.maximum > pDevice->absY.minimum
++			                 ? ( double )( pDevice->nAbsY - pDevice->absY.minimum ) / ( double )( pDevice->absY.maximum - pDevice->absY.minimum )
++			                 : 0.0;
++			double flWarpX = flX * g_nOutputWidth;
++			double flWarpY = flY * g_nOutputHeight;
++			flWarpX += focusedWindowOffsetX;
++			flWarpY += focusedWindowOffsetY;
++			flWarpX *= focusedWindowScaleX;
++			flWarpY *= focusedWindowScaleY;
++			wlserver_mousewarp( flWarpX, flWarpY, uTime, false );
++		}
++	}
++
++	for ( auto &vKeyEvent : pDevice->vKeyEvents )
++		DispatchKeyOrButton( pDevice, vKeyEvent.first, vKeyEvent.second, uTime );
++	pDevice->vKeyEvents.clear();
++
++	if ( !bLockHeld )
++		wlserver_unlock();
++}
++
++void CHeadlessInputThread::DispatchKeyOrButton( SHeadlessInputDevice *pDevice, uint16_t uCode, bool bPressed, uint32_t uTime )
++{
++	if ( ( pDevice->uType & HEADLESS_DEVICE_KEYBOARD ) != 0 )
++	{
++		if ( uCode < BTN_MISC )
++			wlserver_key( uCode, bPressed, uTime );
++	}
++	else if ( uCode >= BTN_MISC && uCode <= KEY_MAX )
++	{
++		wlserver_mousebutton( uCode, bPressed, uTime );
++	}
++}
++
++void CHeadlessInputThread::ReleaseDevice( SHeadlessInputDevice *pDevice )
++{
++	if ( pDevice->nFD < 0 )
++		return;
++
++	log_HeadlessInput.infof( "Releasing %s (%s)", pDevice->sName.c_str(), pDevice->sPath.c_str() );
++
++	// Synthesize releases for anything still held so the compositor does
++	// not end up with stuck keys or buttons when the device disappears.
++	std::vector<std::pair<uint16_t, bool>> vReleases;
++	for ( uint16_t uCode = 0; uCode <= KEY_MAX; uCode++ )
++	{
++		if ( KeyStateIsDown( pDevice->vKeyState, uCode ) )
++			vReleases.emplace_back( uCode, false );
++	}
++	pDevice->vKeyState.assign( pDevice->vKeyState.size(), 0 );
++
++	wlserver_lock();
++	if ( !m_bStop )
++	{
++		for ( auto &vRelease : vReleases )
++			DispatchKeyOrButton( pDevice, vRelease.first, vRelease.second, MonotonicTimeMs() );
++		wlserver_unlock();
++	}
++	else
++	{
++		wlserver_unlock( false );
++	}
++
++	close( pDevice->nFD );
++	pDevice->nFD = -1;
++
++	// The node is gone or being replaced: drop its cached name so the next
++	// Rescan() re-probes the directory and can re-grab the freed filter type.
++	// Other cached host devices stay cached so the release of one device does
++	// not restart the whole open/close churn.
++	m_mapKnownNames.erase( pDevice->sPath );
++}
++
++void CHeadlessInputThread::DrainNotify()
++{
++	alignas( struct inotify_event ) char aBuffer[ 4096 ];
++	for ( ;; )
++	{
++		ssize_t nRead = read( m_nNotify, aBuffer, sizeof( aBuffer ) );
++		if ( nRead <= 0 )
++			break;
++
++		for ( const char *pCursor = aBuffer; pCursor + sizeof( struct inotify_event ) <= aBuffer + nRead; )
++		{
++			const struct inotify_event *pEvent = reinterpret_cast<const struct inotify_event *>( pCursor );
++			// On a queue overflow the kernel delivers an IN_Q_OVERFLOW marker
++			// (wd == -1, len == 0) instead of the dropped events, so a
++			// create/change event can be lost: forget every cached name and
++			// re-probe the whole directory once.
++			if ( ( pEvent->mask & IN_Q_OVERFLOW ) != 0 )
++				m_mapKnownNames.clear();
++			// A created/changed node may now match a filter or have its udev ACL
++			// applied, so drop its cached name and let the next Rescan() re-probe.
++			if ( pEvent->len > 0 )
++				m_mapKnownNames.erase( std::string( k_szInputDeviceDir ) + "/" + pEvent->name );
++			pCursor += sizeof( struct inotify_event ) + pEvent->len;
++		}
++	}
++}
++
++}
+diff --git a/src/HeadlessInput.hpp b/src/HeadlessInput.hpp
+new file mode 100644
+index 0000000..e1da96e
+--- /dev/null
++++ b/src/HeadlessInput.hpp
+@@ -0,0 +1,113 @@
++#pragma once
++
++#include <atomic>
++#include <cstddef>
++#include <cstdint>
++#include <linux/input.h>
++#include <map>
++#include <memory>
++#include <poll.h>
++#include <string>
++#include <thread>
++#include <utility>
++#include <vector>
++
++namespace gamescope
++{
++
++// Reads the evdev "passthrough" devices exposed by a headless input
++// provider (e.g. Sunshine's inputtino devices) and forwards their events
++// into the wlserver input API, giving the headless backend keyboard and
++// mouse input from a remote stream client.
++//
++// The thread is inert unless HEADLESS_INPUT_KEYBOARD / HEADLESS_INPUT_MOUSE /
++// HEADLESS_INPUT_MOUSE_ABS are set. Each variable holds the exact evdev
++// device name to open (matches are strcmp-exact and fail closed).
++class CHeadlessInputThread
++{
++public:
++	~CHeadlessInputThread();
++
++	// Returns false when no HEADLESS_INPUT_* filter is set (disabled).
++	// Otherwise spawns the input thread.
++	bool Init();
++
++	// Signals the input thread to stop. Safe to call while holding the
++	// wlserver lock (it never touches the lock or the display).
++	void Stop();
++
++	// Waits for the input thread to exit. Must be called without holding
++	// the wlserver lock.
++	void Join();
++
++	// True when any HEADLESS_INPUT_* filter is present in the environment.
++	static bool EnabledByEnvironment();
++
++private:
++	struct SHeadlessInputDevice
++	{
++		std::string sPath;
++		std::string sName;
++		int nFD = -1;
++		uint32_t uType = 0;
++		bool bClockMonotonic = false;
++
++		struct input_absinfo absX = {};
++		struct input_absinfo absY = {};
++
++		int nAbsX = 0;
++		int nAbsY = 0;
++		bool bAbsPending = false;
++
++		bool bHasWheelHiRes = false;
++		bool bHasHWheelHiRes = false;
++
++		int nRelX = 0;
++		int nRelY = 0;
++		double flScrollX = 0.0;
++		double flScrollY = 0.0;
++
++		std::vector<uint8_t> vKeyState;
++		std::vector<std::pair<uint16_t, bool>> vKeyEvents;
++	};
++
++	static void PollLoop( CHeadlessInputThread *pThis );
++	void Run();
++	void BuildPollFDs();
++	void Rescan();
++	void TryOpenDevice( const std::string &sPath );
++	bool ReadDeviceEvents( SHeadlessInputDevice *pDevice );
++	void HandleInputEvent( SHeadlessInputDevice *pDevice, const struct input_event &ev );
++	void HandleRelEvent( SHeadlessInputDevice *pDevice, uint16_t uCode, int32_t nValue );
++	void HandleAbsEvent( SHeadlessInputDevice *pDevice, uint16_t uCode, int32_t nValue );
++	void FlushDevice( SHeadlessInputDevice *pDevice, bool bLockHeld, uint32_t uTime );
++	void DispatchKeyOrButton( SHeadlessInputDevice *pDevice, uint16_t uCode, bool bPressed, uint32_t uTime );
++	void ReleaseDevice( SHeadlessInputDevice *pDevice );
++	void DrainNotify();
++
++	std::thread m_thread;
++	std::atomic<bool> m_bStop{ false };
++	int m_nStopEvent = -1;
++	int m_nNotify = -1;
++	std::string m_sFilterKeyboard;
++	std::string m_sFilterMouse;
++	std::string m_sFilterMouseAbs;
++	std::vector<std::unique_ptr<SHeadlessInputDevice>> m_devices;
++
++	// Path -> evdev name for every /dev/input/eventN we have already probed.
++	// Rescan() skips cached paths, so the periodic tick never re-opens host
++	// devices; entries are dropped when inotify reports the node created or
++	// changed, when a grabbed device is released, or when the cache fills.
++	std::map<std::string, std::string> m_mapKnownNames;
++
++	std::vector<struct pollfd> m_vPollFDs;
++	bool m_bPollFDsDirty = true;
++	int m_nNotifyIndex = -1;
++	size_t m_nDeviceBase = 1;
++	uint32_t m_uExpectedMask = 0;
++	uint32_t m_uFastScanDeadlineMs = 0;
++	bool m_bEverComplete = false;
++	bool m_bWarnedNoDevices = false;
++};
++
++}
+diff --git a/src/meson.build b/src/meson.build
+index 662f752..3c0b134 100644
+--- a/src/meson.build
++++ b/src/meson.build
+@@ -119,6 +119,7 @@ src = [
+   'Timeline.cpp',
+   'reshade_effect_manager.cpp',
+   'backend.cpp',
++  'HeadlessInput.cpp',
+   'x11cursor.cpp',
+   'InputEmulation.cpp',
+   'LibInputHandler.cpp',
+diff --git a/src/wlserver.cpp b/src/wlserver.cpp
+index 923a632..ee96c7d 100644
+--- a/src/wlserver.cpp
++++ b/src/wlserver.cpp
+@@ -65,6 +65,7 @@
+ #include "xwayland_ctx.hpp"
+ #include "refresh_rate.h"
+ #include "InputEmulation.h"
++#include "HeadlessInput.hpp"
+ #include "commit.h"
+ #include "Timeline.h"
+ #include "Utils/NonCopyable.h"
+@@ -91,6 +92,8 @@ struct wlserver_t wlserver = {
+ 	.touch_down_ids = {}
+ };
+ 
++static gamescope::CHeadlessInputThread g_HeadlessInput;
++
+ struct wlserver_content_override {
+ 	gamescope_xwayland_server_t *server;
+ 	struct wlr_surface *surface;
+@@ -2193,6 +2196,8 @@ bool wlserver_init( void ) {
+ 		}
+ 	}
+ 
++	g_HeadlessInput.Init();
++
+ 	return true;
+ }
+ 
+@@ -2302,6 +2307,9 @@ void wlserver_run(void)
+ 	// We need to shutdown Xwayland before disconnecting all clients, otherwise
+ 	// wlroots will restart it automatically.
+ 	wlserver_lock();
++
++	g_HeadlessInput.Stop();
++
+ 	wlserver.wlr.xwayland_servers.clear();
+ 
+ 	wl_list_remove( &new_surface_listener.link );
+@@ -2320,6 +2328,8 @@ void wlserver_run(void)
+ 	wl_display_destroy(wlserver.display);
+     wlserver.display = NULL;
+ 	wlserver_unlock(false);
++
++	g_HeadlessInput.Join();
+ }
+ 
+ void wlserver_shutdown()

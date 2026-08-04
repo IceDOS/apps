@@ -5,19 +5,43 @@
   lib,
   inputs,
   cfg,
+  # The resolved system Steam (`config.programs.steam.package`), which is what a
+  # bare `steam` resolves to at stream time. apps/steam maps it to pkgs.steam;
+  # the user-profile Steam is a pure `extraPkgs` override whose store name is
+  # unchanged, so this is representative of every path the launcher can exec.
+  steamPkg,
 }:
 
 let
   inherit (cfg)
     hdr
     colorManagement
+    inputInjection
     mangoApp
     sdrGamutWideness
     sdrContentNits
     ;
 
-  # No patches needed when both hdr and colorManagement are off.
-  gamescopeBase = pkgs.gamescope;
+  # Marker group for the setgid-`input` bridge. The module adds every IceDOS
+  # user to it (see icedos.nix), so all users of this feature can exec the
+  # shim, while a stray local account cannot. Grants nothing by itself — only
+  # the wrapper turns membership into gid `input`.
+  inputBridgeGroup = "sunshine-headless";
+
+  # Base gamescope for the session. pipewire-cursor.patch is applied ALWAYS: the
+  # PipeWire capture (paint_pipewire) never composites the X cursor, so without it
+  # the stream shows no cursor at all — core headless-session behaviour, not an
+  # opt-in. It does force a local gamescope build even where the other patches are
+  # off; the headless-input patch (new CHeadlessInputThread reading Sunshine's
+  # inputtino passthrough devices) is gated on inputInjection — the thread is
+  # inert unless HEADLESS_INPUT_* env filters are set, so stock behaviour is
+  # preserved whenever it does build.
+  gamescopeBase = pkgs.gamescope.overrideAttrs (old: {
+    patches =
+      (old.patches or [ ])
+      ++ [ ./lib/pipewire-cursor.patch ]
+      ++ lib.optionals inputInjection [ ./lib/headless-input.patch ];
+  });
 
   # + HDR headless patches:
   # - pipewire-hdr-metadata.patch: advertise BT.2020/PQ on the output so the portal ->
@@ -74,7 +98,7 @@ let
         postPatch = (old.postPatch or "") + ''
           substituteInPlace src/steamcompmgr.cpp \
             --replace-fail 'gamescope::Rc<CVulkanTexture> pRGBTexture = s_pPipewireBuffer->texture->isYcbcr()' 'if ( global_focus_t *pMangoOverlayFocus = GetCurrentFocus() ) { if ( pMangoOverlayFocus->externalOverlayWindow && pMangoOverlayFocus->externalOverlayWindow->opacity ) paint_window( pMangoOverlayFocus->externalOverlayWindow, pMangoOverlayFocus->externalOverlayWindow, &frameInfo, nullptr, PaintWindowFlag::NoScale | PaintWindowFlag::NoFilter | ( cv_overlay_unmultiplied_alpha ? PaintWindowFlag::CoverageMode : 0 ) ); } gamescope::Rc<CVulkanTexture> pRGBTexture = s_pPipewireBuffer->texture->isYcbcr()' \
-            --replace-fail 'ulOverrideCommitId == s_ulLastOverrideCommitId )' 'ulOverrideCommitId == s_ulLastOverrideCommitId && !( GetCurrentFocus() && GetCurrentFocus()->externalOverlayWindow && GetCurrentFocus()->externalOverlayWindow->opacity ) )'
+            --replace-fail 'ulOverrideCommitId == s_ulLastOverrideCommitId &&' 'ulOverrideCommitId == s_ulLastOverrideCommitId && !( GetCurrentFocus() && GetCurrentFocus()->externalOverlayWindow && GetCurrentFocus()->externalOverlayWindow->opacity ) &&'
         '';
       })
     else
@@ -101,9 +125,16 @@ let
         mkdir -p $out/share/xdg-desktop-portal/portals
         mkdir -p $out/libexec
 
+        # fix-stream-size.patch shells out to pw-cli to size the stream; the backend
+        # is D-Bus-activated under the private bus's bare PATH, so make pw-cli
+        # reachable here rather than relying on the caller's PATH. gamescopePkg (the
+        # patched build this module actually runs) is exposed too so the backend's
+        # gamescopectl version check sees a matching build.
         makeWrapper ${portalPkg}/libexec/xdg-desktop-portal-gamescope \
           $out/libexec/xdg-desktop-portal-gamescope \
-          --set WAYLAND_DISPLAY gamescope-0
+          --set WAYLAND_DISPLAY gamescope-0 \
+          --prefix PATH : ${pkgs.pipewire}/bin \
+          --prefix PATH : ${gamescopePkg}/bin
 
         cat > $out/share/dbus-1/services/org.freedesktop.impl.portal.desktop.gamescope.service << EOF
         [D-BUS Service]
@@ -129,9 +160,30 @@ let
 
   # setgid-`input` payload (isolateVirtualControllers): a C shim that promotes egid
   # `input` to the real gid (so bwrap mirrors it into the sandbox), then execs its
-  # args. Must be a binary — bash would drop the setgid egid.
+  # args. Must be a binary — bash would drop the setgid egid. It refuses every
+  # caller except root or members of the `sunshine-headless` marker group baked
+  # below (the `input` group has no human members — the module's assertion
+  # rejects any normal user in `input` — so the shim is the only path to it) and
+  # only execs store binaries
+  # whose name matches steam-<ver>[-bwrap] / gamescope-<ver> — a shape check
+  # against accidental misuse (e.g. a stray `sunshine-headless-gid /bin/sh`), NOT
+  # a provenance guarantee; the C header says exactly that. A TEST_MAIN
+  # build asserts the target gate against the real ${gamescopePkg}/bin/gamescope
+  # and ${steamPkg}/bin/steam during this derivation's build, so a regression
+  # fails the build, not the system. (The gate run is guarded by
+  # canExecute: on a cross build the target cannot be run here, so the shape
+  # asserts compile but don't execute — the system still refuses at runtime.)
   gidExec = pkgs.runCommandCC "sunshine-headless-gid" { } ''
-    $CC -O2 -Wall ${./lib/sunshine-headless-gid.c} -o $out
+    $CC -O2 -Wall -DEXPECTED_GROUP='"${inputBridgeGroup}"' ${./lib/sunshine-headless-gid.c} -o $out
+    $CC -O2 -Wall -DTEST_MAIN -DEXPECTED_GROUP='"${inputBridgeGroup}"' \
+        -DSTEAM_VERSION='"${steamPkg.version}"' -DGAMESCOPE_VERSION='"${gamescopePkg.version}"' \
+        ${./lib/sunshine-headless-gid.c} -o $TMPDIR/sunshine-headless-gid-test
+    ${lib.optionalString (pkgs.stdenv.buildPlatform.canExecute pkgs.stdenv.hostPlatform) ''
+      $TMPDIR/sunshine-headless-gid-test
+      $TMPDIR/sunshine-headless-gid-test ${gamescopePkg}/bin/gamescope
+      $TMPDIR/sunshine-headless-gid-test ${steamPkg}/bin/steam
+      $TMPDIR/sunshine-headless-gid-test "steam-${steamPkg.version}"
+    ''}
   '';
 
   # SteamOS mode "Switch to Desktop" shim: Steam's -steamos3 mode exposes a menu
@@ -148,5 +200,6 @@ in
     sunshinePortalConfig
     gidExec
     steamosSessionSelect
+    inputBridgeGroup
     ;
 }

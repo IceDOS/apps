@@ -1,0 +1,58 @@
+diff --git a/src/steamcompmgr.cpp b/src/steamcompmgr.cpp
+index ff9ae1f..a77b673 100644
+--- a/src/steamcompmgr.cpp
++++ b/src/steamcompmgr.cpp
+@@ -135,6 +135,10 @@ bool g_bWasPartialComposite = false;
+ 
+ bool ShouldDrawCursor();
+ 
++// Defined later in this file; declared up front because paint_pipewire() paints
++// the cursor into the stream and must gate on the same flag as the main path.
++extern gamescope::ConVar<bool> cv_paint_cursor_plane;
++
+ std::atomic<uint32_t> g_unCurrentVRSceneAppId;
+ std::atomic<uint64_t> g_FocusedVROverlayMouse;
+ std::atomic<uint64_t> g_FocusedVROverlayKeyboard;
+@@ -2391,8 +2395,22 @@ static void paint_pipewire()
+ 	uint64_t ulFocusCommitId = window_last_done_commit_id( pFocus->focusWindow );
+ 	uint64_t ulOverrideCommitId = window_last_done_commit_id( pFocus->overrideWindow );
+ 
++	// Composite a live cursor into the stream: repaint when the cursor moves
++	// (or its visibility flips), not only when a window commits, so the cursor
++	// stays usable over a static UI. Mirrors the main output path's behaviour.
++	global_focus_t *pCursorFocus = GetCurrentFocus();
++	static int s_LastCursorX = -1, s_LastCursorY = -1;
++	static bool s_LastCursorVisible = false;
++	const bool cursorVisible = pCursorFocus && pCursorFocus->cursor && !pCursorFocus->cursor->isHidden();
++	const bool cursorChanged = cursorVisible != s_LastCursorVisible ||
++		( cursorVisible && ( pCursorFocus->cursor->x() != s_LastCursorX || pCursorFocus->cursor->y() != s_LastCursorY ) );
++	s_LastCursorX = pCursorFocus && pCursorFocus->cursor ? pCursorFocus->cursor->x() : s_LastCursorX;
++	s_LastCursorY = pCursorFocus && pCursorFocus->cursor ? pCursorFocus->cursor->y() : s_LastCursorY;
++	s_LastCursorVisible = cursorVisible;
++
+ 	if ( ulFocusCommitId == s_ulLastFocusCommitId &&
+-	     ulOverrideCommitId == s_ulLastOverrideCommitId )
++	     ulOverrideCommitId == s_ulLastOverrideCommitId &&
++	     !cursorChanged )
+ 		return;
+ 
+ 	s_ulLastFocusCommitId = ulFocusCommitId;
+@@ -2421,6 +2439,18 @@ static void paint_pipewire()
+ 				( cv_overlay_unmultiplied_alpha ? PaintWindowFlag::CoverageMode : 0 )  );
+ 	}
+ 
++	// Paint the cursor into the stream, same gating as the main output path.
++	if ( pCursorFocus && pCursorFocus->cursor && pCursorFocus->inputFocusWindow &&
++	     ShouldDrawCursor() && cv_paint_cursor_plane )
++	{
++		steamcompmgr_win_t *input = pCursorFocus->inputFocusWindow;
++		steamcompmgr_win_t *override = pCursorFocus->overrideWindow;
++		pCursorFocus->cursor->undirty();
++		pCursorFocus->cursor->paint(
++			input, pCursorFocus->focusWindow == input ? override : nullptr,
++			&frameInfo );
++	}
++
+ 	gamescope::Rc<CVulkanTexture> pRGBTexture = s_pPipewireBuffer->texture->isYcbcr()
+ 		? vulkan_acquire_capture_texture( uWidth, uHeight, false, DRM_FORMAT_XRGB2101010 )
+ 		: gamescope::Rc<CVulkanTexture>{ s_pPipewireBuffer->texture };
