@@ -72,6 +72,7 @@
 
           inherit (lib)
             concatStringsSep
+            escapeShellArg
             mkIf
             optional
             ;
@@ -98,8 +99,8 @@
           };
 
           connectArgs = concatStringsSep " " (
-            optional (connect.country != "") ''--country "${connect.country}"''
-            ++ optional (connect.city != "") ''--city "${connect.city}"''
+            optional (connect.country != "") "--country ${escapeShellArg connect.country}"
+            ++ optional (connect.city != "") "--city ${escapeShellArg connect.city}"
             ++ optional connect.p2p "--p2p"
             ++ optional connect.securecore "-sc"
             ++ optional connect.tor "--tor"
@@ -108,7 +109,7 @@
 
           customDnsLine =
             if (customDnsValid && settings.customDns) then
-              ''protonvpn config set custom-dns on --dns "${settings.customDnsServers}"''
+              "protonvpn config set custom-dns on --dns ${escapeShellArg settings.customDnsServers}"
             else
               "protonvpn config set custom-dns off";
 
@@ -155,7 +156,7 @@
               Connect)
                 country=$("$ZEN" --list --title="ProtonVPN — Country" \
                   --column="Country" \
-                  Default ${concatStringsSep " " desktop-entry.countries} "Other…") || exit 0
+                  Default ${concatStringsSep " " (map escapeShellArg desktop-entry.countries)} "Other…") || exit 0
                 if [ "$country" = "Other…" ]; then
                   country=$("$ZEN" --entry --title="ProtonVPN — Country" \
                     --text="ISO country code (e.g. US, GB):") || exit 0
