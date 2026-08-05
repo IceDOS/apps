@@ -1,6 +1,10 @@
+set -euo pipefail
+
 watchers=()
 for w in cpu gpu disk network pipewire ports; do
-  command -v "$w-watcher" &>/dev/null && watchers+=("$w")
+  if command -v "$w-watcher" &>/dev/null; then
+    watchers+=("$w")
+  fi
 done
 
 UID_SELF="$(id -u)"
@@ -10,8 +14,8 @@ LAST_STATE=""
 
 release() {
   if [[ -n "$PID" ]]; then
-    kill "$PID" 2>/dev/null
-    wait "$PID" 2>/dev/null
+    kill "$PID" 2>/dev/null || true
+    wait "$PID" 2>/dev/null || true
   fi
   PID=""
 }
@@ -31,7 +35,9 @@ while :; do
 
   firing=()
   for w in "${watchers[@]}"; do
-    [[ "$("$w-watcher")" == "true" ]] && firing+=("$w")
+    if [[ "$("$w-watcher" 2>/dev/null || true)" == "true" ]]; then
+      firing+=("$w")
+    fi
   done
 
   if ((${#firing[@]} == 0)); then
@@ -48,12 +54,14 @@ while :; do
   # any non-pipewire watcher → sleep:shutdown (block auto-suspend during work).
   # Pipewire-only firing leaves explicit `systemctl suspend` working.
   parts=()
-  [[ " ${firing[*]} " == *" pipewire "* ]] && parts+=("idle")
+  if [[ " ${firing[*]} " == *" pipewire "* ]]; then
+    parts+=("idle")
+  fi
   for w in "${firing[@]}"; do
-    [[ "$w" != "pipewire" ]] && {
+    if [[ "$w" != "pipewire" ]]; then
       parts+=("sleep:shutdown")
       break
-    }
+    fi
   done
   what="$(
     IFS=:
