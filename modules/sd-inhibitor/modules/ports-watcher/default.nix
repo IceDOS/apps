@@ -21,7 +21,7 @@ in
       {
         home.packages =
           let
-            isEmpty = x: (length x) < 0;
+            isEmpty = x: (length x) == 0;
             watcher = sd-inhibitor.users.${config.home.username}.watchers.ports;
             inbound = map (p: "sport = :${toString p}") watcher.inboundPorts;
             outbound = map (p: "dport = :${toString p}") watcher.outboundPorts;
