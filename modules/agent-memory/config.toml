@@ -2,11 +2,12 @@
 coreImage = "docker.io/agentmemory/memory-core:latest"
 hubImage = "docker.io/agentmemory/memory-hub:latest"
 
-# "newer" re-checks the registry on every start, so :latest actually tracks
-# upstream instead of freezing at whatever was cached first. Costs a registry
-# round-trip per start and needs network at boot; "missing" avoids both but
-# then only ever pulls once.
-pullPolicy = "newer"
+# "missing" pulls only when the image is absent, so :latest freezes at whatever
+# was first cached. "newer" re-checks the registry every start and tracks
+# upstream, but costs a registry round-trip and needs network at boot. "missing"
+# is the safer default: no surprise network I/O, no drifting digest behind
+# :latest on every boot.
+pullPolicy = "missing"
 
 corePort = 8420
 panelPort = 8125

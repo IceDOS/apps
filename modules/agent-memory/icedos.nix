@@ -69,6 +69,12 @@
           coreName = "tdai-memory-core";
           hubName = "tdai-memory-hub";
 
+          # In-container knowledge port. The image's entrypoint reads
+          # KNOWLEDGE_PORT, and KNOWLEDGE_PUBLIC_BASE_URL must point at the same
+          # value — a single binding keeps the two in lockstep (the host-side
+          # cfg.knowledgePort maps onto it and is intentionally independent).
+          containerKnowledgePort = "8424";
+
           # Neither writeShellScript nor a systemd unit provides a usable PATH.
           scriptPath = lib.makeBinPath [
             pkgs.coreutils
@@ -158,9 +164,14 @@
               exit 1
             fi
 
+            # The file may not exist yet (the user creates it); the key check
+            # above reads it via the unit's EnvironmentFile. Tighten it if there.
+            chmod 600 "${envFile}" 2>/dev/null || true
+
             install -d -m 700 "${stateDir}"
             umask 077
-            sed "s|@API_KEY@|$MEMORY_LLM_API_KEY|" ${gatewayTemplate} > "${gatewayFile}"
+            KEY_ESC=$(printf '%s' "$MEMORY_LLM_API_KEY" | sed 's/[&|\\]/\\&/g')
+            sed "s|@API_KEY@|$KEY_ESC|" ${gatewayTemplate} > "${gatewayFile}"
 
             podman network exists ${network} || podman network create ${network}
           '';
@@ -219,13 +230,13 @@
             set -eu
             export PATH=${scriptPath}:$PATH
 
-            install -d -m 755 "${stateDir}"
+            install -d -m 700 "${stateDir}"
             tmp="${mcpPatched}.tmp"
 
             # Same pull policy as the container itself. Without this the
             # extraction reads the stale local image while ExecStart then pulls
             # a newer one, and we would mount an out-of-date bundle over it.
-            podman run --rm --pull=${cfg.pullPolicy} --entrypoint cat ${cfg.hubImage} \
+            podman run --rm --pull="${cfg.pullPolicy}" --entrypoint cat "${cfg.hubImage}" \
               /app/knowledge/dist/mcp/server.mjs > "$tmp"
 
             if ! grep -q x-tdai-service-id "$tmp"; then
@@ -263,7 +274,7 @@
               podman.sdnotify = "conmon";
               pull = cfg.pullPolicy;
               networks = [ network ];
-              ports = [ "${toString cfg.corePort}:8420" ];
+              ports = [ "127.0.0.1:${toString cfg.corePort}:8420" ];
 
               volumes = [
                 "tdai-memory-core-data:/data/tdai-memory"
@@ -288,8 +299,8 @@
               networks = [ network ];
 
               ports = [
-                "${toString cfg.panelPort}:8125"
-                "${toString cfg.knowledgePort}:8424"
+                "127.0.0.1:${toString cfg.panelPort}:8125"
+                "127.0.0.1:${toString cfg.knowledgePort}:${containerKnowledgePort}"
               ];
 
               volumes = [
@@ -303,8 +314,13 @@
 
               environment = {
                 PANEL_PORT = "8125";
-                KNOWLEDGE_PORT = "8424";
-                KNOWLEDGE_PUBLIC_BASE_URL = "http://host.docker.internal:${toString cfg.knowledgePort}/v3";
+                KNOWLEDGE_PORT = containerKnowledgePort;
+                # Consumed INSIDE the container (it advertises its own endpoint),
+                # so it must be the container-internal address — NOT the host-side
+                # published port (cfg.knowledgePort). Coupling it to the host port
+                # would make the URL unreachable from within whenever
+                # knowledgePort ≠ 8424.
+                KNOWLEDGE_PUBLIC_BASE_URL = "http://127.0.0.1:${containerKnowledgePort}/v3";
                 REMOTE_INSTANCE_ID = "default";
                 REMOTE_INSTANCE_NAME = "default";
                 REMOTE_INSTANCE_URL = "http://memory-core:8420";
@@ -328,15 +344,51 @@
           # serviceConfig list values concatenate across definitions, so these
           # append to the ExecStartPre the oci-containers module already sets
           # rather than replacing it.
+          #
+          # Hardening notes: NoNewPrivileges and CapabilityBoundingSet are
+          # deliberately NOT set here — rootless podman relies on the setuid
+          # newuidmap/newgidmap helpers to build the container's uid map, and
+          # both settings break that. That also rules out every seccomp-based
+          # restriction: systemd IMPLIES NoNewPrivileges=yes for a unit that
+          # runs without CAP_SYS_ADMIN whenever any of RestrictAddressFamilies,
+          # RestrictRealtime, RestrictSUIDSGID, ProtectKernelTunables or
+          # ProtectKernelModules is set — exactly this unit (User= podman user
+          # in the system slice) — so they would break newuidmap/newgidmap just
+          # as surely as setting NoNewPrivileges directly. Only
+          # mount-namespace-based options are safe here (PrivateTmp,
+          # ProtectControlGroups — the cgroupfs read-only it imposes is fine,
+          # rootless podman gets no cgroup delegation in the system slice
+          # anyway). ProtectSystem is NOT set either: the strict/full variants
+          # make the filesystem tree read-only, which would also cover podman's
+          # own rootless storage (~/.local/share/containers) and runroot
+          # ($XDG_RUNTIME_DIR/containers) — the units' ExecStart IS `podman
+          # run`. ProtectHome stays false because corePre/corePost/hubPre write
+          # under ${home}/.local/state. ReadWritePaths is NOT set: without
+          # ProtectSystem it confines nothing, and systemd sets up the listed
+          # path's mount namespace before any Exec* runs — the dir only exists
+          # after corePre's `install -d` — so on a fresh machine the unit would
+          # die with 226/NAMESPACE. The port exposure is instead handled by
+          # binding published ports to loopback.
           systemd.services."podman-${coreName}".serviceConfig = {
             # Systemd-level, not --env-file: corePre needs the key to render the
             # gateway config before the container exists.
             EnvironmentFile = [ envFile ];
             ExecStartPre = [ "${corePre}" ];
             ExecStartPost = [ "${corePost}" ];
+
+            PrivateTmp = true;
+            ProtectHome = false;
+            ProtectControlGroups = true;
+            UMask = "0077";
           };
 
-          systemd.services."podman-${hubName}".serviceConfig.ExecStartPre = [ "${hubPre}" ];
+          systemd.services."podman-${hubName}".serviceConfig = {
+            ExecStartPre = [ "${hubPre}" ];
+            PrivateTmp = true;
+            ProtectHome = false;
+            ProtectControlGroups = true;
+            UMask = "0077";
+          };
         }
       )
     ];
