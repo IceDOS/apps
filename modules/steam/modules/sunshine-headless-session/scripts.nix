@@ -454,13 +454,13 @@ let
                 ENABLE_GAMESCOPE_WSI=1 "''${steam_hdr_env[@]}" ${sessionEnv}\
                 setpriv --inh-caps=-all --ambient-caps=-all -- \
                 "''${gid_wrap[@]}" steam -gamepadui "''${steamos_args[@]}" \
-              >/tmp/sunshine-headless-steam.log 2>&1 &
+              >"$rt"/sunshine-headless-steam.log 2>&1 &
           else
             env DISPLAY="$DISPLAY" WAYLAND_DISPLAY="$WAYLAND_DISPLAY" \
               PULSE_SINK=steam-sunshine-headless-sink \
               ENABLE_GAMESCOPE_WSI=1 "''${steam_hdr_env[@]}" ${sessionEnv}\
               setpriv --inh-caps=-all --ambient-caps=-all -- \
-              setsid -f "''${gid_wrap[@]}" steam -gamepadui "''${steamos_args[@]}" >/tmp/sunshine-headless-steam.log 2>&1
+              setsid -f "''${gid_wrap[@]}" steam -gamepadui "''${steamos_args[@]}" >"$rt"/sunshine-headless-steam.log 2>&1
           fi
           # Deterministic settle (replaces a fixed sleep that raced): Sunshine starts
           # capturing the instant this prep-cmd `do` returns, and returning before
