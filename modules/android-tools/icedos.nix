@@ -99,10 +99,10 @@
                     done
 
                     ensure_connected() {
-                      local serial_flag=""
-                      [[ -n "$USB" ]] && serial_flag="-s $USB"
+                      local serial_args=()
+                      [[ -n "$USB" ]] && serial_args=(-s "$USB")
 
-                      if ${adb} $serial_flag get-state >/dev/null 2>&1; then
+                      if ${adb} "''${serial_args[@]}" get-state >/dev/null 2>&1; then
                         return 0
                       fi
 
@@ -144,8 +144,8 @@
                     }
 
                     paste() {
-                      local serial_flag=""
-                      [[ -n "$USB" ]] && serial_flag="-s $USB"
+                      local serial_args=()
+                      [[ -n "$USB" ]] && serial_args=(-s "$USB")
                       local text="$1"
 
                       local escaped=""
@@ -163,7 +163,7 @@
                         esac
                       done
 
-                      ${adb} $serial_flag shell input text "$escaped"
+                      ${adb} "''${serial_args[@]}" shell input text "$escaped"
                     }
 
                     ensure_connected
