@@ -101,6 +101,25 @@ let
       ExecStart = "${sunshineBin} ${sunshineConf}";
       Restart = "on-failure";
       RestartSec = "5s";
+
+      # kms backend: sunshineBin is /run/wrappers/bin/sunshine, a setcap wrapper
+      # (CAP_SYS_ADMIN arrives as a file capability). NoNewPrivileges — explicit
+      # or implied by the seccomp options below — strips file capabilities at
+      # exec, and for an unprivileged user-manager unit ANY namespace or seccomp
+      # option implies a user namespace (PrivateUsers self-mapping), inside which
+      # file capabilities are ignored regardless. So the kms backend keeps only
+      # UMask; the full set applies to the portal backend (plain binary).
+      UMask = "0027";
+    }
+    // lib.optionalAttrs (backend != "kms") {
+      PrivateTmp = true;
+      NoNewPrivileges = true;
+      ProtectClock = true;
+      ProtectKernelTunables = true;
+      ProtectKernelModules = true;
+      ProtectControlGroups = true;
+      RestrictRealtime = true;
+      RestrictSUIDSGID = true;
     };
   };
 in

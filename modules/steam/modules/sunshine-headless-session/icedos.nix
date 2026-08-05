@@ -253,6 +253,16 @@
               ExecStart = "${pkgs.dbus}/bin/dbus-daemon --session --nofork --nopidfile --address=unix:path=%t/sunshine-portal/bus";
               Restart = "always";
               RestartSec = "2s";
+
+              # NO namespacing/seccomp hardening (only UMask): for an unprivileged
+              # user-manager unit ANY namespace (PrivateTmp/Protect*) or seccomp
+              # (Restrict*) option implies a user namespace (PrivateUsers
+              # self-mapping). D-Bus-activated services inherit the bus daemon's
+              # namespace, so a namespaced bus drags the gamescope backend + the
+              # document portal into the namespace too — same breakage as the
+              # sunshine-portal unit below (portal is_sandboxed caller check, fuse
+              # mount). The whole private stack must stay unnamespaced.
+              UMask = "0027";
             };
           };
 
@@ -283,6 +293,18 @@
               ExecStart = "${pkgs.xdg-desktop-portal}/libexec/xdg-desktop-portal --verbose";
               Restart = "always";
               RestartSec = "2s";
+
+              # NO namespacing/seccomp hardening (only UMask): for an unprivileged
+              # user-manager unit ANY namespace (PrivateTmp/Protect*) or seccomp
+              # (Restrict*) option implies a user namespace (PrivateUsers
+              # self-mapping). The portal's own is_sandboxed() caller check opens
+              # /proc/<sunshine-pid>/root to detect sandboxed apps; across the
+              # user-namespace boundary that open fails with EACCES, so the portal
+              # treats the unnamespaced Sunshine as sandboxed and denies ScreenCast
+              # ("Portal operation not allowed: Unable to open /proc/PID/root") —
+              # Sunshine then finds no display at startup and every Moonlight
+              # connect fails with 503.
+              UMask = "0027";
             };
           };
 
@@ -300,6 +322,16 @@
               Type = "oneshot";
               RemainAfterExit = true;
               ExecStart = "${lib.getExe sessionApp} idle";
+
+              PrivateTmp = true;
+              NoNewPrivileges = true;
+              ProtectClock = true;
+              ProtectKernelTunables = true;
+              ProtectKernelModules = true;
+              ProtectControlGroups = true;
+              RestrictRealtime = true;
+              RestrictSUIDSGID = true;
+              UMask = "0027";
             };
           };
 
@@ -358,6 +390,26 @@
               # then hangs the NEXT start. Cap the stop so systemd SIGKILLs it quickly instead;
               # the clean D-Bus disconnect lets the gamescope portal reap the session.
               TimeoutStopSec = lib.mkForce "5s";
+
+              # This unit's process tree execs privilege-bearing wrappers, so it
+              # cannot take namespacing or NoNewPrivileges: the prep-cmd chain
+              # runs the injected Steam through the setgid-`input` shim
+              # (/run/wrappers/bin/sunshine-headless-gid — isolateVirtualControllers
+              # / steamOS, for the pad + /dev/rfkill) and, under capSysAdmin
+              # (mandatory for the kms backend), Sunshine itself runs as the
+              # setcap wrapper (/run/wrappers/bin/sunshine). NoNewPrivileges
+              # strips both the setgid bit and file capabilities at exec, and
+              # for an unprivileged user-manager unit ANY namespace or seccomp
+              # option implies a user namespace (PrivateUsers self-mapping),
+              # inside which file capabilities and setuid/setgid are ignored
+              # regardless — so this unit keeps only UMask. sunshine-headless-idle
+              # keeps the full seccomp + namespace set (it only spawns gamescope
+              # via systemd-run, whose transient unit is unnamespaced anyway), but
+              # sunshine-portal-bus and -portal must ALSO stay unnamespaced: the
+              # portal's is_sandboxed() caller check cannot open /proc/<pid>/root
+              # across a user-namespace boundary, which denies every Sunshine
+              # ScreenCast (503).
+              UMask = "0027";
             };
             unitConfig.StartLimitIntervalSec = lib.mkForce 0;
           };
