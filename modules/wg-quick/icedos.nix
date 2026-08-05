@@ -48,8 +48,8 @@
 
                   newFile="/etc/wireguard/''$(basename "$1")"
 
+                  umask 0077
                   mkdir -p /etc/wireguard
-                  umask 0022 /etc/wireguard
 
                   cp "$1" "$newFile"
                   chmod 600 "$newFile"
