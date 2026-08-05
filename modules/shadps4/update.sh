@@ -14,22 +14,35 @@ GITHUB_API="https://api.github.com/repos/$OWNER/$REPO"
 # Upstream tags every prerelease Pre-release-shadPS4-<YYYY-MM-DD>-<40-char sha>.
 TAG_PREFIX="Pre-release-shadPS4-"
 
-# lib.fakeHash — a valid but wrong SRI hash, used to provoke the mismatch that
-# reveals the real one.
+# lib.fakeHash — nixpkgs' constant: a valid but wrong SRI hash, used to provoke
+# the mismatch that reveals the real one. write_pin validates the shape, so this
+# must stay 43 base64 chars ending in "=" — a future edit that drifts from that
+# shape would silently break the placeholder write.
 FAKE_HASH="sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
 
 info()  { echo "==> $1"; }
 error() { echo "ERROR: $1" >&2; exit 1; }
 
+# SCRIPT_DIR is interpolated into a Nix --expr string (compute_hash) and used to
+# locate prerelease.json. Reject only what could break out of the expression or
+# silently pin elsewhere: quotes, backslashes, braces and control characters.
+# Spaces / unicode stay legal — compute_hash cd's in first, so `./prerelease.nix`
+# (a relative path literal) needs no quoting.
+if [[ "$SCRIPT_DIR" =~ [\\\"{}[:cntrl:]] ]]; then
+  error "unsafe SCRIPT_DIR: $SCRIPT_DIR"
+fi
+
 # The pin is briefly written with a placeholder hash (see compute_hash); put the
-# original back if anything goes wrong before the real hash lands.
+# original back if anything goes wrong before the real hash lands. Also clear the
+# same-directory temp pin file write_pin may have left behind.
+PIN_TMP=""
 restore_pin() {
   if [ -f "$TMP_DIR/pin.bak" ]; then
     cp "$TMP_DIR/pin.bak" "$PIN_JSON"
     echo "  Restored previous $PIN_JSON" >&2
   fi
 }
-trap 'restore_pin; rm -rf "$TMP_DIR"' EXIT
+trap '[ -n "$PIN_TMP" ] && rm -f "$PIN_TMP"; restore_pin; rm -rf "$TMP_DIR"' EXIT
 
 # --- GitHub API ---
 # Unauthenticated is 60 req/h per IP; CI passes GITHUB_TOKEN.
@@ -43,14 +56,30 @@ gh_api() {
 
 # --- Write the {version, rev, hash} pin ---
 # A pin with an empty field still evaluates, producing a nameless derivation that
-# fails deep in a build, so refuse to write one.
+# fails deep in a build, so refuse to write one. Written atomically (temp + mv) so
+# a crash mid-update can never leave a torn pin that evaluates to something wrong.
 write_pin() {
   local version="$1" rev="$2" hash="$3"
   if [ -z "$version" ] || [ -z "$rev" ] || [ -z "$hash" ]; then
     error "refusing to write an incomplete pin (version='$version' rev='$rev' hash='$hash')"
   fi
+  # The hash becomes the nix store path hash — a garbage but SRI-shaped value
+  # would silently produce a different (broken) store path. Require the exact
+  # shape so a mangled compute_hash capture fails here instead of at build time.
+  if [[ ! "$hash" =~ ^sha256-[A-Za-z0-9+/]{43}=$ ]]; then
+    error "refusing to write a malformed hash: '$hash'"
+  fi
+  # Temp file in the SAME directory as the pin so the final mv is a same-filesystem
+  # atomic rename (a /tmp temp would copy+unlink across devices — not atomic).
+  PIN_TMP=$(mktemp -p "$(dirname "$PIN_JSON")")
+  local tmp="$PIN_TMP"
   jq -n --arg version "$version" --arg rev "$rev" --arg hash "$hash" \
-    '{version: $version, rev: $rev, hash: $hash}' > "$PIN_JSON"
+    '{version: $version, rev: $rev, hash: $hash}' > "$tmp"
+  # mktemp creates 0600 and mv preserves it — restore the pin's normal perms so
+  # prerelease.json doesn't silently become owner-only after every update.
+  chmod 644 "$tmp"
+  mv "$tmp" "$PIN_JSON"
+  PIN_TMP=""
 }
 
 # --- Compute the SRI hash of a shadps4 checkout ---
@@ -61,9 +90,12 @@ write_pin() {
 # mismatch the placeholder provokes.
 compute_hash() {
   local out
-  out=$(nix build --impure --no-link --expr "
+  # cd into the script dir so the expr can reference ./prerelease.nix — a
+  # relative path literal that needs no quoting, so SCRIPT_DIR with spaces or
+  # non-ASCII stays usable (absolute-path interpolation would break the parse).
+  out=$(cd "$SCRIPT_DIR" && nix build --impure --no-link --expr "
     (import <nixpkgs> {
-      overlays = (import $SCRIPT_DIR/prerelease.nix).nixpkgs.overlays;
+      overlays = (import ./prerelease.nix).nixpkgs.overlays;
     }).shadps4.src" 2>&1 || true)
 
   echo "$out" | grep -oP 'got:\s+\K\S+' | tail -1
