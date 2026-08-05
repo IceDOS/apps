@@ -63,7 +63,10 @@
           optionalSunshineHeadlessSteamOS = applications.steam.headless-session.steamOS or false;
           session = hasAttr "session" applications.steam;
           steamdeck = hasAttr "steamdeck" (icedos.hardware.devices or { });
-          steamPkg = pkgs.steam;
+          # lib/resolved-steam.nix: the parent DEFINES programs.steam.package,
+          # so it uses `raw`; `resolved` is reserved for consumers that read
+          # what Steam actually runs.
+          steamPkg = (import ./lib/resolved-steam.nix) { inherit config pkgs; };
         in
         {
           home-manager.sharedModules = [
@@ -83,10 +86,10 @@
 
               home.packages =
                 if (!hasGamescope && !hasProtonLaunch && !hasExtraPackages && !session) then
-                  [ steamPkg ]
+                  [ steamPkg.raw ]
                 else if ((hasGamescope || hasProtonLaunch) && !session) then
                   [
-                    (steamPkg.override {
+                    (steamPkg.raw.override {
                       extraPkgs = pkgs: extraPackages ++ optionalGamescope ++ optionalProtonLaunch;
                     })
                   ]
@@ -95,10 +98,16 @@
             }
           ];
 
+          # programs.steam.package is DEFINED here, so it must be lib's `raw`
+          # (pkgs.steam): deriving it from lib's `resolved` — which reads
+          # config.programs.steam.package whenever the module is enabled —
+          # would read the very option defined here (self-reference).
+          # Consumers (e.g. steam-sunshine-headless-session) import lib and
+          # use `resolved` to read what a bare `steam` actually runs.
           programs.steam = {
             enable = steamdeck || session;
             extraPackages = extraPackages ++ optionalGamescope ++ optionalProtonLaunch;
-            package = steamPkg;
+            package = steamPkg.raw;
           };
 
           # The `L+` symlink rule does not auto-create intermediate parent
