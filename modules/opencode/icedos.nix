@@ -111,8 +111,10 @@
                   settings = recursiveUpdate {
                     "$schema" = "https://opencode.ai/config.json";
 
-                    # Auto-allow skills discovered from ~/.claude/skills (Claude-compatible).
-                    permission.skill."*" = "allow";
+                    # Auto-allow only the skills declared in the module's
+                    # `skills` option (an allowlist), not every skill that
+                    # happens to exist under ~/.claude/skills.
+                    permission.skill = lib.mapAttrs (name: _: "allow") skills;
                   } (recursiveUpdate extraSettings (agentMemoryMcpFor config.home.username));
 
                   skills = skills;
