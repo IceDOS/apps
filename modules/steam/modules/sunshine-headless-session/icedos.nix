@@ -50,8 +50,10 @@
               inputs
               cfg
               ;
-            steamPkg = config.programs.steam.package or pkgs.steam;
+
+            steamPkg = ((import ../../lib/resolved-steam.nix) { inherit config pkgs; }).resolved;
           };
+
           inherit (packages)
             xdg-desktop-portal-gamescope
             sunshinePortalConfig

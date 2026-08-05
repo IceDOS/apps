@@ -5,10 +5,11 @@
   lib,
   inputs,
   cfg,
-  # The resolved system Steam (`config.programs.steam.package`), which is what a
-  # bare `steam` resolves to at stream time. apps/steam maps it to pkgs.steam;
-  # the user-profile Steam is a pure `extraPkgs` override whose store name is
-  # unchanged, so this is representative of every path the launcher can exec.
+  # The resolved system Steam (lib/resolved-steam.nix): `programs.steam.package`
+  # when programs.steam is enabled, else `pkgs.steam`. apps/steam maps
+  # programs.steam.package to pkgs.steam; the user-profile Steam is a pure
+  # `extraPkgs` override whose store name is unchanged, so this is
+  # representative of every path the launcher can exec.
   steamPkg,
 }:
 
