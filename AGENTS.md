@@ -47,5 +47,8 @@ checkout (`path:/abs/path/to/apps`), then `icedos rebuild --build` (no activatio
 - `me3` — game mod loader (per-game profiles/natives/packages).
 - `sunshine` + `steam-sunshine-headless-session` — game streaming, incl. headless HDR.
 - `gamescope`, `lsfg-vk`, `mangohud` — gaming/perf.
+- `helium` — loads `inputs.nur.modules.nixos.default` (the input is supplied by
+  `providers#nur` via `meta.dependencies`), which puts unvetted `pkgs.nur.repos.*`
+  into the global package set. The only consumer of the NUR overlay today.
 - `prefixer`, `proton-launch` — Proton prefix tooling (protontricks is deprecated here;
   use `prefixer <APP_ID> run <exe>`).

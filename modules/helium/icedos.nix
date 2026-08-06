@@ -36,8 +36,10 @@
     };
 
   outputs.nixosModules =
-    { ... }:
+    { inputs, ... }:
     [
+      inputs.nur.modules.nixos.default
+
       (
         {
           config,
