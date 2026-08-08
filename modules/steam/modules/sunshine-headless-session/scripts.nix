@@ -253,8 +253,12 @@ let
         # don't catch it. systemd-run --unit= then refuses the still-loaded name ("was
         # already loaded or has a fragment file") and, under set -e, aborts the script.
         # reset-failed clears a failed leftover; stop clears an active/lingering one. We
-        # only reach here with the socket absent, so neither can kill a healthy gamescope.
+        # only reach here with no live gamescope owning the socket (absent, or a stale
+        # inode from a failed unit — abnormal exit never unlinks it), so neither can kill
+        # a healthy gamescope, and the rm below clears the stale inode so the fresh
+        # gamescope can bind (wl_display_add_socket does not unlink a foreign file).
         # --collect makes a future failed instance auto-unload, so the name self-frees.
+        rm -f "$rt/gamescope-0"
         systemctl --user reset-failed sunshine-headless-gamescope.service 2>/dev/null || true
         systemctl --user stop sunshine-headless-gamescope.service 2>/dev/null || true
         systemd-run --user \
@@ -341,7 +345,7 @@ let
           client_hdr=0
           ${lib.optionalString hdr ''case "''${SUNSHINE_CLIENT_HDR:-}" in true | 1 | on) client_hdr=1 ;; esac''}
 
-          if [ -S "$rt/gamescope-0" ]; then
+          if [ -S "$rt/gamescope-0" ] && systemctl --user is-active --quiet sunshine-headless-gamescope.service; then
             saved_params="$(cat "$rt/sunshine-headless-gamescope-params" 2>/dev/null || true)"
             saved_w="$(printf '%s' "$saved_params" | awk '{print $1}')"
             saved_h="$(printf '%s' "$saved_params" | awk '{print $2}')"
@@ -649,15 +653,40 @@ let
           [ -n "$mod" ] && pactl unload-module "$mod" 2>/dev/null || true
           rm -f "$rt/sunshine-headless-sink-module"
           ;;
+        cleanup)
+          # ExecStopPost guard: a hard-SIGKILLed Sunshine never runs its `undo`
+          # (stop), so the on-demand stream sink can stay loaded AND default,
+          # muting the desktop until relogin. Idempotent release of just the
+          # audio half of stop. Deliberately does NOT touch Steam: Restart=always
+          # + the 5s TimeoutStopSec means this fires on every routine restart of
+          # the sunshine unit, and a crash-restart while a game is up must not
+          # kill the session.
+          #
+          # Restore the recorded default ONLY while the live default is actually
+          # the stream/sunshine sink (same blocklist as the wait guard): the
+          # recording file is kept fresh only during a live stream, so an
+          # unconditional restore after a session ended would revert the user's
+          # desktop default to a stale id.
+          dname="$(wpctl inspect @DEFAULT_AUDIO_SINK@ 2>/dev/null | grep -oP 'node.name = "\K[^"]+' || true)"
+          case "$dname" in
+            steam-sunshine-headless-sink | sink-sunshine-*)
+              real="$(cat "$rt/sunshine-headless-default-sink" 2>/dev/null || true)"
+              [ -n "$real" ] && wpctl set-default "$real" 2>/dev/null || true
+              ;;
+          esac
+          mod="$(cat "$rt/sunshine-headless-sink-module" 2>/dev/null || true)"
+          [ -n "$mod" ] && pactl unload-module "$mod" 2>/dev/null || true
+          rm -f "$rt/sunshine-headless-sink-module"
+          ;;
         idle)
           # Boot-time display so Sunshine's launch-time encoder probe passes (else 503).
           # Idempotent; SDR fallback res — the first client `start` restarts it to the
           # client's resolution/HDR if different.
-          [ -S "$rt/gamescope-0" ] && exit 0
+          [ -S "$rt/gamescope-0" ] && systemctl --user is-active --quiet sunshine-headless-gamescope.service && exit 0
           start_gamescope "1" "1" "1" "0"
           ;;
         *)
-          echo "usage: sunshine-headless-session start [HOME]|wait [HOME]|stop [HOME]|idle" >&2
+          echo "usage: sunshine-headless-session start [HOME]|wait [HOME]|stop [HOME]|cleanup|idle" >&2
           exit 1
           ;;
       esac

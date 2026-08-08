@@ -26,7 +26,7 @@
     };
 
   outputs.nixosModules =
-    { ... }:
+    { repoUrl, ... }:
     [
       (
         {
@@ -57,12 +57,19 @@
           extraPackages = mapper pkgs applications.steam.extraPackages;
           hasExtraPackages = length extraPackages != 0;
           hasGamescope = config.programs.gamescope.enable;
-          hasProtonLaunch = hasAttr "proton-launch" applications;
+          hasProtonLaunch = icedosLib.hasModule {
+            inherit config repoUrl;
+            name = "proton-launch";
+          };
           optionalGamescope = optional hasGamescope pkgs.gamescope;
           optionalProtonLaunch = optional hasProtonLaunch pkgs.proton-launch;
           optionalSunshineHeadlessSteamOS = applications.steam.headless-session.steamOS or false;
           session = hasAttr "session" applications.steam;
-          steamdeck = hasAttr "steamdeck" (icedos.hardware.devices or { });
+          steamdeck = icedosLib.hasModule {
+            inherit config;
+            url = "github:icedos/hardware";
+            name = "steamdeck";
+          };
           # lib/resolved-steam.nix: the parent DEFINES programs.steam.package,
           # so it uses `raw`; `resolved` is reserved for consumers that read
           # what Steam actually runs.

@@ -23,7 +23,6 @@
           inherit (lib)
             any
             attrNames
-            hasAttr
             head
             last
             length
@@ -219,7 +218,14 @@
                 }
 
                 ${
-                  if hasAttr "monitors" hardware && (length hardware.monitors) != 0 then
+                  if
+                    icedosLib.hasModule {
+                      inherit config;
+                      url = "github:icedos/hardware";
+                      name = "monitors";
+                    }
+                    && (length hardware.monitors) != 0
+                  then
                     let
                       monitor = head (hardware.monitors);
                       resolution = splitString "x" (monitor.resolution);
@@ -278,7 +284,13 @@
                       shift
                       ;;
                       ${
-                        if (hasAttr "low-latency-vulkan-layer" (hardware.drivers or { })) then
+                        if
+                          (icedosLib.hasModule {
+                            inherit config;
+                            url = "github:icedos/hardware";
+                            name = "low-latency-vulkan-layer";
+                          })
+                        then
                           ''
                             --low-latency)
                               LOW_LATENCY_LAYER=1

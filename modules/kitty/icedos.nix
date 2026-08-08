@@ -53,15 +53,26 @@
 
         let
           inherit (lib)
-            hasAttr
             mkForce
             mkIf
             mkMerge
             ;
 
           inherit (config) icedos;
-          inherit (icedos) applications desktop;
+          inherit (icedos) applications;
           inherit (applications) kitty;
+
+          hasHyprland = icedosLib.hasModule {
+            inherit config;
+            url = "github:icedos/hyprland";
+            modules = [ "default" ];
+          };
+
+          hasGnome = icedosLib.hasModule {
+            inherit config;
+            url = "github:icedos/gnome";
+            modules = [ "default" ];
+          };
         in
         {
           home-manager.sharedModules = [
@@ -119,13 +130,11 @@
                   }
                 ];
 
-                wayland.windowManager.hyprland.settings.bind =
-                  mkIf (hasAttr "desktop" icedos && hasAttr "hyprland" desktop)
-                    [
-                      "$mainMod, X, exec, kitty"
-                    ];
+                wayland.windowManager.hyprland.settings.bind = mkIf hasHyprland [
+                  "$mainMod, X, exec, kitty"
+                ];
 
-                dconf.settings = mkIf (hasAttr "desktop" icedos && hasAttr "gnome" desktop) {
+                dconf.settings = mkIf hasGnome {
                   "org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/kitty" = {
                     binding = "<Super>x";
                     command = "kitty";

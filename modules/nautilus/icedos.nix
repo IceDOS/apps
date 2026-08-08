@@ -1,4 +1,4 @@
-{ ... }:
+{ icedosLib, ... }:
 
 {
   outputs.nixosModules =
@@ -14,13 +14,9 @@
 
         let
           inherit (lib)
-            hasAttr
             makeSearchPathOutput
             mkIf
             ;
-
-          inherit (config) icedos;
-          inherit (icedos) desktop;
         in
         {
           environment = {
@@ -61,16 +57,23 @@
                 };
 
                 "org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/nautilus" =
-                  mkIf (hasAttr "desktop" icedos && hasAttr "gnome" desktop)
+                  mkIf
+                    (icedosLib.hasModule {
+                      inherit config;
+                      url = "github:icedos/gnome";
+                      modules = [ "default" ];
+                    })
                     {
                       binding = "<Super>e";
                       command = "nautilus .";
                       name = "Nautilus";
                     };
 
-                "org/gnome/settings-daemon/plugins/media-keys".custom-keybindings = mkIf (
-                  hasAttr "desktop" icedos && hasAttr "gnome" desktop
-                ) [ "/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/nautilus/" ];
+                "org/gnome/settings-daemon/plugins/media-keys".custom-keybindings = mkIf (icedosLib.hasModule {
+                  inherit config;
+                  url = "github:icedos/gnome";
+                  modules = [ "default" ];
+                }) [ "/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/nautilus/" ];
               };
 
               home.file = {

@@ -97,7 +97,7 @@
           inherit (config) icedos;
           inherit (icedos.applications) sd-inhibitor;
 
-          sessionTargets = icedosLib.systemd.desktopSessionTargets icedos;
+          sessionTargets = icedosLib.systemd.desktopSessionTargets config;
         in
         {
           icedos.applications.sd-inhibitor.users = icedosLib.users.genDefaults {
@@ -376,5 +376,14 @@
       )
     ];
 
-  meta.name = "sd-inhibitor";
+  meta = {
+    name = "sd-inhibitor";
+
+    dependencies = [
+      {
+        url = "github:icedos/desktop";
+        modules = [ "default" ];
+      }
+    ];
+  };
 }
