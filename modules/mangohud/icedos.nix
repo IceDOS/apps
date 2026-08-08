@@ -45,7 +45,6 @@
         }:
 
         let
-          inherit (lib) hasAttr;
           inherit (config.icedos) applications hardware;
           inherit (applications) mangohud;
           inherit (hardware) devices;
@@ -54,7 +53,11 @@
           home-manager.sharedModules = [
             (
               let
-                steamdeck = hasAttr "steamdeck" devices;
+                steamdeck = icedosLib.hasModule {
+                  inherit config;
+                  url = "github:icedos/hardware";
+                  name = "steamdeck";
+                };
               in
               {
                 programs.mangohud = {

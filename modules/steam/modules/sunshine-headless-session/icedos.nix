@@ -97,6 +97,22 @@
                 SUBSYSTEM=="input", ATTRS{name}=="Sunshine*", TAG-="uaccess", MODE="0660", RUN+="${pkgs.acl}/bin/setfacl -b $env{DEVNAME}"
               ''
             )
+            # inputInjection's keyboard/mouse passthrough devices ("Keyboard passthrough
+            # (seat-headless)", "Mouse passthrough (seat-headless)", "Mouse passthrough
+            # (seat-headless) (absolute)") are NOT covered by the Sunshine* pad rule above and
+            # rely only on gamescope's EVIOCGRAB — in the ungrabbed window (device created
+            # before gamescope grabs it, or gamescope down/restarting) the host desktop (not in
+            # `input`) still holds a seat0 uaccess ACL and client input leaks into the desktop.
+            # Strip it like the pad; the patched gamescope still opens the nodes via the
+            # setgid-`input` shim. Distinct filename so two udev package derivations don't
+            # collide when both features are on. The (seat-headless) glob only matches the
+            # inputInjection instance's seat-suffixed names — the desktop-capture instance (no
+            # XDG_SEAT) keeps its plain-named devices open for the real desktop.
+            ++ lib.optional inputInjection (
+              pkgs.writeTextDir "etc/udev/rules.d/72-sunshine-headless-input-no-uaccess.rules" ''
+                SUBSYSTEM=="input", ATTRS{name}=="*passthrough (${headlessSeat})*", TAG-="uaccess", MODE="0660", RUN+="${pkgs.acl}/bin/setfacl -b $env{DEVNAME}"
+              ''
+            )
             # Steam's Deck UI (-steamos3) opens /dev/rfkill O_RDWR to read/monitor/control
             # the radios. Default perms are root:root 0664 → read-only for a non-active-seat
             # user; systemd's 70-uaccess.rules grants rw only to the ACTIVE seat session, so a
@@ -390,6 +406,11 @@
               # then hangs the NEXT start. Cap the stop so systemd SIGKILLs it quickly instead;
               # the clean D-Bus disconnect lets the gamescope portal reap the session.
               TimeoutStopSec = lib.mkForce "5s";
+              # Sunshine normally unloads the stream sink via `stop` (its apps.nix undo), but
+              # the SIGKILL above means that never runs → the null-sink stays default and mutes
+              # the desktop until relogin. ExecStopPost releases just the audio half (`cleanup`,
+              # not `stop` — a crash-restart while a game is up must not kill the session).
+              ExecStopPost = "${lib.getExe sessionApp} cleanup";
 
               # This unit's process tree execs privilege-bearing wrappers, so it
               # cannot take namespacing or NoNewPrivileges: the prep-cmd chain

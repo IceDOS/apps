@@ -77,7 +77,7 @@
             optional
             ;
 
-          sessionTargets = icedosLib.systemd.desktopSessionTargets icedos;
+          sessionTargets = icedosLib.systemd.desktopSessionTargets config;
 
           onOff = b: if b then "on" else "off";
 
@@ -238,5 +238,14 @@
       )
     ];
 
-  meta.name = "protonvpn-cli";
+  meta = {
+    name = "protonvpn-cli";
+
+    dependencies = [
+      {
+        url = "github:icedos/desktop";
+        modules = [ "default" ];
+      }
+    ];
+  };
 }

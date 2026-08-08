@@ -36,16 +36,19 @@
 
         let
           inherit (applications.steam.os-session) auto-start user;
-          inherit (config.icedos) applications hardware system;
+          inherit (config.icedos) applications system;
           inherit (config.services.displayManager) autoLogin;
-          inherit (hardware) devices graphics;
           inherit (icedosLib) validate;
-          inherit (lib) hasAttr mkIf;
+          inherit (lib) mkIf;
           inherit (system) isFirstBuild;
         in
         mkIf (!isFirstBuild) {
           jovian = {
-            hardware.has.amd.gpu = hasAttr "radeon" graphics;
+            hardware.has.amd.gpu = icedosLib.hasModule {
+              inherit config;
+              url = "github:icedos/hardware";
+              name = "radeon";
+            };
 
             steam = {
               inherit user;
@@ -60,7 +63,17 @@
                 });
 
               desktopSession = auto-start.desktopSession;
-              updater.splash = if (hasAttr "steamdeck" devices) then "jovian" else "vendor";
+              updater.splash =
+                if
+                  (icedosLib.hasModule {
+                    inherit config;
+                    url = "github:icedos/hardware";
+                    name = "steamdeck";
+                  })
+                then
+                  "jovian"
+                else
+                  "vendor";
             };
           };
         }
