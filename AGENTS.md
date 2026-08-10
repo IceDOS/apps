@@ -47,6 +47,10 @@ checkout (`path:/abs/path/to/apps`), then `icedos rebuild --build` (no activatio
 - `me3` — game mod loader (per-game profiles/natives/packages).
 - `sunshine` + `steam-sunshine-headless-session` — game streaming, incl. headless HDR.
 - `gamescope`, `lsfg-vk`, `mangohud` — gaming/perf.
+- `wl-freeze` — suspend a game process in any Wayland compositor (hyprland/sway/niri).
+  Moved here from `hyprland` when upstream renamed `hyprfreeze` → `wl-freeze`; the
+  Hyprland bind is gated on `hasModule { url = "github:icedos/hyprland" }` + the
+  `hyprlandBind` option.
 - `helium` — loads `inputs.nur.modules.nixos.default` (the input is supplied by
   `providers#nur` via `meta.dependencies`), which puts unvetted `pkgs.nur.repos.*`
   into the global package set. The only consumer of the NUR overlay today.
