@@ -52,7 +52,7 @@
           inherit (desktop) defaultBrowser;
           inherit (applications.helium) drmSupportUsingGoogleChrome;
           inherit (pkgs) google-chrome nur;
-          inherit (nur.repos.Ev357) helium;
+          inherit (nur.repos.lonerOrz) helium;
 
           inherit (lib)
             mkIf
@@ -127,7 +127,7 @@
         let
           inherit (lib) concatStringsSep escapeShellArg listToAttrs;
           inherit (config.icedos.applications.helium) profiles;
-          inherit (pkgs.nur.repos.Ev357) helium;
+          inherit (pkgs.nur.repos.lonerOrz) helium;
         in
         {
           environment.systemPackages = map (
