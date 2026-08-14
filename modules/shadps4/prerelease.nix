@@ -21,6 +21,13 @@
         shadps4 = super.shadps4.overrideAttrs (old: {
           version = source.version;
 
+          # The base nixpkgs package carries use-system-zarchive.patch (PR #4786)
+          # for its v0.17.0 tag. The prerelease pin is newer and already merged
+          # that PR, so the patch comes out reversed against the pinned source
+          # ("Reversed (or previously applied) patch detected" in patchPhase).
+          # Drop it here; the prerelease source needs no zarchive patch.
+          patches = builtins.filter (p: p.name != "use-system-zarchive.patch") (old.patches or [ ]);
+
           src = final.fetchFromGitHub {
             owner = "shadps4-emu";
             repo = "shadPS4";
@@ -31,9 +38,14 @@
             # postPatch reads), followed by the submodules the prerelease newly needs:
             # protobuf (unguarded add_subdirectory in externals), zstd and zarchive
             # (added after v0.16), and cpp-httplib (unconditional include in np_handler.cpp).
+            #
+            # Must use the absolute "$out/externals" like the nixpkgs hook does:
+            # postCheckout runs from the builder's cwd (nix-prefetch-git pops back out
+            # of $out before eval'ing the hook), so a relative "externals" dies with
+            # "fatal: cannot change to 'externals': No such file or directory".
             postCheckout = old.src.postCheckout + ''
 
-              git -C externals submodule update --init --recursive \
+              git -C "$out/externals" submodule update --init --recursive \
                 cpp-httplib \
                 protobuf \
                 zarchive \
