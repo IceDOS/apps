@@ -34,3 +34,10 @@ user = "ice"
 
 # Start the containers automatically. false = options only, nothing runs.
 service = true
+
+# Users that get the `agent-memory` MCP server entry in the shared home-manager
+# programs.mcp.servers registry. opencode (enableMcpIntegration), claude-code
+# (claude-icedos) and prime-agent all consume that registry, so this single list
+# replaces the old per-client `agentMemory.users` wiring. A plain list, not a
+# per-user submodule: deriving definitions from the users attrset recurses.
+users = []

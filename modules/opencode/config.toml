@@ -1,17 +1,3 @@
 [icedos.applications.opencode.extraSettings]
-
-# TencentDB Agent Memory knowledge service (code graph + wiki) as an MCP server.
-# Mirrors claude-icedos' `agent-memory-mcp` module for the Claude Code side.
-# The containers come from the apps `agent-memory` module.
-[icedos.applications.opencode.agentMemory]
-# Users that get the entry. Same shape as
-# `icedos.applications.claude-code.agentMemory.users` so both clients are
-# configured identically; each module handles its own wiring. A plain list, not
-# a per-user submodule: deriving definitions from the users attrset recurses.
-users = []
-containerName = "tdai-memory-hub"
-# Knowledge service port *inside* the container, not the published one.
-knowledgePort = 8424
-
 [icedos.applications.opencode.peonPingOverrides]
 [icedos.applications.opencode.skills]

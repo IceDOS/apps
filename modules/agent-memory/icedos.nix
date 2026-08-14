@@ -8,6 +8,7 @@
       inherit (icedosLib)
         mkBoolOption
         mkNumberOption
+        mkStrListOption
         mkStrOption
         ;
 
@@ -25,6 +26,7 @@
         pullPolicy
         service
         user
+        users
         ;
     in
     {
@@ -41,6 +43,12 @@
       pullPolicy = mkStrOption { default = pullPolicy; };
       service = mkBoolOption { default = service; };
       user = mkStrOption { default = user; };
+
+      # Users that get the shared-registry MCP entry
+      # (programs.mcp.servers.agent-memory), consumed by opencode, claude-code
+      # and prime-agent. Per-user scoping lives here — on the service owner —
+      # instead of in each client.
+      users = mkStrListOption { default = users; };
     };
 
   outputs.nixosModules =
@@ -55,7 +63,7 @@
         }:
 
         let
-          inherit (lib) mkIf;
+          inherit (lib) elem mkIf;
 
           cfg = config.icedos.applications.agent-memory;
 
@@ -389,6 +397,45 @@
             ProtectControlGroups = true;
             UMask = "0077";
           };
+
+          # Shared-registry MCP entry. Declared here — on the service owner —
+          # rather than in each client, so opencode (enableMcpIntegration),
+          # claude-code (claude-icedos) and prime-agent all pick the server up
+          # from the one programs.mcp.servers registry instead of duplicating
+          # per-client wiring. Gated on cfg.service: with service = false the
+          # stack never runs, so there is nothing to exec into.
+          home-manager.sharedModules = [
+            (
+              { config, ... }:
+              lib.mkIf (elem config.home.username cfg.users) {
+                programs.mcp.servers.agent-memory = {
+                  # podman, not docker: the `docker` shim only exists when some
+                  # other module enables virtualisation.podman.dockerCompat.
+                  command = "podman";
+                  args = [
+                    "exec"
+                    "-i"
+                    # Mandatory. The image defaults to LOG_LEVEL=info and the
+                    # server logs its startup lines through console.log — stdout,
+                    # the same channel as JSON-RPC — which corrupts the MCP
+                    # handshake.
+                    "-e"
+                    "LOG_LEVEL=warn"
+                    # The server defaults to :8421 and appends /v3 itself, so
+                    # this is the bare origin. Points at the container-internal
+                    # knowledge port (containerKnowledgePort), not the published
+                    # cfg.knowledgePort — the MCP server runs inside the
+                    # container, so the host-side port is unreachable from there.
+                    "-e"
+                    "KNOWLEDGE_API_URL=http://127.0.0.1:${containerKnowledgePort}"
+                    hubName
+                    "node"
+                    "/app/knowledge/dist/mcp/server.mjs"
+                  ];
+                };
+              }
+            )
+          ];
         }
       )
     ];
