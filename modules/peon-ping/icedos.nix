@@ -6,10 +6,6 @@
     inputs.nixpkgs.follows = "nixpkgs";
   };
 
-  # Standalone module: peon-ping owns its own per-user option
-  # `icedos.applications.peon-ping.users.<name>`. It is NOT part of claude-code —
-  # claude-code and opencode merely *consume* it (they read this option to detect
-  # the module and wire their hooks/plugins).
   options.icedos.applications.peon-ping.users =
     let
       inherit (lib) head importTOML;
@@ -27,6 +23,7 @@
 
       inherit ((importTOML ./config.toml).icedos.applications.peon-ping.users.username)
         categories
+        claudeCodeIntegration
         defaultPack
         desktopNotifications
         packs
@@ -48,11 +45,9 @@
       } 0.0 1.0;
 
       desktopNotifications = mkBoolOption { default = desktopNotifications; };
+      claudeCodeIntegration = mkBoolOption { default = claudeCodeIntegration; };
       suppressSubagentComplete = mkBoolOption { default = suppressSubagentComplete; };
 
-      # `Stop` fires at the end of *every* assistant turn, not once per task, so
-      # `task.complete` alone is noisy. Non-zero suppresses it when the turn took
-      # less than N seconds; the idle/stuck ping bypasses this window entirely.
       silentWindowSeconds = mkIntBetweenOption {
         path = "icedos.applications.peon-ping.users.<u>.silentWindowSeconds";
         source = ./config.toml;
@@ -127,7 +122,12 @@
           home-manager.sharedModules = [
             inputs.peon-ping.homeManagerModules.default
             (
-              { config, lib, ... }:
+              {
+                config,
+                lib,
+                pkgs,
+                ...
+              }:
 
               let
                 peonUserCfg = peonUsers.${config.home.username} or null;
@@ -136,12 +136,22 @@
                 programs.peon-ping = {
                   enable = true;
                   package = peonPkg;
-                  claudeCodeIntegration = false;
+                  claudeCodeIntegration = peonUserCfg.claudeCodeIntegration;
                   settings = renderPeonSettings peonUserCfg;
                   installPacks = renderInstallPacks peonUserCfg;
                 };
 
-                home.file.".claude/hooks/peon-ping/peon.sh".source = "${peonPkg}/bin/peon";
+                # Upstream's claudeCodeIntegration merge writes ~/.claude/settings.json,
+                # but hm's programs.claude-code materialises it as a read-only store
+                # symlink — replace it with a writable copy before the merge.
+                home.activation.icedosPeonSettingsWritable = lib.mkIf peonUserCfg.claudeCodeIntegration (
+                  lib.hm.dag.entryBetween [ "peonPingClaudeCodeHooks" ] [ "linkGeneration" ] ''
+                    if [ -e "$HOME/.claude/settings.json" ] || [ -L "$HOME/.claude/settings.json" ]; then
+                      run ${pkgs.coreutils}/bin/install -m644 "$HOME/.claude/settings.json" "$HOME/.claude/settings.json.new"
+                      run ${pkgs.coreutils}/bin/mv -f "$HOME/.claude/settings.json.new" "$HOME/.claude/settings.json"
+                    fi
+                  ''
+                );
               }
             )
           ];
