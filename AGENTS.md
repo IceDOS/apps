@@ -45,7 +45,11 @@ checkout (`path:/abs/path/to/apps`), then `icedos rebuild --build` (no activatio
   (per-user opt-in, `claudeCodeIntegration = true`), and `opencode` consumes the user
   settings for its own peon plugin. See core's *Per-user (`users`) options*.
 - `me3` — game mod loader (per-game profiles/natives/packages).
-- `sunshine` + `steam-sunshine-headless-session` — game streaming, incl. headless HDR.
+- `sunshine` + `steam-sunshine-headless-session` — game streaming, incl. headless HDR. The base
+  `sunshine` module is always the primary, stock daemon (real desktop capture). Loading the
+  headless module stands up a SECOND, independent `sunshine-headless` daemon (own ports/state)
+  pinned to a private gamescope-0 portal; autostart via its
+  `icedos.applications.steam.headless-session.autoStart`.
 - `gamescope`, `lsfg-vk`, `mangohud` — gaming/perf.
 - `wl-freeze` — suspend a game process in any Wayland compositor (hyprland/sway/niri).
   Moved here from `hyprland` when upstream renamed `hyprfreeze` → `wl-freeze`; the

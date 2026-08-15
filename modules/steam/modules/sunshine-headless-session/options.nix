@@ -12,13 +12,17 @@ let
   inherit (lib) importTOML;
 
   inherit ((importTOML ./config.toml).icedos.applications.steam.headless-session)
+    autoStart
     colorManagement
     excludeHostControllers
     hdr
     inputInjection
     isolateVirtualControllers
     mangoApp
+    name
     normalSteamSession
+    openFirewall
+    port
     secondarySteamSession
     secondarySteamSessionPath
     renderHeight
@@ -28,23 +32,41 @@ let
     steamOS
     upscaleFilter
     fsrSharpness
-    desktop-capture
     ;
 in
 {
+  # The SECOND, independent Sunshine daemon streaming the headless gamescope session;
+  # the primary stays stock/normal (see daemon.nix).
+
+  # Start the daemon at the graphical session (like the primary's autoStart); false = manual.
+  autoStart = mkBoolOption { default = autoStart; };
+
+  # sunshine_name / mDNS label of the headless instance; must differ from the primary.
+  name = mkStrOption { default = name; };
+
+  # Base port for the headless instance (primary uses 47989); Sunshine derives its whole block from it.
+  port = mkIntBetweenOption {
+    path = "icedos.applications.steam.headless-session.port";
+    source = ./config.toml;
+    default = port;
+  } 1024 65535;
+
+  # Open the headless instance's derived TCP/UDP port block in the host firewall.
+  openFirewall = mkBoolOption { default = openFirewall; };
+
   # Keep host physical controllers out of the injected Steam (see scripts.nix).
   excludeHostControllers = mkBoolOption { default = excludeHostControllers; };
 
   # Hide the Sunshine virtual pad from the host desktop (see scripts.nix).
   isolateVirtualControllers = mkBoolOption { default = isolateVirtualControllers; };
 
-  # Which Steam apps to inject. normal = default HOME; second = a separate account
+  # Which Steam apps to inject: normal = default HOME; second = separate account
   # under secondarySteamSessionPath (required non-empty when enabled).
   normalSteamSession = mkBoolOption { default = normalSteamSession; };
   secondarySteamSession = mkBoolOption { default = secondarySteamSession; };
   secondarySteamSessionPath = mkStrOption { default = secondarySteamSessionPath; };
 
-  # Gamescope render size (upscaled to width/height). 0 → render at output res.
+  # Gamescope render size (upscaled to width/height). 0 -> render at output res.
   renderWidth = mkIntBetweenOption {
     path = "icedos.applications.steam.headless-session.renderWidth";
     source = ./config.toml;
@@ -57,8 +79,7 @@ in
     default = renderHeight;
   } 0 8192;
 
-  # SDR-on-HDR tuning: brightness (--hdr-sdr-content-nits) and gamut stretch
-  # (--sdr-gamut-wideness, 0 = none .. 1 = full BT.2020).
+  # SDR-on-HDR tuning: brightness (--hdr-sdr-content-nits) and gamut stretch.
   sdrContentNits = mkIntBetweenOption {
     path = "icedos.applications.steam.headless-session.sdrContentNits";
     source = ./config.toml;
@@ -71,7 +92,7 @@ in
     default = sdrGamutWideness;
   } 0 1;
 
-  # Gamescope upscaler (-F) and its sharpness (--fsr-sharpness; fsr/nis only).
+  # Gamescope upscaler (-F) and sharpness (--fsr-sharpness; fsr/nis only).
   upscaleFilter =
     mkEnumOption
       {
@@ -94,63 +115,20 @@ in
     default = fsrSharpness;
   } 0 20;
 
-  # Make the headless gamescope HDR-capable (builds the HDR/colorimetry gamescope patches).
-  # Whether a given stream is actually HDR follows the Moonlight client's HDR setting,
-  # decided per-stream like resolution — this option no longer forces HDR on.
+  # HDR-capable gamescope (HDR/colorimetry patches). Whether a stream is actually
+  # HDR follows the Moonlight client's setting per-stream, not this option.
   hdr = mkBoolOption { default = hdr; };
 
-  # Forward Moonlight keyboard/mouse to the headless gamescope via Sunshine's
-  # inputtino passthrough devices (named for seat-headless; see scripts.nix).
+  # Forward Moonlight keyboard/mouse via Sunshine's inputtino passthrough devices.
   inputInjection = mkBoolOption { default = inputInjection; };
 
-  # Steam -steamos3 (SteamOS Deck UI mode): Steam manages the gamescope baselayer/
-  # focus natively, eliminating the manual appid tagger in the wait loop. Also makes
-  # Steam take over the host Bluetooth and power it off on launch — the wait loop
-  # re-asserts the pre-launch BT state (see scripts.nix root-cause note).
+  # Steam -steamos3: Steam manages gamescope focus natively (no appid tagger) and
+  # takes over host Bluetooth; the wait loop re-asserts the pre-launch BT state.
   steamOS = mkBoolOption { default = steamOS; };
 
-  # MangoHud performance overlay (mangoapp). Adds --mangoapp to the idle gamescope
-  # (gamescope itself spawns/respawns + composites the mangoapp overlay window) and sets
-  # STEAM_USE_MANGOAPP=1 on the injected Steam so the overlay level is driven from Steam's
-  # Quick Access -> Performance menu.
+  # MangoHud overlay: --mangoapp on the idle gamescope + STEAM_USE_MANGOAPP=1 on Steam.
   mangoApp = mkBoolOption { default = mangoApp; };
 
   # Color management: expose color controls in Steam's Display settings.
   colorManagement = mkBoolOption { default = colorManagement; };
-
-  # Second, independent Sunshine instance that streams the REAL physical KDE Plasma
-  # (Wayland) desktop (see desktop-capture.nix), coexisting with the headless gamescope
-  # session. Separate daemon: its own ports and its own isolated pairing/state.
-  desktop-capture = {
-    enable = mkBoolOption { default = desktop-capture.enable; };
-
-    # sunshine_name / mDNS name; must differ from the primary so Moonlight can tell them apart.
-    name = mkStrOption { default = desktop-capture.name; };
-
-    # Base port (primary uses 47989); Sunshine derives its whole TCP/UDP block from it.
-    port = mkIntBetweenOption {
-      path = "icedos.applications.steam.headless-session.desktop-capture.port";
-      source = ./config.toml;
-      default = desktop-capture.port;
-    } 1024 65535;
-
-    # portal = KDE Wayland ScreenCast (no caps); kms = raw DRM scanout (needs capSysAdmin).
-    backend =
-      mkEnumOption
-        {
-          path = "icedos.applications.steam.headless-session.desktop-capture.backend";
-          source = ./config.toml;
-          default = desktop-capture.backend;
-        }
-        [
-          "portal"
-          "kms"
-        ];
-
-    # Open the instance's derived TCP/UDP port block in the host firewall.
-    openFirewall = mkBoolOption { default = desktop-capture.openFirewall; };
-
-    # Optional specific monitor/output to capture (mainly for kms). Empty = default/portal picker.
-    outputName = mkStrOption { default = desktop-capture.outputName; };
-  };
 }

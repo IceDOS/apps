@@ -1,6 +1,5 @@
-# Sunshine apps injected into apps.json: one per enabled session (normal/second).
-# `cmd` blocks until the injected Steam exits (auto-detach=false); prep-cmd
-# `start` launches the gamescope compositor, `stop` tears it down.
+# Sunshine apps for the headless session, one per enabled session. `cmd` blocks
+# until Steam exits; prep-cmd `start` launches gamescope, `stop` tears it down.
 {
   pkgs,
   lib,
@@ -18,15 +17,13 @@ let
     secondarySteamSessionPath
     ;
 
-  # Cover-label font: the desktop's stylix sans-serif, else DejaVu. Resolved to a
-  # concrete file in the builder (variable fonts have no static bold face, and
-  # imagemagick's fontconfig family lookup mis-picks italic).
+  # Cover-label font: the desktop's stylix sans-serif, else DejaVu (resolved in the
+  # builder: variable fonts have no static bold face, and fontconfig mis-picks italic).
   stylixOn = config.stylix.enable or false;
   fontPkg = if stylixOn then config.stylix.fonts.sansSerif.package else pkgs.dejavu_fonts;
   fontFamily = if stylixOn then config.stylix.fonts.sansSerif.name else "DejaVu Sans";
 
-  # Box art with a bottom label so Moonlight (no app names on Android) can tell the
-  # variants apart; the label appears only when there are multiple variants.
+  # Box art with a bottom label so Moonlight can tell the variants apart (only when >1).
   steamCover =
     { second }:
     let

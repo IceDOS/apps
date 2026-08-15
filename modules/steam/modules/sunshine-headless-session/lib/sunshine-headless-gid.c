@@ -1,44 +1,5 @@
-/* setgid-`input` exec shim for the headless Steam launcher / gamescope.
- *
- * Run as the payload of a NixOS security.wrapper (setgid `input`): the wrapper
- * sets egid=input, then execs THIS binary. It promotes that group to the REAL
- * gid (setregid) and execs its arguments. The real gid matters because bwrap
- * mirrors the *real* gid (not egid) into the physical-input mask sandbox — so
- * inside the sandbox the injected Steam is gid `input` and can open the
- * uaccess-stripped Sunshine pad, while the host desktop (not in `input`) cannot.
- *
- * The `input` group deliberately has NO human members, so this shim is the only
- * bridge to it — which makes it the security boundary. A normal user landing in
- * `input` (e.g. via the input-remapper module's mkGroupInjector, which would
- * otherwise add every IceDOS user to `input`) is mutually exclusive with this
- * shim: the module's icedos.nix assertion hard-fails the build in that case, so
- * the invariant is enforced, not assumed. Two layers:
- *
- *  1. Caller gate. Callers must be root or a member of a marker group baked in
- *     at build time (-DEXPECTED_GROUP=...). The module adds every IceDOS user
- *     to that group, so all users of this feature can use the bridge while a
- *     stray local account still cannot read /dev/input (keylogging). The marker
- *     group grants nothing by itself — only this wrapper turns it into gid
- *     `input`. Allowed targets can still exec children with the promoted gid,
- *     which is exactly what we rely on; that is fine because only members ever
- *     reach them, and they may already run steam/gamescope.
- *
- *  2. Target gate. Defense-in-depth against accidental misuse — e.g. a stray
- *     `sunshine-headless-gid /bin/sh` — not the security boundary; the caller
- *     gate above is that. Note only argv[1] (the exec target) is inspected:
- *     arguments after it, including gamescope's own `-- <cmd>`, are passed
- *     through untouched, so the promoted gid reaches whatever the target
- *     launches. The exec target must be a /nix/store binary whose store name is
- *     steam-<ver>[-bwrap] or gamescope-<ver> (resolved to its canonical path
- *     first, PATH-walking bare names). <ver> starts with a digit and continues
- *     with digits/letters/dot/plus/underscore/dash — the digit-first rule is
- *     what makes the shape tight: steam-run, steamcmd, gamescopereaper,
- *     gamescope-session all fail it, while a version-format drift (e.g.
- *     -unstable-2026-01-01) doesn't.
- *
- * MUST be a binary, not a shell script: bash drops the inherited setgid egid
- * unless invoked with -p, which is exactly what broke the first attempt.
- */
+/* Exec shim for the headless session — ONE binary, two wrapper configs: mode A (setgid `input`, gamescope/injected Steam) promotes egid to the real gid so bwrap mirrors `input` into the sandbox; mode B (setuid root, the daemon only) keeps the caller's gids and adds `input` supplementary — gid=input would fail the portal's /proc/<pid>/root ptrace check (503).
+ * `input` has NO human members, so the shim is the security boundary: caller gate (root or the baked-in marker group) + target gate (steam-<ver>[-bwrap]/gamescope-<ver>/sunshine-<ver> shapes). MUST be a binary: bash drops the inherited setgid egid. */
 #include <grp.h>
 #include <limits.h>
 #include <pwd.h>
@@ -52,26 +13,25 @@
 #define EXPECTED_GROUP ""
 #endif
 
-/* Current target versions, baked in by packages.nix (-DSTEAM_VERSION=... /
- * -DGAMESCOPE_VERSION=...) so the TEST_MAIN shape assertions always test the
- * live names rather than drifting literals. */
+/* Target versions baked in by packages.nix (-DSTEAM_VERSION/-DGAMESCOPE_VERSION/
+ * -DSUNSHINE_VERSION) so TEST_MAIN asserts live names, not drifting literals. */
 #ifndef STEAM_VERSION
 #define STEAM_VERSION ""
 #endif
 #ifndef GAMESCOPE_VERSION
 #define GAMESCOPE_VERSION ""
 #endif
+#ifndef SUNSHINE_VERSION
+#define SUNSHINE_VERSION ""
+#endif
+/* The group whose access the shim grants (mode B adds it as supplementary;
+ * mode A's wrapper bit is baked into the wrapper config, group "input"). */
+#ifndef INPUT_GROUP
+#define INPUT_GROUP "input"
+#endif
 
-/* The remainder of a store name after the "<32-hex>-" prefix must be
- * steam-<ver>[-bwrap] or gamescope-<ver>, where <ver> starts with a digit and
- * continues with digits/letters/dot/plus/underscore/dash. The digit-first rule
- * is what kills the prefix traps (steam-run, steamcmd, steam-runtime,
- * gamescopereaper, gamescope-session all start with a non-digit after the
- * prefix); the lenient tail is so a version-format drift (gamescope
- * 3.17.0-unstable-2026-01-01, steam -beta1) doesn't break the gate, which is
- * defense-in-depth against accidental misuse, not a provenance check. The
- * -bwrap suffix (the buildFHSEnvBubblewrap launcher that `bin/steam` symlinks
- * to) is a steam shape only; gamescope has no such wrapper. */
+/* Store-name shape after the "<32-hex>-" prefix: steam-<ver>[-bwrap] / gamescope-<ver> / sunshine-<ver> (per mode), <ver> digit-first then lenient — digit-first kills the prefix traps (steam-run, steamcmd, gamescopereaper, gamescope-session, sunshine-headless); defense-in-depth, not provenance.
+ * -bwrap (the buildFHSEnvBubblewrap launcher `bin/steam` symlinks to) is a steam shape only. */
 static int IsVersionSuffix(const char *szRest, size_t cRest, int bwrapAllowed)
 {
 	size_t c = cRest;
@@ -85,9 +45,8 @@ static int IsVersionSuffix(const char *szRest, size_t cRest, int bwrapAllowed)
 		      (ch >= 'A' && ch <= 'Z') || ch == '.' || ch == '+' || ch == '_' || ch == '-'))
 			return 0;
 	}
-	/* -bwrap is a steam shape only: a real gamescope store name never carries
-	 * it, so reject it explicitly — the lenient tail would otherwise accept
-	 * the dash. */
+	/* -bwrap is a steam shape only: reject it for gamescope/sunshine explicitly
+	 * (the lenient tail would otherwise accept the dash). */
 	if (!bwrapAllowed && c >= 6 && strncmp(szRest + c - 6, "-bwrap", 6) == 0)
 		return 0;
 	return 1;
@@ -119,10 +78,31 @@ static int IsAllowedTarget(const char *szPath)
 	return 0;
 }
 
+/* Mode B (root/daemon) accepts sunshine-<ver> only. Same store-path shape
+ * parsing as IsAllowedTarget. */
+static int IsSunshineTarget(const char *szPath)
+{
+	static const char k_szStore[] = "/nix/store/";
+	if (strncmp(szPath, k_szStore, sizeof(k_szStore) - 1) != 0)
+		return 0;
+	const char *szName = szPath + sizeof(k_szStore) - 1;
+
+	if (strlen(szName) < 33 || szName[ 32 ] != '-')
+		return 0;
+	szName += 33;
+
+	size_t cName = strcspn(szName, "/");
+	if (cName == 0)
+		return 0;
+
+	if (cName > 9 && strncmp(szName, "sunshine-", 9) == 0)
+		return IsVersionSuffix(szName + 9, cName - 9, 0);
+	return 0;
+}
+
 #ifndef TEST_MAIN
-/* Resolve argv[1] to a canonical path, walking PATH for bare names like
- * execvp does. Returns 0 (and leaves szOut untouched) when nothing canonical
- * and executable resolves. */
+/* Resolve argv[1] to a canonical path, walking PATH for bare names like execvp does.
+ * Returns 0 (szOut untouched) when nothing canonical and executable resolves. */
 static int ResolveTarget(const char *szName, char *szOut)
 {
 	if (strchr(szName, '/') != NULL)
@@ -182,20 +162,12 @@ static int UserAllowed(void)
 
 #ifdef TEST_MAIN
 #include <assert.h>
-/* With no args, run the built-in shape assertions. With args, demand each one
- * passes the gate: a leading '/' is treated as a path to resolve and check
- * (like the real gate does); anything else is a bare store-name shape (e.g.
- * "steam-1.0.0.87") checked against the name gate without touching the
- * filesystem. The derivation in packages.nix runs this against the module's
- * actual ${gamescopePkg}/bin/gamescope and steam-${pkgs.steam.version}, so a
- * real target drifting out of the shape fails the build. */
+/* No args: run the built-in shape assertions; with args each must pass the gate — '/' = resolve
+ * like the real gate, else a bare store-name shape. packages.nix tests the real store paths. */
 int main(int argc, char **argv)
 {
-	/* Caller-gate sanity: UserAllowed() is compiled out under TEST_MAIN, so the
-	 * build would not notice a dropped -DEXPECTED_GROUP=... flag (which would
-	 * silently fail-closed for every caller). Assert the marker group was baked
-	 * in — plus that it isn't `input` itself, which would make the marker group
-	 * gate a no-op. */
+	/* Caller-gate sanity (UserAllowed is compiled out under TEST_MAIN): assert the marker
+	 * group was baked in — and isn't `input` itself, which would no-op the gate. */
 	assert(EXPECTED_GROUP[ 0 ] != '\0');
 	assert(strcmp(EXPECTED_GROUP, "input") != 0);
 
@@ -221,7 +193,7 @@ int main(int argc, char **argv)
 				}
 				szShape = szBare;
 			}
-			if (!IsAllowedTarget(szShape)) {
+			if (!IsAllowedTarget(szShape) && !IsSunshineTarget(szShape)) {
 				fprintf(stderr, "TEST: gate rejected '%s' (expanded to '%s')\n",
 				        szArg, szShape);
 				return 1;
@@ -230,18 +202,20 @@ int main(int argc, char **argv)
 		return 0;
 	}
 
-	/* Genuine targets pass. The current versions are baked in by packages.nix
-	 * (-DSTEAM_VERSION/-DGAMESCOPE_VERSION), so a nixpkgs bump re-tests the
-	 * live names instead of drifting like a literal would. */
+	/* Genuine targets pass — versions are baked in by packages.nix, so a nixpkgs bump
+	 * re-tests live names instead of drifting literals. */
 	assert(IsAllowedTarget("/nix/store/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-steam-" STEAM_VERSION "/bin/steam"));
 	assert(IsAllowedTarget("/nix/store/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-steam-" STEAM_VERSION "-bwrap"));
 	assert(IsAllowedTarget("/nix/store/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-gamescope-" GAMESCOPE_VERSION "/bin/gamescope"));
+	assert(IsSunshineTarget("/nix/store/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-sunshine-" SUNSHINE_VERSION "/bin/sunshine"));
+	assert(!IsAllowedTarget("/nix/store/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-sunshine-" SUNSHINE_VERSION "/bin/sunshine"));
 
-	/* Version-string drift survives: a digit-first version with a lenient
-	 * tail is still a steam/gamescope shape (beta / -unstable-<date>). */
+	/* Grammar fixtures — deliberately NOT the live versions (tested above):
+	 * a digit-first version with a lenient tail is still a valid shape. */
 	assert(IsAllowedTarget("/nix/store/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-steam-1.0.0.87-beta1/bin/steam"));
 	assert(IsAllowedTarget("/nix/store/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-steam-1.0.0.87-unstable-2026-01-01/bin/steam"));
 	assert(IsAllowedTarget("/nix/store/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-gamescope-3.17.0-unstable-2026-01-01/bin/gamescope"));
+	assert(IsSunshineTarget("/nix/store/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-sunshine-2026.516.143833-beta1/bin/sunshine"));
 
 	/* Name-prefix traps fail. The version is a placeholder — these fail on the
 	 * prefix, so its value is irrelevant. */
@@ -250,9 +224,16 @@ int main(int argc, char **argv)
 	assert(!IsAllowedTarget("/nix/store/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-steam-runtime-1/bin/steam-runtime"));
 	assert(!IsAllowedTarget("/nix/store/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-gamescopereaper-1/bin/gamescopereaper"));
 	assert(!IsAllowedTarget("/nix/store/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-gamescope-session-1/bin/gamescope-session"));
+	assert(!IsAllowedTarget("/nix/store/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-sunshine-headless-1/bin/sunshine"));
+	assert(!IsAllowedTarget("/nix/store/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-sunshine-portal-1/bin/sunshine"));
+	assert(!IsSunshineTarget("/nix/store/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-sunshine-headless-1/bin/sunshine"));
+	assert(!IsSunshineTarget("/nix/store/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-sunshine-portal-1/bin/sunshine"));
+	assert(!IsSunshineTarget("/nix/store/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-steam-" STEAM_VERSION "/bin/steam"));
+	assert(!IsSunshineTarget("/nix/store/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-gamescope-" GAMESCOPE_VERSION "/bin/gamescope"));
 
-	/* -bwrap is a steam shape; gamescope never gets it. */
 	assert(!IsAllowedTarget("/nix/store/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-gamescope-" GAMESCOPE_VERSION "-bwrap"));
+	assert(!IsAllowedTarget("/nix/store/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-sunshine-" SUNSHINE_VERSION "-bwrap"));
+	assert(!IsSunshineTarget("/nix/store/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-sunshine-" SUNSHINE_VERSION "-bwrap"));
 
 	/* Outside the store fails. */
 	assert(!IsAllowedTarget("/bin/sh"));
@@ -274,28 +255,90 @@ int main(int argc, char **argv)
 
 	if (!UserAllowed()) {
 		fprintf(stderr,
-		        "%s: refusing to exec '%s': only members of the '%s' group (and root) may use the setgid-input bridge\n",
+		        "%s: refusing to exec '%s': only members of the '%s' group (and root) may use the input bridge\n",
 		        argv[ 0 ], argv[ 1 ], EXPECTED_GROUP);
 		return 2;
 	}
 
 	char szResolved[ PATH_MAX ];
-	if (!ResolveTarget(argv[ 1 ], szResolved) ||
-	    !IsAllowedTarget(szResolved)) {
+	if (!ResolveTarget(argv[ 1 ], szResolved)) {
 		fprintf(stderr,
-		        "%s: refusing to exec '%s': target name is not a /nix/store steam-*/gamescope-* binary\n",
+		        "%s: refusing to exec '%s': target cannot be resolved\n",
 		        argv[ 0 ], argv[ 1 ]);
 		return 2;
 	}
 
-	gid_t g = getegid();
-	if (setregid(g, g) != 0) {
-		perror("setregid");
-		return 1;
+	if (geteuid() == 0) {
+		/* Mode B — ROOT (the headless DAEMON's wrapper, setuid root): keeps the caller's gids and adds `input` supplementary — gid=input would deny /proc/<pid>/root (503).
+		 * Bounded setuid window: gates only, then drop to the caller's uid before exec. */
+		if (!IsSunshineTarget(szResolved)) {
+			fprintf(stderr,
+			        "%s: refusing to exec '%s': target name is not a /nix/store sunshine-* binary\n",
+			        argv[ 0 ], argv[ 1 ]);
+			return 2;
+		}
+		const struct group *gr = getgrnam(INPUT_GROUP);
+		if (gr == NULL) {
+			fprintf(stderr, "%s: refusing to exec '%s': unknown group '%s'\n",
+			        argv[ 0 ], argv[ 1 ], INPUT_GROUP);
+			return 1;
+		}
+		gid_t groups[ NGROUPS_MAX + 1 ];
+		int ng = getgroups(NGROUPS_MAX + 1, groups);
+		if (ng < 0)
+			ng = 0;
+		int found = 0;
+		for (int i = 0; i < ng; i++) {
+			if (groups[ i ] == gr->gr_gid) {
+				found = 1;
+				break;
+			}
+		}
+		if (!found)
+			groups[ ng++ ] = gr->gr_gid;
+		if (setgroups(ng, groups) != 0) {
+			perror("setgroups");
+			return 1;
+		}
+		/* Drop root before exec (still privileged here, so setgid/setuid reset the real, effective
+		 * AND saved ids): the daemon must be an ordinary, capability-less user process. */
+		gid_t g = getgid();
+		uid_t u = getuid();
+		if (setgid(g) != 0) {
+			perror("setgid");
+			return 1;
+		}
+		if (setuid(u) != 0) {
+			perror("setuid");
+			return 1;
+		}
+		execv(szResolved, &argv[ 1 ]);
+		perror("execv");
+		return 127;
 	}
 
-	execv(szResolved, &argv[ 1 ]);
-	perror("execv");
-	return 127;
+	if (getegid() != getgid()) {
+		/* Mode A — SETGID-INPUT (gamescope / injected Steam): promote the wrapper group to the real
+		 * gid so bwrap mirrors `input` into the sandbox; these never talk to the portal. */
+		if (!IsAllowedTarget(szResolved)) {
+			fprintf(stderr,
+			        "%s: refusing to exec '%s': target name is not a /nix/store steam-*/gamescope-* binary\n",
+			        argv[ 0 ], argv[ 1 ]);
+			return 2;
+		}
+		gid_t g = getegid();
+		if (setregid(g, g) != 0) {
+			perror("setregid");
+			return 1;
+		}
+		execv(szResolved, &argv[ 1 ]);
+		perror("execv");
+		return 127;
+	}
+
+	fprintf(stderr,
+	        "%s: refusing to exec '%s': wrapper misconfigured (expected setuid root or setgid %s)\n",
+	        argv[ 0 ], argv[ 1 ], INPUT_GROUP);
+	return 2;
 }
 #endif
