@@ -40,10 +40,10 @@ checkout (`path:/abs/path/to/apps`), then `icedos rebuild --build` (no activatio
 
 ## Notable modules / gotchas
 - `peon-ping` — Warcraft-peon-style agent-event audio. **Standalone** module: owns
-  `icedos.applications.peon-ping.users.<name>` (self-materialised via `genDefaults`). It is
-  not part of claude-code — `claude-code`'s `default` and `opencode` **consume** it (read
-  `config.icedos.applications.peon-ping.users` to detect it and wire their hooks/plugins).
-  See core's *Per-user (`users`) options*.
+  `icedos.applications.peon-ping.users.<name>` (self-materialised via `genDefaults`).
+  Claude Code integration is upstream's own `programs.peon-ping.claudeCodeIntegration`
+  (per-user opt-in, `claudeCodeIntegration = true`), and `opencode` consumes the user
+  settings for its own peon plugin. See core's *Per-user (`users`) options*.
 - `me3` — game mod loader (per-game profiles/natives/packages).
 - `sunshine` + `steam-sunshine-headless-session` — game streaming, incl. headless HDR.
 - `gamescope`, `lsfg-vk`, `mangohud` — gaming/perf.

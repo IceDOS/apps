@@ -2,6 +2,7 @@
 defaultPack = "peon"
 volume = 0.5
 desktopNotifications = false
+claudeCodeIntegration = false
 suppressSubagentComplete = true
 silentWindowSeconds = 0
 packs = ["peon"]
