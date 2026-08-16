@@ -5,11 +5,9 @@
   lib,
   inputs,
   cfg,
-  # The resolved system Steam (`programs.steam.package` when enabled, else
-  # pkgs.steam): representative of every path the launcher can exec.
+  # The resolved system Steam (programs.steam.package when enabled, else pkgs.steam).
   steamPkg,
-  # The headless daemon's Sunshine (pkgs.sunshine, same as daemon.nix), for the
-  # bridge's sunshine-<ver> target shape.
+  # The headless daemon's Sunshine (pkgs.sunshine, same as daemon.nix).
   sunshinePkg,
 }:
 
@@ -19,60 +17,56 @@ let
     colorManagement
     inputInjection
     mangoApp
+    nv12BlackFrameFix
+    preferDiscreteGpu
     sdrGamutWideness
     sdrContentNits
     ;
 
-  # Marker group for the input bridge: every IceDOS user gets it, so all can exec
-  # the shim; it grants nothing by itself — only the wrapper turns it into `input`.
+  # Marker group for the input bridge; the wrapper alone turns it into `input` access.
   inputBridgeGroup = "sunshine-headless";
 
-  # Base gamescope. pipewire-cursor.patch is ALWAYS applied (the capture never
-  # composites the X cursor); the headless-input patch is gated on inputInjection.
-  gamescopeBase = pkgs.gamescope.overrideAttrs (old: {
-    patches =
-      (old.patches or [ ])
-      ++ [ ./lib/pipewire-cursor.patch ]
-      ++ lib.optionals inputInjection [ ./lib/headless-input.patch ];
-  });
+  # Every patch is gated behind its own option (each forces a local rebuild); all off
+  # = stock gamescope. PR refs: #2271 (bSampled), #2217 (discrete GPU), #2270 (HDR LUTs).
+  anyGamescopePatch =
+    nv12BlackFrameFix
+    || preferDiscreteGpu
+    || inputInjection
+    || hdr
+    || colorManagement;
 
-  # + HDR headless patches (pipewire-hdr-metadata, headless-hdr-colorimetry):
-  # advertise BT.2020/PQ on the output and report it from GetNativeColorimetry.
-  gamescopeHdr = gamescopeBase.overrideAttrs (old: {
+  gamescopePatched = pkgs.gamescope.overrideAttrs (old: {
     patches =
       (old.patches or [ ])
+      ++ lib.optionals nv12BlackFrameFix [ ./lib/pipewire-bsampled.patch ]
+      ++ lib.optionals preferDiscreteGpu [ ./lib/prefer-discrete-gpu.patch ]
+      ++ lib.optionals inputInjection [
+        ./lib/pipewire-cursor.patch
+        ./lib/headless-input.patch
+      ]
+      ++ lib.optionals (hdr || colorManagement) [ ./lib/pipewire-paint-hdr-luts.patch ]
       ++ lib.optionals colorManagement [ ./lib/pipewire-color-mgmt.patch ]
-      ++ [
+      ++ lib.optionals hdr [
         ./lib/pipewire-hdr-metadata.patch
         ./lib/headless-hdr-colorimetry.patch
       ];
 
-    # HDR overrides outputEncodingEOTF to PQ and pins the SDR->HDR mapping via g_ColorMgmtLuts.
-    postPatch = (old.postPatch or "") + ''
-      substituteInPlace src/steamcompmgr.cpp \
-        --replace-fail 'frameInfo.outputEncodingEOTF   = EOTF_Gamma22;' \
-                       'frameInfo.outputEncodingEOTF   = g_bOutputHDREnabled ? EOTF_PQ : EOTF_Gamma22;' \
-        --replace-fail '.displayColorimetry = displaycolorimetry_2020,' \
-                       '.sdrGamutWideness = ${toString sdrGamutWideness}, .flSDROnHDRBrightness = ${toString sdrContentNits}, .displayColorimetry = displaycolorimetry_2020,'
-    '';
+    # HDR: paint PQ (outputEncodingEOTF) and pin the SDR->HDR mapping (k_ScreenshotColorMgmtHDR).
+    postPatch =
+      (old.postPatch or "")
+      + lib.optionalString hdr ''
+        substituteInPlace src/steamcompmgr.cpp \
+          --replace-fail 'frameInfo.outputEncodingEOTF   = EOTF_Gamma22;' \
+                         'frameInfo.outputEncodingEOTF   = g_bOutputHDREnabled ? EOTF_PQ : EOTF_Gamma22;' \
+          --replace-fail '.displayColorimetry = displaycolorimetry_2020,' \
+                         '.sdrGamutWideness = ${toString sdrGamutWideness}, .flSDROnHDRBrightness = ${toString sdrContentNits}, .displayColorimetry = displaycolorimetry_2020,'
+      '';
   });
 
-  gamescopeColorMgmt = gamescopeBase.overrideAttrs (old: {
-    patches = (old.patches or [ ]) ++ [
-      ./lib/pipewire-color-mgmt.patch
-    ];
-  });
+  gamescopeSelected = if anyGamescopePatch then gamescopePatched else pkgs.gamescope;
 
-  gamescopeSelected =
-    if hdr then
-      gamescopeHdr
-    else if colorManagement then
-      gamescopeColorMgmt
-    else
-      gamescopeBase;
-
-  # Paint mangoapp's external overlay into the pipewire stream (scanout-only otherwise),
-  # and repaint it over static Steam UI too (the focus/override repaint gate misses it).
+  # Repaint mangoapp's overlay into the pipewire stream (scanout-only otherwise),
+  # incl. static Steam UI (the focus/override repaint gate misses it).
   gamescopePkg =
     if mangoApp then
       gamescopeSelected.overrideAttrs (old: {
@@ -85,10 +79,11 @@ let
     else
       gamescopeSelected;
 
-  # Jovian's portal, patched for stream size, wrapped onto gamescope-0 with its
-  # D-Bus service + .portal definition.
+  # Jovian's portal, patched for stream size, wrapped onto gamescope-0 (private D-Bus).
   xdg-desktop-portal-gamescope =
     let
+      # REQUIRED, always applied: without it the 1.22+ portal frontend forwards 0x0
+      # to the client and Sunshine's startup probe wedges.
       portalPkg =
         (inputs.jovian.overlays.default pkgs pkgs).xdg-desktop-portal-gamescope.overrideAttrs
           (old: {
@@ -106,8 +101,7 @@ let
               mkdir -p $out/share/xdg-desktop-portal/portals
               mkdir -p $out/libexec
 
-        # fix-stream-size shells out to pw-cli; make it (and the matching gamescopePkg)
-        # reachable under the private bus's bare PATH.
+        # fix-stream-size shells out to pw-cli; put it + gamescopePkg on the bare PATH.
               makeWrapper ${portalPkg}/libexec/xdg-desktop-portal-gamescope \
                 $out/libexec/xdg-desktop-portal-gamescope \
                 --set WAYLAND_DISPLAY gamescope-0 \
@@ -128,15 +122,14 @@ let
               EOF
       '';
 
-  # Filename MUST be <XDG_CURRENT_DESKTOP>-portals.conf and name the backend per interface.
+  # Filename MUST be <XDG_CURRENT_DESKTOP>-portals.conf, naming the backend per interface.
   sunshinePortalConfig = pkgs.writeTextDir "xdg-desktop-portal/gamescope-portals.conf" ''
     [preferred]
     org.freedesktop.impl.portal.ScreenCast=gamescope
     org.freedesktop.impl.portal.Screenshot=gamescope
   '';
 
-  # The input-bridge shim (see lib/sunshine-headless-gid.c): gated exec of
-  # steam/gamescope/sunshine store binaries; TEST_MAIN asserts the gates at build time.
+  # The input-bridge shim (lib/sunshine-headless-gid.c): gated exec of steam/gamescope/sunshine.
   gidExec = pkgs.runCommandCC "sunshine-headless-gid" { } ''
     $CC -O2 -Wall -DEXPECTED_GROUP='"${inputBridgeGroup}"' -DINPUT_GROUP='"input"' \
         ${./lib/sunshine-headless-gid.c} -o $out
@@ -154,8 +147,7 @@ let
     ''}
   '';
 
-  # -steamos3 "Switch to Desktop": intercept steamos-session-select desktop and
-  # shut the headless session down cleanly via steam -shutdown.
+  # -steamos3 "Switch to Desktop": shut the headless session down via steam -shutdown.
   steamosSessionSelect = pkgs.writeShellScriptBin "steamos-session-select" ''
     exec steam -shutdown
   '';

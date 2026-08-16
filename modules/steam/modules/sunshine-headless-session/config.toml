@@ -1,22 +1,24 @@
 [icedos.applications.steam.headless-session]
-autoStart = false # Start the headless Sunshine daemon automatically at the graphical session (like icedos.applications.sunshine.autoStart for the primary). false = start it manually (systemctl --user start sunshine-headless).
-name = "SteamOS Headless" # sunshine_name / mDNS name of the headless instance. MUST differ from the primary instance so Moonlight can tell the two hosts apart.
-port = 48989 # Base port for the headless instance (the primary uses 47989). Sunshine derives its whole TCP/UDP block from this; keep it clear of the primary's 479xx block. In Moonlight, add this host manually as IP:<port>.
-openFirewall = false # Open the headless instance's derived TCP/UDP port block in the host firewall. Off by default: over Tailscale (or a LAN where the host firewall doesn't filter trusted interfaces) the primary is already reachable, and opening extra ports widens exposure. Set to true when streaming across a plain LAN whose host firewall would otherwise drop the derived port block.
-excludeHostControllers = true # Keep host/physical controllers out of the headless Steam: launches Steam in a root-managed systemd scope (authorized via polkit) whose cgroup device policy denies all /dev/input + hidraw to the whole process tree (kernel-enforced, Steam's sandbox can't escape it); only the stream's own virtual pads are allowed back in. NOTE: the host's own paired pad is usually wanted ON the stream, so leave this off unless you specifically want host pads blocked from the stream.
-isolateVirtualControllers = true # Hide the headless instance's Sunshine virtual pad from the host desktop: udev strips the seat-suffixed pad's uaccess ACL (the headless daemon always runs under XDG_SEAT=seat-headless, so the rule never touches the PRIMARY instance's pads — those keep their uaccess ACL and stay usable on the desktop), while the injected Steam reaches it via a setgid-`input` wrapper. Stops the stream pad leaking into desktop games during an active stream.
-hdr = true # Make the headless gamescope HDR-capable (builds the HDR/colorimetry gamescope patches). Whether a stream is actually HDR follows the Moonlight client's HDR toggle per-stream (like resolution): the client drives --hdr-enabled + DXVK_HDR on that stream. false = gamescope built without HDR patches, always SDR.
-normalSteamSession = true # Inject the default "Steam" app into Sunshine (runs Steam with your normal HOME/account/library). Not injected when false.
-secondarySteamSession = false # Inject a second "Steam (Second Session)" app that runs Steam under secondarySteamSessionPath as HOME — a fully separate account/library. Injected when true.
-secondarySteamSessionPath = "" # HOME directory for the second session (e.g. "/home/ice/.steam-second"). REQUIRED (non-empty) when secondarySteamSession = true; Steam stores .steam/library/account under it.
-sdrContentNits = 203 # luminance (nits) SDR content is shown at on the HDR output. 203 = BT.2408 reference white; higher = brighter SDR.
-sdrGamutWideness = 0 # SDR→wide-gamut stretch on the HDR output: 0 = keep SDR in native sRGB/Rec.709 (accurate); 1 = stretch SDR to the display's full BT2020 gamut (vivid, oversaturated)
+autoStart = true # Auto-start the headless daemon at the graphical session; false = start it manually.
+name = "SteamOS Headless" # mDNS name; MUST differ from the primary.
+port = 48989 # Base port (primary uses 47989); Sunshine derives its whole TCP/UDP block from it.
+openFirewall = false # Open the headless instance's derived port block in the host firewall (plain-LAN streaming).
+excludeHostControllers = true # Keep host controllers out of the headless Steam (cgroup device policy denies /dev/input+hidraw).
+isolateVirtualControllers = true # Hide the headless Sunshine pad from the host desktop (uaccess strip + setgid-`input` shim).
+nv12BlackFrameFix = true # Fix black PipeWire frames on Intel/NVIDIA (missing bSampled; upstream #2271).
+preferDiscreteGpu = true # Prefer the discrete GPU on hybrid rigs (stock picks the iGPU; upstream #2217). Inert on single GPU.
+hdr = true # HDR-capable gamescope; stream HDR follows the client per-stream. false = always SDR.
+normalSteamSession = true # Inject the default Steam app (normal HOME/account/library).
+secondarySteamSession = false # Inject a second Steam app under secondarySteamSessionPath (separate account/library).
+secondarySteamSessionPath = "" # HOME for the second session; REQUIRED when secondarySteamSession = true.
+sdrContentNits = 203 # Nits SDR content is shown at on the HDR output (203 = BT.2408 reference white).
+sdrGamutWideness = 0 # SDR->wide-gamut stretch on the HDR output: 0 = accurate, 1 = full BT2020 (vivid).
 upscaleFilter = "" # gamescope upscaler (-F): fsr | nis | linear | nearest | pixel.
-fsrSharpness = 20 # FSR/NIS sharpness: 0 = max sharp .. 20 = min sharp (gamescope default 2). NOTE: 20 = softest — lower it for a crisper upscale.
-renderWidth = 0 # gamescope internal render width, upscaled to output resolution by `upscaleFilter`. 0 → render at output resolution (no upscale).
-renderHeight = 0 # gamescope internal render height. 0 → render at output resolution.
-steamOS = false # Enable Steam's SteamOS Deck UI mode (`steam -steamos3`): Steam manages the gamescope baselayer/focus natively, eliminating manual appid tagging. NOTE: in this mode Steam also takes over the host Bluetooth radio and powers it off on launch (intentional, flag-gated); the session re-asserts your pre-launch BT state as a workaround.
-colorManagement = false # Enable color management controls in Steam's Display settings (Adjust Display Colors): color vibrance, color temperature sliders. Sets STEAM_GAMESCOPE_COLOR_MANAGED=1 + STEAM_GAMESCOPE_COLOR_TOYS=1 on the injected Steam. Requires the patched gamescope to function.
-mangoApp = true # Enable the MangoHud performance overlay (mangoapp) in the headless session. Launches the idle gamescope with --mangoapp (gamescope spawns, respawns and composites the mangoapp overlay window) and sets STEAM_USE_MANGOAPP=1 on the injected Steam so the overlay level is toggled in-stream from Steam's Quick Access → Performance menu (levels 1-4). Off = no overlay. NOTE: --mangoapp is REQUIRED — without it gamescope never creates/composites the overlay, even though mangoapp runs.
-inputInjection = false # Forward Moonlight keyboard/mouse into the headless gamescope: the patched gamescope reads Sunshine's inputtino passthrough devices (named after the seat-headless XDG_SEAT — set unconditionally on the headless daemon) and dispatches them through gamescope's own wlserver input path. Gamescope itself runs through the setgid-`input` shim so it can open the devices (user is not in `input`). false = gamescope behaves stock. The PRIMARY instance is unaffected: it has no XDG_SEAT, so its devices keep plain names and its uaccess ACL. NOTE: the gamescope marker records the inputInjection argv — a toggle is picked up automatically at the next stream start (the wait loop restarts a stale gamescope).
-pauseOnDisconnect = false # Pause the headless session when the last Moonlight client disconnects: the wait loop systemd-freezes the session's cgroup (SIGSTOP for the whole Steam/game process tree, via the systemd freezer) once no client has streamed for ~10s, and thaws it the moment the next client connects — game state survives, no CPU/GPU burn while idle (the headless gamescope itself keeps running, so reconnect is instant). false = the session keeps running idle after a disconnect, like upstream Sunshine. NOTE: while paused, games (especially multiplayer) can lose network/server connections and Steam's background downloads stall; a paused session also holds its RAM. The freeze operates on the per-session `sunshine-headless-steam.scope`, which this option creates even when excludeHostControllers = false.
+fsrSharpness = 20 # FSR/NIS sharpness: 0 = max sharp .. 20 = min sharp (gamescope default 2).
+renderWidth = 0 # gamescope internal render width, upscaled to output; 0 = output resolution.
+renderHeight = 0 # gamescope internal render height; 0 = output resolution.
+steamOS = true # Steam Deck UI mode (`steam -steamos3`): Steam manages gamescope focus; takes over host Bluetooth.
+colorManagement = true # Steam Display color controls (vibrance/temperature sliders); requires the patched gamescope.
+mangoApp = true # MangoHud overlay (mangoapp): --mangoapp on the idle gamescope + STEAM_USE_MANGOAPP=1 on Steam.
+inputInjection = true # Forward Moonlight keyboard/mouse into the headless session; composites the cursor too (one feature).
+pauseOnDisconnect = false # Freeze the session cgroup ~10s after the last client leaves; thaw on reconnect.

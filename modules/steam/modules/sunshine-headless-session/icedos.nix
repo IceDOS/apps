@@ -32,12 +32,10 @@
             steamOS
             ;
 
-          # Non-seat0 seat so inputtino suffixes every device with it: the patched
-          # gamescope matches the passthrough names and the udev rules stay scoped to this instance.
+          # Non-seat0 seat: inputtino suffixes devices with it; udev rules stay scoped here.
           headlessSeat = "seat-headless";
 
-          # One flag gates the input bridge (wrapper, marker group, membership
-          # assertion) so the three can't drift apart.
+          # One flag gates the input bridge (wrapper, group, membership) so they can't drift.
           bridgeNeeded = isolateVirtualControllers || steamOS || inputInjection;
 
           packages = import ./packages.nix {
@@ -93,42 +91,38 @@
         {
           # The whole block below is the HEADLESS session; the primary is untouched.
 
-          # Strip uaccess from the headless pads (seat-suffixed glob, priority 72):
-          # host desktop can't open them, the injected Steam can via the shim.
+          # Strip uaccess from the headless pads (seat-suffixed, priority 72): only the
+          # shim-promoted Steam can open them.
           services.udev.packages =
             lib.optional isolateVirtualControllers (
               pkgs.writeTextDir "etc/udev/rules.d/72-sunshine-headless-no-uaccess.rules" ''
                 SUBSYSTEM=="input", ATTRS{name}=="Sunshine* (${headlessSeat})*", TAG-="uaccess", MODE="0660", RUN+="${pkgs.acl}/bin/setfacl -b $env{DEVNAME}"
               ''
             )
-            # Strip uaccess from inputInjection's passthrough devices too (gamescope's
-            # EVIOCGRAB alone leaks input to the desktop in the ungrabbed window).
+            # Same for inputInjection's passthrough devices (EVIOCGRAB alone leaks input).
             ++ lib.optional inputInjection (
               pkgs.writeTextDir "etc/udev/rules.d/72-sunshine-headless-input-no-uaccess.rules" ''
                 SUBSYSTEM=="input", ATTRS{name}=="*passthrough (${headlessSeat})*", TAG-="uaccess", MODE="0660", RUN+="${pkgs.acl}/bin/setfacl -b $env{DEVNAME}"
               ''
             )
-            # -steamos3 Steam opens /dev/rfkill O_RDWR; hand the node to `input` (no
-            # human members) so only the shim-promoted Steam gets radio control. Priority 70.
+            # -steamos3 Steam opens /dev/rfkill O_RDWR; give it to `input` (no human members).
             ++ lib.optional steamOS (
               pkgs.writeTextDir "etc/udev/rules.d/70-steam-rfkill-access.rules" ''
                 SUBSYSTEM=="misc", KERNEL=="rfkill", GROUP="input", MODE="0660"
               ''
             );
 
-          # setgid-`input` shim: gives the injected Steam / patched gamescope `input`
-          # access (pads, rfkill, passthrough); caller gate = root or marker-group member.
+          # setgid-`input` shim: `input` access for Steam/gamescope; gate = root or marker group.
           security.wrappers = mkIf bridgeNeeded {
-            # Mode A (setgid `input`): gamescope + injected Steam get real gid `input`.
-            # The daemon must NOT use it (gid-`input` fails the portal's /proc/<pid>/root check -> 503).
+            # Mode A (setgid `input`): Steam/gamescope. Daemon must NOT use it
+            # (gid-`input` fails the portal's /proc/<pid>/root check -> 503).
             sunshine-headless-gid = {
               setgid = true;
               owner = "root";
               group = "input";
               source = "${gidExec}";
             };
-            # Mode B (setuid `root`, daemon only): keeps the caller's gids, adds `input`
-            # as supplementary, drops root. Group = marker, no o+x: kernel enforces the gate.
+            # Mode B (setuid root, daemon only): keeps caller gids, adds `input`, drops root.
             sunshine-headless-gid-root = {
               setuid = true;
               owner = "root";
@@ -138,8 +132,7 @@
             };
           };
 
-          # Marker group the shim's caller gate checks; grants nothing by itself —
-          # only executing the wrapper turns it into `input` access.
+          # Marker group the shim's caller gate checks; the wrapper turns it into `input`.
           users.groups = mkIf bridgeNeeded {
             ${inputBridgeGroup} = { };
           };
@@ -151,9 +144,8 @@
           # -steamos3 Steam needs InputPlumber for controller ordering/routing.
           services.inputplumber.enable = mkIf steamOS true;
 
-          # Let the active local session manage the injected-Steam scope without sudo.
-          # Needed for scope creation, the per-tick DeviceAllow refresh, and — when
-          # pauseOnDisconnect is on — the freeze/thaw of the paused session.
+          # Let the local session manage the injected-Steam scope without sudo
+          # (scope creation, DeviceAllow refresh, freeze/thaw).
           security.polkit.extraConfig = mkIf (excludeHostControllers || pauseOnDisconnect) ''
             polkit.addRule(function(action, subject) {
               if (action.id == "org.freedesktop.systemd1.manage-units" &&
@@ -170,8 +162,7 @@
               message = "icedos.applications.steam.headless-session.secondarySteamSessionPath must be set (non-empty) when secondarySteamSession is enabled.";
             }
             {
-              # The shim's security model: `input` has no human members. Assert on the
-              # effective membership of normal users — any voids the caller gate.
+              # The shim assumes `input` has no human members; any voids the caller gate.
               assertion =
                 !bridgeNeeded
                 || !(lib.any (
@@ -189,23 +180,21 @@
               message = "The setgid-`input` shim assumes the `input` group has no human members, but at least one normal (human) user is in `input` (hand-written icedos.users.<name>.extraGroups, or the input-remapper module which injects every user — remove `input-remapper` from the apps repo's `modules` list, not a user entry). Remove input-remapper, or turn off isolateVirtualControllers/steamOS/inputInjection (then the shim is not built); input membership defeats the uaccess isolation the shim backs.";
             }
             {
-              # The two daemons must not share a base port (the bind loser exits 0 into
-              # the Restart=always loop). Compare against the primary's configured port.
+              # Base port must differ from the primary's (the bind loser loops in Restart=always).
               assertion = port != (config.services.sunshine.settings.port or 47989);
               message = "icedos.applications.steam.headless-session.port (${toString port}) must differ from the primary sunshine instance's port (${
                 toString (config.services.sunshine.settings.port or 47989)
               }) — two Sunshine daemons cannot share a TCP/UDP base port.";
             }
             {
-              # openFirewall opens the derived port+21 (RTSP) block; cap the base so
-              # that stays inside NixOS' port range instead of failing opaquely.
+              # openFirewall opens port+21 (RTSP); cap so it stays in NixOS' port range.
               assertion = port + 21 <= 65535;
               message = "icedos.applications.steam.headless-session.port (${toString port}) must be <= 65514 because the openFirewall rule opens the derived port+21 (RTSP) block.";
             }
           ];
 
-          # Rename steamwebhelper's PulseAudio app: WirePlumber otherwise saves its route
-          # under the shared "Chromium" key and poisons desktop Chromium apps (Signal).
+          # Rename steamwebhelper's PulseAudio app: WirePlumber's shared "Chromium" key
+          # would poison desktop Chromium apps.
           services.pipewire.extraConfig.pipewire-pulse."90-steam-headless-audio-name" = {
             "pulse.rules" = [
               {
@@ -215,8 +204,7 @@
             ];
           };
 
-          # Private D-Bus + portal frontend so gamescope's ScreenCast never touches the
-          # host portal and only the headless daemon consumes its pipewire node.
+          # Private D-Bus + portal so ScreenCast never touches the host portal.
           systemd.user.services.sunshine-portal-bus = {
             description = "Private D-Bus for the Sunshine headless portal";
             wantedBy = [ "graphical-session.target" ];
@@ -228,8 +216,7 @@
               Restart = "always";
               RestartSec = "2s";
 
-              # No namespacing/seccomp: for an unprivileged user-manager unit they imply a
-              # user namespace, which breaks the portal checks — the stack stays unnamespaced.
+              # No namespacing/seccomp: they imply a user namespace, which breaks the portal checks.
               UMask = "0027";
             };
           };
@@ -240,8 +227,7 @@
             partOf = [ "graphical-session.target" ];
             requires = [ "sunshine-portal-bus.service" ];
 
-            # After bus ONLY (ordering after idle + target membership would cycle);
-            # the backend is D-Bus-activated lazily.
+            # After bus only (idle/target ordering would cycle); backend is D-Bus-activated.
             after = [ "sunshine-portal-bus.service" ];
 
             environment = {
@@ -261,14 +247,12 @@
               Restart = "always";
               RestartSec = "2s";
 
-              # No namespacing/seccomp: they imply a user namespace, and the portal's
-              # is_sandboxed() check then denies /proc/<pid>/root -> ScreenCast denied (503).
+              # No namespacing/seccomp: user namespace trips is_sandboxed() -> 503.
               UMask = "0027";
             };
           };
 
-          # Boot-time idle gamescope: Sunshine probes the display at stream launch,
-          # before its prep-cmd would spawn gamescope — a display must already exist.
+          # Boot-time idle gamescope: Sunshine's display probe needs one before prep-cmd spawns it.
           systemd.user.services.sunshine-headless-idle = {
             description = "Boot-time idle gamescope so Sunshine's display probe passes";
             wantedBy = [ "graphical-session.target" ];
@@ -291,8 +275,7 @@
             };
           };
 
-          # The headless daemon: a SECOND, independent Sunshine instance pinned to the
-          # private gamescope portal — own ports, own isolated state, captures gamescope-0.
+          # The headless daemon: a second, independent Sunshine pinned to the private portal.
           systemd.user.services.sunshine-headless = headlessDaemon.service;
 
           networking.firewall = mkIf cfg.openFirewall headlessDaemon.firewall;

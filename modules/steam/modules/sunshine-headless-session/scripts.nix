@@ -1,5 +1,4 @@
-# The two runtime shell apps: the persistent idle gamescope and the Moonlight
-# session helper wired into the Sunshine app (start/wait/stop).
+# Runtime shell apps: the persistent idle gamescope and the Sunshine session helper.
 {
   pkgs,
   lib,
@@ -36,15 +35,14 @@ let
   # Gamescope HDR flags, applied per-stream only when the client requests HDR.
   hdrFlags = lib.optionalString hdr "--hdr-enabled --hdr-debug-force-output --hdr-debug-force-support --sdr-gamut-wideness ${toString sdrGamutWideness} --hdr-sdr-content-nits ${toString sdrContentNits} ";
 
-  # Two Xwaylands (games land on :2); the tagger owns focus on :1. HDR env is
-  # injected per-stream in the start case, not here (SDR streams stay SDR).
+  # Two Xwaylands (games on :2, tagger focus on :1); HDR env is injected per-stream in `start`.
   sessionEnv =
     "GAMESCOPE_WAYLAND_DISPLAY=gamescope-0 STEAM_MULTIPLE_XWAYLANDS=1 QT_QPA_PLATFORM=xcb "
     + lib.optionalString colorManagement "STEAM_GAMESCOPE_COLOR_MANAGED=1 STEAM_GAMESCOPE_COLOR_TOYS=1 "
     + lib.optionalString mangoApp "STEAM_USE_MANGOAPP=1 STEAM_MANGOAPP_HORIZONTAL_SUPPORTED=1 STEAM_MANGOAPP_PRESETS_SUPPORTED=1 STEAM_DISABLE_MANGOAPP_ATOM_WORKAROUND=1 MANGOHUD_CONFIGFILE=\"$rt\"/sunshine-mangoapp.conf ";
 
-  # excludeHostControllers allowlist: the scope denies everything not listed
-  # (char-input/hidraw never); the stream's uinput pads are allowed per-device in `wait`.
+  # excludeHostControllers allowlist: scope denies everything not listed;
+  # the stream's pads are allowed per-device in `wait`.
   deviceAllowBase = [
     "char-drm rwm" # GPU (/dev/dri/card*, renderD*)
     "/dev/dri rwm"
@@ -59,8 +57,7 @@ let
   deviceAllowRunArgs = lib.concatMapStringsSep " " (a: "-p DeviceAllow='${a}'") deviceAllowBase;
   deviceAllowSetArgs = lib.concatMapStringsSep " " (a: "DeviceAllow='${a}'") deviceAllowBase;
 
-  # Shadow `mangoapp` with a wrapper forcing the X11 platform: native-Wayland
-  # GLFW coredumps on gamescope's minimal compositor (MangoHud #1741).
+  # Shadow `mangoapp` with an X11-forcing wrapper (native-Wayland GLFW coredumps, MangoHud #1741).
   mangoappWrapper = pkgs.writeShellScriptBin "mangoapp" ''
     unset WAYLAND_DISPLAY
     export XDG_SESSION_TYPE=x11 GDK_BACKEND=x11 DISPLAY=:1
@@ -72,8 +69,7 @@ let
 
     runtimeInputs = [
       gamescopePkg
-      # `steam` must resolve on THIS build-time PATH (systemd user services don't
-      # inherit the login PATH) or the bridge cannot even resolve the target.
+      # `steam` must resolve on this build-time PATH (user services don't inherit login PATH).
       steamPkg
     ]
     ++ lib.optional mangoApp mangoappWrapper
@@ -94,14 +90,12 @@ let
           rt="''${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
           # The helper needs the REAL user session bus (not the private portal bus).
           export DBUS_SESSION_BUS_ADDRESS="unix:path=$rt/bus"
-          # Unset the daemon's XDG_CONFIG_HOME redirect for the whole helper: the
-          # injected Steam must use $HOME/.config, not the isolated sunshine state dir.
+          # Unset the daemon's XDG_CONFIG_HOME redirect: Steam uses $HOME/.config, not the isolated state dir.
           unset XDG_CONFIG_HOME
           isolate_phys=${if excludeHostControllers then "1" else "0"}
           isolate_virt=${if isolateVirtualControllers then "1" else "0"}
           pause=${if pauseOnDisconnect then "1" else "0"}
-          # inputInjection: patched gamescope matches Sunshine's seat-suffixed passthrough
-          # names exactly (fail-closed); it runs through the shim to open the /dev/input nodes.
+          # inputInjection: patched gamescope matches the seat-suffixed passthrough names (fail-closed).
           input_inject=${if inputInjection then "1" else "0"}
           gscope_wrap=()
           input_args=()
@@ -130,8 +124,7 @@ let
           session_steam_alive() {
             [ -n "$(session_steam_pids)" ]
           }
-          # Resolve the appid Steam launched for a window by walking PID -> parents to the
-          # reaper's AppId (SteamAppId lies for shortcuts/emulators).
+          # Resolve a window's appid via PID->parent walk to the reaper (SteamAppId lies).
           steam_launch_appid() {
             local p="$1" i cmd aid
             for i in $(seq 1 24); do
@@ -157,15 +150,13 @@ let
             done
             return 1
           }
-          # Pin every Steam-subtree audio stream to the capture sink (default-following
-          # apps escape PULSE_SINK); re-run each tick, skip streams already on target.
+          # Pin Steam-subtree audio to the capture sink (default-following apps escape PULSE_SINK).
           route_session_audio() {
             local target sess ci pid idx sinkid
             target="$(pactl list short sinks 2>/dev/null | awk '$2=="steam-sunshine-headless-sink"{print $1; exit}')"
             [ -n "$target" ] || return 0
             sess=" $(session_steam_pids | tr '\n' ' ')"
-            # Resolve sink-inputs via their pulse-client (SDL/native-PipeWire apps omit
-            # application.process.id on the stream itself).
+            # Resolve sink-inputs via their pulse-client (some apps omit application.process.id).
             declare -A cpid
             while IFS=$'\t' read -r ci pid; do cpid[$ci]="$pid"; done < <(
               LC_ALL=C pactl list clients 2>/dev/null | awk '
@@ -204,13 +195,11 @@ let
             ${lib.optionalString hdr ''[ "$hdr_on" = 1 ] && hdr_args=(${hdrFlags})''}
             printf 'DISPLAY=:1\nWAYLAND_DISPLAY=gamescope-0\n' >"$rt/sunshine-headless.env"
             printf '%s %s %s %s' "$w" "$h" "$fps" "$hdr_on" >"$rt/sunshine-headless-gamescope-params"
-            # Record the gamescope store path + input-injection argv so a stale gamescope
-            # (rebuild changed it) is detected and restarted in `start`.
+            # Record the gamescope store path + argv so a stale one is restarted in `start`.
             printf '%s' "$gamescope_marker" >"$rt/sunshine-headless-gamescope-bin"
 
             gamescope_env="DISPLAY=:1 ENABLE_GAMESCOPE_WSI=1 PATH=${mangoappWrapper}/bin:${gamescopePkg}/bin${lib.optionalString mangoApp " MANGOHUD_CONFIGFILE=$rt/sunshine-mangoapp.conf"}"
-            # Free the transient unit first (reset-failed + stop; --collect auto-unloads):
-            # a lingering leftover makes systemd-run refuse the name and abort.
+            # Free the transient unit first: a leftover makes systemd-run refuse the name.
             rm -f "$rt/gamescope-0"
             systemctl --user reset-failed sunshine-headless-gamescope.service 2>/dev/null || true
             systemctl --user stop sunshine-headless-gamescope.service 2>/dev/null || true
@@ -241,10 +230,8 @@ let
             sleep 1
           }
 
-          # True while >=1 client is streaming: Sunshine's ScreenCast session on the
-          # PRIVATE portal bus exists only while its video-capture thread runs (opened
-          # when a session starts, Closed when the last one ends). The helper runs on
-          # the real user bus, so address the private bus explicitly.
+          # True while a client streams: the ScreenCast session on the PRIVATE portal bus
+          # lives only while its video-capture thread runs (the helper uses the real user bus).
           streaming_active() {
             busctl --address="unix:path=$rt/sunshine-portal/bus" tree org.freedesktop.portal.Desktop 2>/dev/null \
               | grep -q '/session/'
@@ -266,8 +253,7 @@ let
                 sleep 0.2
               done
 
-              # Create the on-demand null-sink (audio_sink) and make it the system default:
-              # the injected Steam follows the default, not PULSE_SINK; `stop` unloads it.
+              # On-demand null-sink as system default (Steam follows it); `stop` unloads it.
               if ! pactl list short sinks 2>/dev/null | grep -qw steam-sunshine-headless-sink; then
                 pactl load-module module-null-sink \
                   media.class=Audio/Sink \
@@ -297,8 +283,7 @@ let
                 saved_h="$(printf '%s' "$saved_params" | awk '{print $2}')"
                 saved_fps="$(printf '%s' "$saved_params" | awk '{print $3}')"
                 saved_hdr="$(printf '%s' "$saved_params" | awk '{print $4}')"
-                # A rebuild changing the gamescope binary must restart the stale one: compare
-                # the recorded store path and force a restart when it differs.
+                # A rebuilt gamescope (store path differs) must restart the stale one.
                 saved_bin="$(cat "$rt/sunshine-headless-gamescope-bin" 2>/dev/null || true)"
 
                 if [ -n "$client_w" ] && [ -n "$client_h" ] && [ -n "$client_fps" ] \
@@ -313,8 +298,8 @@ let
               else
                 start_gamescope "1920" "1080" "60" "$client_hdr"
               fi
-              # NORMAL session: close the desktop Steam first (single-instance per $HOME — else it
-              # bounces onto the desktop); SIGTERM if -shutdown can't reach its pipe. Second: leave running.
+              # NORMAL session: close the desktop Steam first (single-instance per $HOME);
+              # SIGTERM if -shutdown can't reach its pipe. Second session: leave it running.
               if [ -z "''${2:-}" ] && pgrep -x steam >/dev/null; then
                 steam -shutdown 2>/dev/null || true
                 for i in $(seq 1 60); do
@@ -325,33 +310,40 @@ let
                   sleep 0.25
                 done
               fi
+              # Wait for Steam's singleton FIFO ($HOME/.steam/steam.pipe) to release before
+              # launching: a write-open succeeds only while a reader lives (the f16a66e race).
+              pipe="$HOME/.steam/steam.pipe"
+              [ -n "''${2:-}" ] && pipe="$2/.steam/steam.pipe"
+              for i in $(seq 1 60); do
+                [ -p "$pipe" ] || break
+                # shellcheck disable=SC2016 # $1 is the inner bash's positional, not this script's
+                if ! timeout 1 bash -c 'exec 9>"$1"' _ "$pipe" 2>/dev/null; then
+                  break
+                fi
+                sleep 0.25
+              done
               # Launch Big Picture into the idle gamescope; drop caps so bwrap/Steam run.
               # shellcheck disable=SC1091
               . "$rt/sunshine-headless.env"
-              # Second-session HOME override ($2): separate .steam/library/account; create it
-              # (Steam silently fails to start if HOME doesn't exist).
+              # Second-session HOME override ($2): separate account; create it (Steam fails if absent).
               if [ -n "''${2:-}" ]; then
                 mkdir -p "$2" || true
                 export HOME="$2"
               fi
-              # Injected-Steam env: Steam follows the system default (the stream sink); PULSE_SINK is belt-and-suspenders. Isolation: excludeHostControllers → root scope denies /dev/input+hidraw (`wait` re-allows the pads).
-              # isolateVirtualControllers → pads via the setgid shim (also -steamos3/rfkill; not inputInjection — gamescope EVIOCGRABs the nodes itself).
+              # Injected-Steam env: follows the system default (stream sink); PULSE_SINK is belt-and-suspenders.
+              # Isolation: excludeHostControllers = root scope; isolateVirtualControllers = setgid shim.
               gid_wrap=()
               if [ "$isolate_virt" = 1 ] || [ "''${#steamos_args[@]}" -gt 0 ]; then
                 gid_wrap=(/run/wrappers/bin/sunshine-headless-gid)
               fi
 
-              # Advertise HDR to Steam only for HDR streams (STEAM_GAMESCOPE_HDR_SUPPORTED /
-              # DXVK_HDR); SDR streams get neither.
+              # Advertise HDR to Steam only for HDR streams; SDR streams get neither.
               steam_hdr_env=()
               [ "$client_hdr" = 1 ] && steam_hdr_env=(STEAM_GAMESCOPE_HDR_SUPPORTED=1 DXVK_HDR=1)
 
               if [ "$isolate_phys" = 1 ] || [ "$pause" = 1 ]; then
-                # excludeHostControllers: launch Steam inside a root-managed systemd scope
-                # (polkit-authorized) whose device policy denies /dev/input + hidraw to the tree.
-                # pauseOnDisconnect: same scope (plain policy) so the session can be frozen as
-                # one cgroup when the last client leaves and thawed on the next connect.
-                # A leftover frozen scope from a crash would make systemd-run refuse the name.
+                # excludeHostControllers: root-managed scope denying /dev/input+hidraw.
+                # pauseOnDisconnect: same scope (plain policy) so the tree freezes/thaws as one cgroup.
                 systemctl thaw sunshine-headless-steam.scope 2>/dev/null || true
                 systemctl stop --quiet sunshine-headless-steam.scope 2>/dev/null || true
                 systemctl reset-failed sunshine-headless-steam.scope 2>/dev/null || true
@@ -374,8 +366,7 @@ let
                   setpriv --inh-caps=-all --ambient-caps=-all -- \
                   setsid -f "''${gid_wrap[@]}" steam -gamepadui "''${steamos_args[@]}" >"$rt"/sunshine-headless-steam.log 2>&1
               fi
-              # Settle: wait for a viewable Steam window on gamescope's Xwayland (portal reports
-              # the real resolution only then; early return SIGSEGV'd Sunshine on 0x0). Cap ~12s.
+              # Wait for a viewable Steam window (the portal reports real resolution only then).
               for _ in $(seq 1 120); do
                 steam_win=""
                 while read -r w; do
@@ -391,13 +382,11 @@ let
               sleep 1
               ;;
             wait)
-              # Desktop-default guard: Sunshine re-defaults its own sink after start; keep the
-              # default off the stream/sunshine sinks, tracking the user's live choice.
+              # Keep the desktop default off the stream/sunshine sinks (Sunshine re-defaults its own).
               last_default="$(cat "$rt/sunshine-headless-default-sink" 2>/dev/null || true)"
               last_baselayer=""
 
-              # Block while the injected Steam lives (auto-detach=false); poll by name scoped
-              # to this session's $HOME — not the `steam` PID itself (bootstrap re-execs).
+              # Block while the injected Steam lives (poll by $HOME-scoped name, not PID: bootstrap re-execs).
               for _ in $(seq 1 60); do
                 session_steam_alive && break
                 sleep 0.5
@@ -409,10 +398,8 @@ let
               while :; do
                 if session_steam_alive; then
                   gone=0
-                  # pauseOnDisconnect: freeze the session cgroup once the last client has been
-                  # gone ~10s (a stream == an open ScreenCast session on the private portal bus);
-                  # thaw the moment a client is back. Only the Steam/game tree is frozen — the
-                  # headless gamescope keeps running, so reconnect re-attaches instantly.
+                  # pauseOnDisconnect: freeze the Steam/game tree ~10s after the last client
+                  # leaves, thaw on reconnect (gamescope keeps running).
                   if [ "$pause" = 1 ]; then
                     if streaming_active; then
                       idle_since=""
@@ -444,8 +431,7 @@ let
                       last_allow="$cur"
                     fi
                   fi
-                  # Own focus: tag window appids + drive GAMESCOPECTRL_BASELAYER_APPID (reset to Steam
-                  # when none). -steamos3: Steam tags its own games, so tag shortcuts only.
+                  # Tag window appids + drive GAMESCOPECTRL_BASELAYER_APPID (reset to Steam when none).
                   if [ "''${#steamos_args[@]}" -eq 0 ]; then
                     game_appid=""
                     while read -r w; do
@@ -485,8 +471,7 @@ let
                     "")
                       : ;;
                     *)
-                      # Persist the user's real-device choice (on change) so `stop` restores the
-                      # last known default, not just the login-time one.
+                      # Persist the user's real-device choice so `stop` restores the last known default.
                       did="$(wpctl inspect @DEFAULT_AUDIO_SINK@ 2>/dev/null | grep -oP '^id \K[0-9]+' || true)"
                       if [ -n "$did" ] && [ "$did" != "$last_default" ]; then
                         last_default="$did"
@@ -502,13 +487,10 @@ let
               done
               ;;
             stop)
-              # A paused session may be frozen: thaw the cgroup first so steam -shutdown /
-              # SIGTERM are handled promptly and the scope stop below doesn't wait out its
-              # full timeout on SIGSTOPped processes.
+              # A paused session may be frozen: thaw first so shutdown/stop don't wait out SIGSTOP.
               systemctl is-active --quiet sunshine-headless-steam.scope 2>/dev/null \
                 && systemctl thaw sunshine-headless-steam.scope 2>/dev/null || true
-              # Shut down this session's Steam (by $HOME): -shutdown first, SIGTERM if it
-              # lingers; guarded on session_steam_alive so it never kills a reopened desktop Steam.
+              # Shut down this session's Steam (by $HOME): -shutdown first, SIGTERM if it lingers.
               if session_steam_alive; then
                 if [ -n "''${2:-}" ]; then
                   HOME="$2" steam -shutdown 2>/dev/null || true
@@ -536,8 +518,7 @@ let
               rm -f "$rt/sunshine-headless-sink-module"
               ;;
             cleanup)
-              # ExecStopPost: SIGKILLed Sunshine skips `stop`, leaving the stream sink loaded+default;
-              # release just the audio half (never Steam), only while a stream sink is the live default.
+              # SIGKILLed Sunshine skips `stop`: release just the audio half (never Steam).
               dname="$(wpctl inspect @DEFAULT_AUDIO_SINK@ 2>/dev/null | grep -oP 'node.name = "\K[^"]+' || true)"
               case "$dname" in
                 steam-sunshine-headless-sink | sink-sunshine-*)
@@ -550,8 +531,7 @@ let
               rm -f "$rt/sunshine-headless-sink-module"
               ;;
             idle)
-              # Boot-time display so the launch-time encoder probe passes (else 503); SDR
-              # fallback res — the first client `start` restarts gamescope to its resolution/HDR.
+              # Boot-time display for the encoder probe (else 503); SDR fallback res.
               [ -S "$rt/gamescope-0" ] && systemctl --user is-active --quiet sunshine-headless-gamescope.service && exit 0
               start_gamescope "1" "1" "1" "0"
               ;;
