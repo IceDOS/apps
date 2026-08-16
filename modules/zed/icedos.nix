@@ -118,32 +118,25 @@
             (
               { config, ... }:
               let
-                # Gate on the per-target state too, not just global
-                # `stylix.enable`: a disabled zed target (via
-                # `disabledTargets`) means stylix writes nothing, so fall
-                # through to our own font/theme defaults. `config` here is
-                # the home-manager config.
-                stylixOn = (config.stylix.enable or false) && (config.stylix.targets.zed.enable or false);
+                # A disabled zed target (via disabledTargets) means stylix writes
+                # nothing; fall through to our own font/theme defaults.
+                stylixTarget = config.stylix.targets.zed.enable or false;
 
-                # Stylix doesn't write this key — must always emit a value.
-                # Stylix-on + no override falls through to stylixVal so the
-                # key gets stylix's font name/size; stylix-off + no override
-                # → fallback.
+                # Stylix doesn't write this key — always emit a value: user
+                # override, else stylix's value, else our fallback.
                 overrideUnmanaged =
                   userVal: sentinel: stylixVal: fallback:
-                  if stylixOn then
+                  if stylixTarget then
                     if (userVal != sentinel) then mkForce userVal else stylixVal
                   else if (userVal != sentinel) then
                     userVal
                   else
                     fallback;
 
-                # Stylix writes this key via its zed target. Skip our
-                # definition when stylix is on and no override; let stylix's
-                # value win.
+                # Stylix writes this key via its zed target; emit only a user override.
                 overrideManaged =
                   userVal: sentinel: fallback:
-                  if stylixOn then
+                  if stylixTarget then
                     mkIf (userVal != sentinel) (mkForce userVal)
                   else if (userVal != sentinel) then
                     userVal
@@ -204,8 +197,7 @@
                       blinking = "on";
                       copy_on_select = true;
                       font_family = overrideUnmanaged font.name "" config.stylix.fonts.monospace.name fontNameFallback;
-                      font_size = overrideUnmanaged font.size 0 (config.stylix.fonts.sizes.terminal or 12
-                      ) fontSizeFallback;
+                      font_size = overrideUnmanaged font.size 0 config.stylix.fonts.sizes.terminal fontSizeFallback;
                     };
 
                     vim_mode = vim;
@@ -214,7 +206,7 @@
                     buffer_font_size = overrideManaged font.size 0 fontSizeFallback;
 
                     ui_font_size =
-                      if stylixOn then
+                      if stylixTarget then
                         mkIf (font.size != 0) (mkForce (font.size + 2))
                       else if (font.size != 0) then
                         font.size + 2
@@ -230,7 +222,7 @@
                         };
                         hasUserOverride = dark != "" || light != "";
                       in
-                      if stylixOn then mkIf hasUserOverride (mkForce themeAttrs) else themeAttrs;
+                      if stylixTarget then mkIf hasUserOverride (mkForce themeAttrs) else themeAttrs;
                   };
                 };
               }

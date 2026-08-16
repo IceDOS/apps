@@ -50,8 +50,6 @@
             mkMerge
             ;
 
-          stylixEnabled = config.stylix.enable or false;
-
           btopBin = pkgs.writeShellScriptBin "btop" ''
             export PATH="${pkgs.coreutils}/bin:${pkgs.glibc.bin}/bin:''${PATH:-}"
             if [ "$(id -u)" -eq 0 ]; then
@@ -111,13 +109,7 @@
                   })
 
                   {
-                    color_theme =
-                      if stylixEnabled then
-                        mkIf (colorTheme != "") (mkForce colorTheme)
-                      else if (colorTheme != "") then
-                        colorTheme
-                      else
-                        "onedark";
+                    color_theme = mkIf (colorTheme != "") (mkForce colorTheme);
                   }
                 ];
               };

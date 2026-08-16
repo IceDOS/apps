@@ -1,10 +1,10 @@
 [icedos.applications.mangohud]
-# Color overrides — "" means: use stylix when stylix is on, else fallback hardcoded.
+# Color overrides — "" means: use stylix colors.
 # Format: hex without leading "#", or comma-separated triple for load gradients.
 cpuColor = ""
 cpuLoadColor = ""
 engineColor = ""
-fontSize = 0 # 0 = use stylix size when stylix is on, else fallback 18
+fontSize = 0 # 0 = use stylix size
 fpsColor = ""
 fpsLimit = "0" # 0 equals unlimited
 gpuColor = ""
