@@ -22,6 +22,7 @@ let
     name
     normalSteamSession
     openFirewall
+    pauseOnDisconnect
     port
     secondarySteamSession
     secondarySteamSessionPath
@@ -53,6 +54,11 @@ in
 
   # Open the headless instance's derived TCP/UDP port block in the host firewall.
   openFirewall = mkBoolOption { default = openFirewall; };
+
+  # Pause the headless session when the last client disconnects: systemd-freeze the
+  # per-session Steam cgroup (SIGSTOP) after ~10s without a stream, thaw on reconnect.
+  # Off = the session keeps running idle after a disconnect (upstream behavior).
+  pauseOnDisconnect = mkBoolOption { default = pauseOnDisconnect; };
 
   # Keep host physical controllers out of the injected Steam (see scripts.nix).
   excludeHostControllers = mkBoolOption { default = excludeHostControllers; };

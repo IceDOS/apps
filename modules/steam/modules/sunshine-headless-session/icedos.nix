@@ -25,6 +25,7 @@
             excludeHostControllers
             inputInjection
             isolateVirtualControllers
+            pauseOnDisconnect
             port
             secondarySteamSession
             secondarySteamSessionPath
@@ -151,7 +152,9 @@
           services.inputplumber.enable = mkIf steamOS true;
 
           # Let the active local session manage the injected-Steam scope without sudo.
-          security.polkit.extraConfig = mkIf excludeHostControllers ''
+          # Needed for scope creation, the per-tick DeviceAllow refresh, and — when
+          # pauseOnDisconnect is on — the freeze/thaw of the paused session.
+          security.polkit.extraConfig = mkIf (excludeHostControllers || pauseOnDisconnect) ''
             polkit.addRule(function(action, subject) {
               if (action.id == "org.freedesktop.systemd1.manage-units" &&
                   action.lookup("unit") == "sunshine-headless-steam.scope" &&
