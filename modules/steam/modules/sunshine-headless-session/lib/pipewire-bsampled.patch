@@ -4,7 +4,7 @@
  			textureFlags.bMappable = true;
  			textureFlags.bTransferDst = true;
  			textureFlags.bStorage = true;
-+			textureFlags.bSampled = true; // RGB->NV12 paint_pipewire samples this texture (upstream #2271)
++			textureFlags.bSampled = true; // RGB->NV12 paint_pipewire samples this texture (upstream 9851c60)
  			if (exportable || drmFormat == DRM_FORMAT_NV12) {
  				textureFlags.bExportable = true;
  				textureFlags.bLinear = true; // TODO: support multi-planar DMA-BUF export via PipeWire

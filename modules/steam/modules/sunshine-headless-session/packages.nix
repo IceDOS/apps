@@ -18,6 +18,7 @@ let
     inputInjection
     mangoApp
     nv12BlackFrameFix
+    nv12ChromaFix
     preferDiscreteGpu
     sdrGamutWideness
     sdrContentNits
@@ -27,9 +28,10 @@ let
   inputBridgeGroup = "sunshine-headless";
 
   # Every patch is gated behind its own option (each forces a local rebuild); all off
-  # = stock gamescope. PR refs: #2271 (bSampled), #2217 (discrete GPU), #2270 (HDR LUTs).
+  # = stock gamescope. PR refs: 9851c60 (bSampled), #2271 (XBGR chroma), #2217 (discrete GPU), #2270 (HDR LUTs).
   anyGamescopePatch =
     nv12BlackFrameFix
+    || nv12ChromaFix
     || preferDiscreteGpu
     || inputInjection
     || hdr
@@ -39,6 +41,7 @@ let
     patches =
       (old.patches or [ ])
       ++ lib.optionals nv12BlackFrameFix [ ./lib/pipewire-bsampled.patch ]
+      ++ lib.optionals nv12ChromaFix [ ./lib/pipewire-xbgr-rgb10.patch ]
       ++ lib.optionals preferDiscreteGpu [ ./lib/prefer-discrete-gpu.patch ]
       ++ lib.optionals inputInjection [
         ./lib/pipewire-cursor.patch

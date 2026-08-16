@@ -21,6 +21,7 @@ let
     mangoApp
     name
     nv12BlackFrameFix
+    nv12ChromaFix
     normalSteamSession
     openFirewall
     pauseOnDisconnect
@@ -123,7 +124,8 @@ in
 
   # Each patch forces a local gamescope rebuild, so each is its own option;
   # all off (plus hdr/colorManagement/inputInjection/mangoApp) = stock gamescope.
-  nv12BlackFrameFix = mkBoolOption { default = nv12BlackFrameFix; };
+  nv12BlackFrameFix = mkBoolOption { default = nv12BlackFrameFix; }; # black PipeWire frames (upstream 9851c60)
+  nv12ChromaFix = mkBoolOption { default = nv12ChromaFix; }; # R/B swap on NVIDIA NV12/AVIF (upstream #2271)
   preferDiscreteGpu = mkBoolOption { default = preferDiscreteGpu; };
 
   # HDR-capable gamescope (HDR/colorimetry patches); stream HDR follows the client per-stream.
