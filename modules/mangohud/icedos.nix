@@ -67,44 +67,32 @@
                     let
                       inherit (lib) mkForce mkIf;
                       hasBattery = devices.laptop || steamdeck;
-                      normalColor = "F9F9F9";
-                      loadColors = "${normalColor},D09965,DC6A73";
-                      reversedLoadColors = "DC6A73,D09965,${normalColor}";
                       loadValues = "70,90";
-                      stylixEnabled = config.stylix.enable or false;
-
-                      override =
-                        userVal: sentinel: fallback:
-                        if stylixEnabled then
-                          mkIf (userVal != sentinel) (mkForce userVal)
-                        else if (userVal != sentinel) then
-                          userVal
-                        else
-                          fallback;
+                      override = userVal: sentinel: mkIf (userVal != sentinel) (mkForce userVal);
                     in
                     {
                       background_alpha = mkForce 0;
                       battery = hasBattery;
                       battery_icon = hasBattery;
                       battery_time = hasBattery;
-                      cpu_color = override mangohud.cpuColor "" normalColor;
+                      cpu_color = override mangohud.cpuColor "";
                       cpu_load_change = true;
-                      cpu_load_color = override mangohud.cpuLoadColor "" loadColors;
+                      cpu_load_color = override mangohud.cpuLoadColor "";
                       cpu_load_value = loadValues;
                       cpu_power = true;
                       cpu_temp = true;
-                      engine_color = override mangohud.engineColor "" normalColor;
+                      engine_color = override mangohud.engineColor "";
                       engine_short_names = true;
-                      font_size = override mangohud.fontSize 0 18;
-                      fps_color = override mangohud.fpsColor "" reversedLoadColors;
+                      font_size = override mangohud.fontSize 0;
+                      fps_color = override mangohud.fpsColor "";
                       fps_color_change = true;
                       fps_limit = mangohud.fpsLimit;
                       fps_value = "20,30";
                       frame_timing = false;
                       gl_vsync = 0;
-                      gpu_color = override mangohud.gpuColor "" normalColor;
+                      gpu_color = override mangohud.gpuColor "";
                       gpu_load_change = true;
-                      gpu_load_color = override mangohud.gpuLoadColor "" loadColors;
+                      gpu_load_color = override mangohud.gpuLoadColor "";
                       gpu_load_value = loadValues;
                       gpu_power = true;
                       gpu_temp = true;
@@ -114,9 +102,9 @@
                       offset_x = 5;
                       offset_y = 5;
                       position = mangohud.position;
-                      text_color = override mangohud.textColor "" normalColor;
+                      text_color = override mangohud.textColor "";
                       text_outline = false;
-                      vram_color = override mangohud.vramColor "" normalColor;
+                      vram_color = override mangohud.vramColor "";
                       vsync = 1;
                     };
                 };

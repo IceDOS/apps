@@ -17,10 +17,9 @@ let
     secondarySteamSessionPath
     ;
 
-  # Cover-label font: stylix sans-serif, else DejaVu (variable fonts lack static bold).
-  stylixOn = config.stylix.enable or false;
-  fontPkg = if stylixOn then config.stylix.fonts.sansSerif.package else pkgs.dejavu_fonts;
-  fontFamily = if stylixOn then config.stylix.fonts.sansSerif.name else "DejaVu Sans";
+  # Cover-label font: stylix sans-serif (variable fonts lack static bold).
+  fontPkg = config.stylix.fonts.sansSerif.package;
+  fontFamily = config.stylix.fonts.sansSerif.name;
 
   # Box art with a bottom label so Moonlight can tell the variants apart (only when >1).
   steamCover =
@@ -73,17 +72,17 @@ let
     };
 
   steamApps =
-    lib.optionals normalSteamSession ([
+    lib.optionals normalSteamSession [
       (mkSteamApp {
         baseName = "Steam";
         home = "";
       })
-    ])
-    ++ lib.optionals secondarySteamSession ([
+    ]
+    ++ lib.optionals secondarySteamSession [
       (mkSteamApp {
         baseName = "Steam (Second Session)";
         home = secondarySteamSessionPath;
       })
-    ]);
+    ];
 in
 steamApps

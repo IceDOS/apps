@@ -1,7 +1,7 @@
 [icedos.applications.codium.users.username]
 autoSave = "off" # Options: 'off', 'afterDelay', 'onFocusChange', 'onWindowChange'
 colorTheme = ""
-fontSize = 0 # 0 = use stylix size when stylix is on, else fallback 14
+fontSize = 0 # 0 = use stylix size
 formatOnPaste = true
 formatOnSave = true
 zoomLevel = 1.0

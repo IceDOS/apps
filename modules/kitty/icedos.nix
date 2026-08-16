@@ -79,13 +79,9 @@
             (
               { config, ... }:
               let
-                # Stylix's kitty target is a home-manager target;
-                # `disabledTargets` routes to `stylix.targets.kitty.enable =
-                # false` on the HM plane. Gate on the per-target state too,
-                # not just global `stylix.enable`, so a disabled kitty target
-                # falls through to our own font/theme defaults instead of
-                # leaving `programs.kitty.font.name` undefined.
-                stylixEnabled = (config.stylix.enable or false) && (config.stylix.targets.kitty.enable or false);
+                # A disabled kitty target (via disabledTargets) means stylix
+                # writes nothing; fall through to our own font/theme defaults.
+                stylixTarget = config.stylix.targets.kitty.enable or false;
               in
               {
                 programs.kitty = mkMerge [
@@ -103,7 +99,7 @@
                     };
 
                     font.name =
-                      if stylixEnabled then
+                      if stylixTarget then
                         mkIf (kitty.font.name != "") (mkForce kitty.font.name)
                       else if (kitty.font.name != "") then
                         kitty.font.name
@@ -111,7 +107,7 @@
                         "JetBrainsMono Nerd Font";
 
                     font.size =
-                      if stylixEnabled then
+                      if stylixTarget then
                         mkIf (kitty.font.size != 0) (mkForce kitty.font.size)
                       else if (kitty.font.size != 0) then
                         kitty.font.size
@@ -119,7 +115,7 @@
                         12;
 
                     themeFile =
-                      if stylixEnabled then
+                      if stylixTarget then
                         mkIf (kitty.themeFile != "") (mkForce kitty.themeFile)
                       else if (kitty.themeFile != "") then
                         kitty.themeFile

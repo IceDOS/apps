@@ -75,12 +75,9 @@
                   zoomLevel
                   ;
 
-                # Gate on the per-target state too, not just global
-                # `stylix.enable`: a disabled vscodium target (via
-                # `disabledTargets`) means stylix writes nothing, so fall
-                # through to our own font/theme defaults instead of dropping
-                # them. `config` here is the home-manager config.
-                stylixEnabled = (config.stylix.enable or false) && (config.stylix.targets.vscodium.enable or false);
+                # A disabled vscodium target (via disabledTargets) means stylix
+                # writes nothing; fall through to our own font/theme defaults.
+                stylixTarget = config.stylix.targets.vscodium.enable or false;
               in
               {
                 programs.vscodium = {
@@ -117,9 +114,7 @@
                     editor = {
                       inherit formatOnPaste formatOnSave;
 
-                      fontFamily = mkIf (
-                        !stylixEnabled
-                      ) "'JetBrainsMono Nerd Font', 'Droid Sans Mono', 'monospace', monospace";
+                      fontFamily = mkIf (!stylixTarget) "'JetBrainsMono Nerd Font', 'Droid Sans Mono', 'monospace', monospace";
 
                       fontLigatures = true;
                       minimap.enabled = false;
@@ -129,7 +124,7 @@
                     };
 
                     "editor.fontSize" =
-                      if stylixEnabled then
+                      if stylixTarget then
                         mkIf (fontSize != 0) (mkForce fontSize)
                       else if (fontSize != 0) then
                         fontSize
@@ -178,7 +173,7 @@
                     };
 
                     "terminal.integrated.fontSize" =
-                      if stylixEnabled then
+                      if stylixTarget then
                         mkIf (fontSize != 0) (mkForce fontSize)
                       else if (fontSize != 0) then
                         fontSize
@@ -201,7 +196,7 @@
                     };
 
                     "workbench.colorTheme" =
-                      if stylixEnabled then
+                      if stylixTarget then
                         mkIf (colorTheme != "") (mkForce colorTheme)
                       else
                         mkIf (colorTheme != "") colorTheme;

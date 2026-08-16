@@ -27,22 +27,8 @@
 
           accentHex = (icedosLib.generateAccent config).hexNoHash;
 
-          # Plasma ships its own clipboard manager (the org.kde.plasma.clipboard
-          # applet *is* Klipper in Plasma 6), so wl-clip-persist is redundant
-          # there -- and actively harmful: it takes over the offer, fails
-          # image/png transfers with "Broken pipe", and the source app's
-          # ~WaylandClipboard() then blocks joining its data-source thread for
-          # ~60s. Spectacle exits in ~4s without it and 1-4min with it, and
-          # while it lingers it still owns the single-instance
-          # org.kde.spectacle bus name, so every screenshot launch in that
-          # window fails.
-          #
-          # Gate on the *running* session rather than on plasma6 being installed:
-          # a machine can offer both Plasma and a bare-compositor session, and
-          # the latter still needs this. ExecCondition failure skips the unit
-          # without marking it failed. XDG_CURRENT_DESKTOP is colon-separated
-          # per the desktop-entry spec, hence the case match rather than a
-          # ConditionEnvironment= exact compare.
+          # Plasma ships Klipper, so wl-clip-persist is harmful there (broken
+          # image transfers, slow Spectacle); skip it on the running session.
           skipUnderPlasma = pkgs.writeShellScript "wl-clip-persist-skip-under-plasma" ''
             case ":''${XDG_CURRENT_DESKTOP:-}:" in
               *:KDE:*) exit 1 ;;
@@ -52,22 +38,8 @@
         {
           services.elephant.enable = true;
 
-          # The upstream services.elephant NixOS module ships a minimal
-          # user-systemd PATH (coreutils + grep + sed + systemd, no shell, no
-          # /run/current-system/sw/bin). That breaks elephant in two ways:
-          #   1. Terminal=true desktop entries fail with `exec: "sh": not
-          #      found` because elephant wraps them in `sh -c`.
-          #   2. Regular desktop entries appear to "activate" (elephant logs
-          #      success) but never spawn the actual app, because elephant
-          #      uses `systemd-run --user --scope` and `--scope` mode does the
-          #      binary lookup in systemd-run's own process — which inherits
-          #      elephant.service's PATH and can't find user-installed apps
-          #      like kitty, signal-desktop, etc.
-          #
-          # Override PATH to include the system binary paths and the user's
-          # profile, mirroring what the old hand-rolled walker.service shell
-          # wrapper exported. %h and %u are systemd specifiers (home dir,
-          # username) so this stays generic across users.
+          # Upstream elephant's minimal PATH breaks Terminal entries and
+          # --scope launches; extend it with system paths + user profile.
           systemd.user.services.elephant.environment.PATH = mkForce (
             concatStringsSep ":" [
               "${pkgs.bash}/bin"
@@ -78,11 +50,7 @@
             ]
           );
 
-          # Elephant caches xdg desktop entries at startup and doesn't
-          # rescan, so newly-installed entries (post-rebuild, post-flatpak,
-          # etc.) stay invisible until the service is restarted. Watch
-          # ~/.local/share/applications and try-restart elephant on any
-          # change there.
+          # Elephant caches entries at startup; restart it when applications change.
           systemd.user.paths.elephant-restart = {
             description = "Restart elephant when desktop entries change";
             wantedBy = [ "default.target" ];
@@ -97,13 +65,8 @@
             };
           };
 
-          # extraPackages lands in environment.systemPackages, which doesn't
-          # affect home-manager's unit content — so a system-only rebuild
-          # leaves hm-<user>.service unchanged and switch-to-configuration
-          # never re-runs hm activation, skipping the restart-elephant
-          # hook. Tracking systemPackages here flips the unit content
-          # whenever a system package is added/removed, forcing hm
-          # activation (and the hook) to re-run.
+          # Track systemPackages so any system change re-runs hm activation
+          # (and the restart-elephant hook) on switch.
           systemd.services = mapAttrs' (
             user: _:
             nameValuePair "home-manager-${user}" {
@@ -121,9 +84,8 @@
               let
                 inherit (lib) hm importTOML;
 
-                stylixOn = config.stylix.enable or false;
-                colors = config.lib.stylix.colors or { };
-                popups = config.stylix.fonts.sizes.popups or 10;
+                colors = config.lib.stylix.colors;
+                popups = config.stylix.fonts.sizes.popups;
 
                 scaleFontSize = origPx: toString (builtins.floor ((origPx * 1.0 * popups / 12) + 0.5));
 
@@ -139,38 +101,25 @@
                   "f2ecbc"
                 ];
 
-                colorReplacements =
-                  if stylixOn then
-                    [
-                      colors.base00
-                      colors.base02
-                      colors.base05
-                    ]
-                  else
-                    [
-                      "1D1D20"
-                      "2E2E32"
-                      "EAEAEF"
-                    ];
+                colorReplacements = [
+                  colors.base00
+                  colors.base02
+                  colors.base05
+                ];
 
-                fontReplacements =
-                  if stylixOn then
-                    [
-                      "font-size: ${scaleFontSize 12}px"
-                      "font-size: ${scaleFontSize 24}px"
-                      "font-size: ${scaleFontSize 28}px"
-                    ]
-                  else
-                    fontTargets;
+                fontReplacements = [
+                  "font-size: ${scaleFontSize 12}px"
+                  "font-size: ${scaleFontSize 24}px"
+                  "font-size: ${scaleFontSize 28}px"
+                ];
 
                 baseCss = replaceStrings (colorTargets ++ fontTargets) (colorReplacements ++ fontReplacements) (
                   readFile "${pkgs.walker.src}/resources/themes/default/style.css"
                 );
 
-                # Override the upstream .input background (lighter(@window_bg_color))
-                # with the base16 slot nautilus uses for its search bar so walker's
-                # input visually matches the rest of the system surface.
-                inputBgHex = if stylixOn then colors.base03 else "353539";
+                # Match the input background to nautilus' search-bar slot
+                # (base03) instead of the upstream lighter window color.
+                inputBgHex = colors.base03;
 
                 accentOverride = ''
                   @define-color icedos_accent_color #${accentHex};
@@ -180,10 +129,8 @@
                   }
                 '';
 
-                # The upstream item_clipboard.xml layout is missing the ItemImage
-                # widget that item.xml has, so clipboard images never render.
-                # Patch the upstream file to insert ItemImageFont + ItemImage before
-                # the text content box.
+                # Upstream item_clipboard.xml lacks ItemImage; add it so
+                # clipboard images render.
                 patchedClipboardXml =
                   replaceStrings
                     [
@@ -223,9 +170,7 @@
                   enable = true;
                   systemd.enable = true;
 
-                  # Read upstream config.toml verbatim, override force_keyboard_focus, and
-                  # drop the `theme` key so the home-manager module's auto-injected
-                  # `settings.theme = theme.name` doesn't collide at the same priority.
+                  # Upstream config, minus `theme` (HM injects it) plus force_keyboard_focus.
                   settings =
                     (removeAttrs (importTOML "${pkgs.walker.src}/resources/config.toml") [
                       "theme"
@@ -247,15 +192,8 @@
 
                 systemd.user.services.wl-clip-persist.Service.ExecCondition = "${skipUnderPlasma}";
 
-                # The systemd.user.path watcher in the NixOS-side block
-                # only catches changes to ~/.local/share/applications
-                # (flatpak, Wine, manual installs). Desktop entries from
-                # icedos modules and config.toml land in
-                # ~/.nix-profile/share/applications, which is a symlink
-                # chain inotify can't track across hm switches. So
-                # explicitly try-restart elephant at the tail of every
-                # home-manager activation — fires once per rebuild,
-                # no-op when elephant isn't running.
+                # Inotify can't track the ~/.nix-profile symlink chain; also
+                # try-restart elephant at the tail of every hm activation.
                 home.activation.restart-elephant = hm.dag.entryAfter [ "reloadSystemd" ] ''
                   $DRY_RUN_CMD ${pkgs.systemd}/bin/systemctl --user try-restart elephant.service || true
                 '';
