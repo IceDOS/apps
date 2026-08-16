@@ -1,5 +1,5 @@
-# Sunshine apps for the headless session, one per enabled session. `cmd` blocks
-# until Steam exits; prep-cmd `start` launches gamescope, `stop` tears it down.
+# Sunshine apps, one per enabled session. cmd blocks until Steam exits;
+# prep-cmd start/stop handle gamescope.
 {
   pkgs,
   lib,
@@ -17,8 +17,7 @@ let
     secondarySteamSessionPath
     ;
 
-  # Cover-label font: the desktop's stylix sans-serif, else DejaVu (resolved in the
-  # builder: variable fonts have no static bold face, and fontconfig mis-picks italic).
+  # Cover-label font: stylix sans-serif, else DejaVu (variable fonts lack static bold).
   stylixOn = config.stylix.enable or false;
   fontPkg = if stylixOn then config.stylix.fonts.sansSerif.package else pkgs.dejavu_fonts;
   fontFamily = if stylixOn then config.stylix.fonts.sansSerif.name else "DejaVu Sans";

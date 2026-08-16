@@ -20,10 +20,12 @@ let
     isolateVirtualControllers
     mangoApp
     name
+    nv12BlackFrameFix
     normalSteamSession
     openFirewall
     pauseOnDisconnect
     port
+    preferDiscreteGpu
     secondarySteamSession
     secondarySteamSessionPath
     renderHeight
@@ -37,12 +39,12 @@ let
 in
 {
   # The SECOND, independent Sunshine daemon streaming the headless gamescope session;
-  # the primary stays stock/normal (see daemon.nix).
+  # the primary stays stock.
 
-  # Start the daemon at the graphical session (like the primary's autoStart); false = manual.
+  # Start at the graphical session (like the primary's autoStart); false = manual.
   autoStart = mkBoolOption { default = autoStart; };
 
-  # sunshine_name / mDNS label of the headless instance; must differ from the primary.
+  # mDNS label; must differ from the primary.
   name = mkStrOption { default = name; };
 
   # Base port for the headless instance (primary uses 47989); Sunshine derives its whole block from it.
@@ -55,9 +57,8 @@ in
   # Open the headless instance's derived TCP/UDP port block in the host firewall.
   openFirewall = mkBoolOption { default = openFirewall; };
 
-  # Pause the headless session when the last client disconnects: systemd-freeze the
-  # per-session Steam cgroup (SIGSTOP) after ~10s without a stream, thaw on reconnect.
-  # Off = the session keeps running idle after a disconnect (upstream behavior).
+  # Freeze the per-session Steam cgroup (SIGSTOP) ~10s after the last client disconnects;
+  # thaw on reconnect. Off = keep running idle.
   pauseOnDisconnect = mkBoolOption { default = pauseOnDisconnect; };
 
   # Keep host physical controllers out of the injected Steam (see scripts.nix).
@@ -66,8 +67,7 @@ in
   # Hide the Sunshine virtual pad from the host desktop (see scripts.nix).
   isolateVirtualControllers = mkBoolOption { default = isolateVirtualControllers; };
 
-  # Which Steam apps to inject: normal = default HOME; second = separate account
-  # under secondarySteamSessionPath (required non-empty when enabled).
+  # normal = default HOME; second = separate account under secondarySteamSessionPath.
   normalSteamSession = mkBoolOption { default = normalSteamSession; };
   secondarySteamSession = mkBoolOption { default = secondarySteamSession; };
   secondarySteamSessionPath = mkStrOption { default = secondarySteamSessionPath; };
@@ -121,20 +121,25 @@ in
     default = fsrSharpness;
   } 0 20;
 
-  # HDR-capable gamescope (HDR/colorimetry patches). Whether a stream is actually
-  # HDR follows the Moonlight client's setting per-stream, not this option.
+  # Each patch forces a local gamescope rebuild, so each is its own option;
+  # all off (plus hdr/colorManagement/inputInjection/mangoApp) = stock gamescope.
+  nv12BlackFrameFix = mkBoolOption { default = nv12BlackFrameFix; };
+  preferDiscreteGpu = mkBoolOption { default = preferDiscreteGpu; };
+
+  # HDR-capable gamescope (HDR/colorimetry patches); stream HDR follows the client per-stream.
   hdr = mkBoolOption { default = hdr; };
 
-  # Forward Moonlight keyboard/mouse via Sunshine's inputtino passthrough devices.
+  # Forward Moonlight keyboard/mouse via inputtino passthrough + composite the X cursor
+  # into the stream (the capture never composites it otherwise). One feature, one option.
   inputInjection = mkBoolOption { default = inputInjection; };
 
   # Steam -steamos3: Steam manages gamescope focus natively (no appid tagger) and
-  # takes over host Bluetooth; the wait loop re-asserts the pre-launch BT state.
+  # takes over host Bluetooth.
   steamOS = mkBoolOption { default = steamOS; };
 
   # MangoHud overlay: --mangoapp on the idle gamescope + STEAM_USE_MANGOAPP=1 on Steam.
   mangoApp = mkBoolOption { default = mangoApp; };
 
-  # Color management: expose color controls in Steam's Display settings.
+  # Color management: Steam's Display color controls.
   colorManagement = mkBoolOption { default = colorManagement; };
 }

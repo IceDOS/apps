@@ -1,17 +1,12 @@
 --- a/src/steamcompmgr.cpp
 +++ b/src/steamcompmgr.cpp
-@@ -2324,11 +2324,11 @@
- 	frameInfo.allowVRR             = false;
- 	frameInfo.bFadingOut           = false;
- 
+@@ -2344,7 +2344,3 @@ static void paint_pipewire()
 -	// Apply screenshot-style color management.
+-	// Paint with the screenshot SDR/HDR LUT sets locked to outputEncodingEOTF:
+-	// the HDR build paints PQ (see packages.nix postPatch) and must pair it with
+-	// the HDR LUTs, else the stream is PQ-tagged with gamma22/SDR paint ->
+-	// washed colors (companion to upstream gamescope#2270, as Polaris 04).
+-	const auto &pipewireLuts = g_bOutputHDREnabled ? g_ScreenshotColorMgmtLutsHDR : g_ScreenshotColorMgmtLuts;
 +	// Apply display color management LUTs (includes gamut wideness / night mode from Steam sliders).
++	const auto &pipewireLuts = g_ColorMgmtLuts;
  	for ( uint32_t nInputEOTF = 0; nInputEOTF < EOTF_Count; nInputEOTF++ )
- 	{
--		frameInfo.lut3D[nInputEOTF]     = g_ScreenshotColorMgmtLuts[nInputEOTF].vk_lut3d;
--		frameInfo.shaperLut[nInputEOTF] = g_ScreenshotColorMgmtLuts[nInputEOTF].vk_lut1d;
-+		frameInfo.lut3D[nInputEOTF]     = g_ColorMgmtLuts[nInputEOTF].vk_lut3d;
-+		frameInfo.shaperLut[nInputEOTF] = g_ColorMgmtLuts[nInputEOTF].vk_lut1d;
- 	}
- 
- 	const uint64_t ulFocusAppId = s_pPipewireBuffer->gamescope_info.focus_appid;
