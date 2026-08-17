@@ -100,29 +100,30 @@ let
         nativeBuildInputs = [ pkgs.makeWrapper ];
       }
       ''
-              mkdir -p $out/share/dbus-1/services
-              mkdir -p $out/share/xdg-desktop-portal/portals
-              mkdir -p $out/libexec
+        mkdir -p $out/share/dbus-1/services
+        mkdir -p $out/share/xdg-desktop-portal/portals
+        mkdir -p $out/libexec
 
         # fix-stream-size shells out to pw-cli; put it + gamescopePkg on the bare PATH.
-              makeWrapper ${portalPkg}/libexec/xdg-desktop-portal-gamescope \
-                $out/libexec/xdg-desktop-portal-gamescope \
-                --set WAYLAND_DISPLAY gamescope-0 \
-                --prefix PATH : ${pkgs.pipewire}/bin \
-                --prefix PATH : ${gamescopePkg}/bin
+        makeWrapper ${portalPkg}/libexec/xdg-desktop-portal-gamescope \
+          $out/libexec/xdg-desktop-portal-gamescope \
+          --set WAYLAND_DISPLAY gamescope-0 \
+          --prefix PATH : ${pkgs.pipewire}/bin \
+          --prefix PATH : ${gamescopePkg}/bin
 
-              cat > $out/share/dbus-1/services/org.freedesktop.impl.portal.desktop.gamescope.service << EOF
-              [D-BUS Service]
-              Name=org.freedesktop.impl.portal.desktop.gamescope
-              Exec=$out/libexec/xdg-desktop-portal-gamescope
-              EOF
+        # printf, not a heredoc: Nix strips indentation, so an indented EOF never terminates.
+        printf '%s\n' \
+          '[D-BUS Service]' \
+          'Name=org.freedesktop.impl.portal.desktop.gamescope' \
+          "Exec=$out/libexec/xdg-desktop-portal-gamescope" \
+          > $out/share/dbus-1/services/org.freedesktop.impl.portal.desktop.gamescope.service
 
-              cat > $out/share/xdg-desktop-portal/portals/gamescope.portal << EOF
-              [portal]
-              DBusName=org.freedesktop.impl.portal.desktop.gamescope
-              Interfaces=org.freedesktop.impl.portal.Access;org.freedesktop.impl.portal.ScreenCast;org.freedesktop.impl.portal.Screenshot;
-              UseIn=gamescope
-              EOF
+        printf '%s\n' \
+          '[portal]' \
+          'DBusName=org.freedesktop.impl.portal.desktop.gamescope' \
+          'Interfaces=org.freedesktop.impl.portal.Access;org.freedesktop.impl.portal.ScreenCast;org.freedesktop.impl.portal.Screenshot;' \
+          'UseIn=gamescope' \
+          > $out/share/xdg-desktop-portal/portals/gamescope.portal
       '';
 
   # Filename MUST be <XDG_CURRENT_DESKTOP>-portals.conf, naming the backend per interface.

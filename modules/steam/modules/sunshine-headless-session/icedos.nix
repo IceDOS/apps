@@ -87,6 +87,43 @@
               steamApps
               ;
           };
+
+          # Custom session.conf: standard servicedirs + the gamescope portal's D-Bus service dir,
+          # so dbus-daemon can D-Bus-activate org.freedesktop.impl.portal.desktop.gamescope.
+          sunshinePortalBusConf = pkgs.writeText "sunshine-portal-bus.conf" ''
+            <!DOCTYPE busconfig PUBLIC "-//freedesktop//DTD D-Bus Bus Configuration 1.0//EN"
+             "http://www.freedesktop.org/standards/dbus/1.0/busconfig.dtd">
+            <busconfig>
+              <type>session</type>
+              <keep_umask/>
+              <auth>EXTERNAL</auth>
+              <!-- config-file mode makes dbus-daemon require a listen element here;
+                   the unit passes address= on the command line, which overrides it. -->
+              <listen>unix:tmpdir=/tmp</listen>
+              <standard_session_servicedirs />
+              <servicedir>${xdg-desktop-portal-gamescope}/share/dbus-1/services</servicedir>
+              <policy context="default">
+                <allow send_destination="*" eavesdrop="true"/>
+                <allow eavesdrop="true"/>
+                <allow own="*"/>
+              </policy>
+              <limit name="max_incoming_bytes">1000000000</limit>
+              <limit name="max_incoming_unix_fds">250000000</limit>
+              <limit name="max_outgoing_bytes">1000000000</limit>
+              <limit name="max_outgoing_unix_fds">250000000</limit>
+              <limit name="max_message_size">1000000000</limit>
+              <limit name="service_start_timeout">120000</limit>
+              <limit name="auth_timeout">240000</limit>
+              <limit name="pending_fd_timeout">150000</limit>
+              <limit name="max_completed_connections">100000</limit>
+              <limit name="max_incomplete_connections">10000</limit>
+              <limit name="max_connections_per_user">100000</limit>
+              <limit name="max_pending_service_starts">10000</limit>
+              <limit name="max_names_per_connection">50000</limit>
+              <limit name="max_match_rules_per_connection">50000</limit>
+              <limit name="max_replies_per_connection">50000</limit>
+            </busconfig>
+          '';
         in
         {
           # The whole block below is the HEADLESS session; the primary is untouched.
@@ -209,10 +246,9 @@
             description = "Private D-Bus for the Sunshine headless portal";
             wantedBy = [ "graphical-session.target" ];
             partOf = [ "graphical-session.target" ];
-            environment.XDG_DATA_DIRS = "${xdg-desktop-portal-gamescope}/share";
             serviceConfig = {
               ExecStartPre = "${pkgs.coreutils}/bin/mkdir -p %t/sunshine-portal";
-              ExecStart = "${pkgs.dbus}/bin/dbus-daemon --session --nofork --nopidfile --address=unix:path=%t/sunshine-portal/bus";
+              ExecStart = "${pkgs.dbus}/bin/dbus-daemon --nofork --nopidfile --address=unix:path=%t/sunshine-portal/bus --config-file=${sunshinePortalBusConf}";
               Restart = "always";
               RestartSec = "2s";
 
