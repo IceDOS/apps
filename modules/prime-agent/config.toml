@@ -1,0 +1,10 @@
+[icedos.applications.prime-agent]
+defaultProvider = ""
+defaultModel = ""
+skillDirs = []
+
+# "" means $XDG_CONFIG_HOME/prime-agent. $XDG_CONFIG_HOME / $XDG_DATA_HOME /
+# $HOME / ~ are expanded per user.
+dataDir = ""
+portBase = 8850
+portOverrides = {}
