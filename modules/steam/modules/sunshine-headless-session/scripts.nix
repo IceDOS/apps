@@ -419,16 +419,32 @@ let
                   # Recompute the scope's DeviceAllow each tick, pushing only on change.
                   if [ "$isolate_phys" = 1 ]; then
                     allow=()
-                    for dd in /sys/class/input/event* /sys/class/input/js*; do
+                    # inputtino builds pads with uhid (/sys/devices/virtual/misc/uhid/...) and
+                    # keyboard/mouse with uinput (/sys/devices/virtual/input/...), so match any
+                    # virtual parent -- plus the pads' hidraw nodes, which Steam Input reads.
+                    for dd in /sys/class/input/event* /sys/class/input/js* /sys/class/hidraw/hidraw*; do
                       [ -e "$dd" ] || continue
                       case "$(readlink -f "$dd/device" 2>/dev/null)" in
-                        /sys/devices/virtual/input/*) allow+=("DeviceAllow=/dev/input/$(basename "$dd") rwm") ;;
+                        /sys/devices/virtual/*) ;;
+                        *) continue ;;
+                      esac
+                      case "$dd" in
+                        */hidraw*) allow+=("DeviceAllow=/dev/$(basename "$dd") rwm") ;;
+                        *) allow+=("DeviceAllow=/dev/input/$(basename "$dd") rwm") ;;
                       esac
                     done
                     cur="''${allow[*]}"
                     if [ "$cur" != "''${last_allow:-}" ]; then
-                      systemctl set-property --runtime sunshine-headless-steam.scope DevicePolicy=closed ${deviceAllowSetArgs} "''${allow[@]}" >/dev/null 2>&1 || true
-                      last_allow="$cur"
+                      # Never silence this: a denied set-property means the pads stay blocked
+                      # and Steam sees no controller at all. Log the transition, keep retrying.
+                      if systemctl set-property --runtime sunshine-headless-steam.scope \
+                          DevicePolicy=closed ${deviceAllowSetArgs} "''${allow[@]}" >/dev/null 2>&1; then
+                        last_allow="$cur"
+                        allow_failed=0
+                      elif [ "''${allow_failed:-0}" != 1 ]; then
+                        echo "sunshine-headless: DeviceAllow refresh on sunshine-headless-steam.scope failed; Moonlight controllers will not reach Steam" >&2
+                        allow_failed=1
+                      fi
                     fi
                   fi
                   # Tag window appids + drive GAMESCOPECTRL_BASELAYER_APPID (reset to Steam when none).
