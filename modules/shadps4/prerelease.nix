@@ -8,9 +8,6 @@
         source = builtins.fromJSON (builtins.readFile ./prerelease.json);
       in
 
-      # An unseeded pin is committable — update.sh fills it on its next run — but it
-      # would otherwise evaluate into a nameless derivation that only fails deep in the
-      # build, so say so up front.
       assert lib.assertMsg (source.rev != "" && source.hash != "") ''
         shadps4: prerelease.json holds no pin yet. Run modules/shadps4/update.sh, or let
         the update-shadps4 workflow run, before enabling
@@ -21,11 +18,7 @@
         shadps4 = super.shadps4.overrideAttrs (old: {
           version = source.version;
 
-          # The base nixpkgs package carries use-system-zarchive.patch (PR #4786)
-          # for its v0.17.0 tag. The prerelease pin is newer and already merged
-          # that PR, so the patch comes out reversed against the pinned source
-          # ("Reversed (or previously applied) patch detected" in patchPhase).
-          # Drop it here; the prerelease source needs no zarchive patch.
+          # The pin already merged PR #4786, so the patch applies reversed.
           patches = builtins.filter (p: p.name != "use-system-zarchive.patch") (old.patches or [ ]);
 
           src = final.fetchFromGitHub {
@@ -34,17 +27,9 @@
 
             inherit (source) rev hash;
 
-            # nixpkgs' hook (submodule init plus the COMMIT/SOURCE_DATE_EPOCH files its
-            # postPatch reads), followed by the submodules the prerelease newly needs:
-            # protobuf (unguarded add_subdirectory in externals), zstd and zarchive
-            # (added after v0.16), and cpp-httplib (unconditional include in np_handler.cpp).
-            #
-            # Must use the absolute "$out/externals" like the nixpkgs hook does:
-            # postCheckout runs from the builder's cwd (nix-prefetch-git pops back out
-            # of $out before eval'ing the hook), so a relative "externals" dies with
-            # "fatal: cannot change to 'externals': No such file or directory".
+            # Passing postCheckout is what picks fetchgit over fetchzip; drop it and src
+            # becomes a tarball with an empty externals/, no COMMIT, and a stale hash.
             postCheckout = old.src.postCheckout + ''
-
               git -C "$out/externals" submodule update --init --recursive \
                 cpp-httplib \
                 protobuf \
@@ -53,31 +38,19 @@
             '';
           };
 
-          # shadPS4 forces protobuf to FetchContent abseil from GitHub, which the build
-          # sandbox has no network for. `CACHE INTERNAL` implies FORCE, so a -D flag
-          # cannot override it — flip it in the source and let protobuf find nixpkgs'
-          # abseil instead.
+          # abseil-cpp stays an uninitialised submodule, so the block would add_subdirectory
+          # an empty dir. grep because a sed range matching nothing still exits 0.
           postPatch = old.postPatch + ''
-            substituteInPlace externals/CMakeLists.txt \
-              --replace-fail 'set(protobuf_FORCE_FETCH_DEPENDENCIES ON  CACHE INTERNAL "")' \
-                             'set(protobuf_FORCE_FETCH_DEPENDENCIES OFF CACHE INTERNAL "")'
+            grep -q '^if (NOT TARGET absl::strings)' externals/CMakeLists.txt
+            sed -i '/^if (NOT TARGET absl::strings)/,/^endif()/d' externals/CMakeLists.txt
           '';
 
-          # Every find_package moved behind this option after v0.16.0 and it defaults
-          # off; without it spdlog fetches fmt over the network and the uninitialised
-          # externals/ submodules are used in place of the nixpkgs dependencies.
           cmakeFlags = (old.cmakeFlags or [ ]) ++ [
             (lib.cmakeBool "ENABLE_SYSTEM_LIBRARIES" true)
           ];
 
-          # find_package targets nixpkgs' shadps4 does not already supply. Each one
-          # falls back to an uninitialised submodule directory when missing.
-          #
-          # abseil must be built with clang like shadps4 itself: clang mangles a
-          # dependent non-type template parameter with a `Tn<type>` prefix and gcc does
-          # not, so the stock gcc-built library is missing the exact Cord symbols the
-          # in-tree protobuf emits calls to. `abseil-cpp` is an alias whose only
-          # argument is the LTS package, so the stdenv swap goes through that.
+          # protobuf_LOCAL_DEPENDENCIES_ONLY kills its FetchContent fallback, so
+          # find_package(absl) must hit — with clang, or the Cord symbols mangle wrong.
           buildInputs =
             old.buildInputs
             ++ (with final; [
