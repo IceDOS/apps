@@ -33,10 +33,7 @@
             shadps4-qtlauncher
           ];
 
-          # Upstream ships a single rolling prerelease and replaces it in place, so the
-          # pin is a commit (tags disappear) and update.sh / the update-shadps4 workflow
-          # keep prerelease.json fresh. The overlay lives in prerelease.nix because
-          # update.sh evaluates it too — the pin hash depends on how it fetches.
+          # Rolling prerelease — pinned by commit since tags get replaced.
           nixpkgs.overlays = mkIf prerelease (import ./prerelease.nix).nixpkgs.overlays;
         }
       )
