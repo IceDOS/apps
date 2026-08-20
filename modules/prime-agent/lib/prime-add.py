@@ -23,8 +23,7 @@ _CLIPBOARD_CMDS = (
     ["xclip", "-selection", "clipboard"],
 )
 
-# The raw selection must never reach a long-lived process's /proc/<pid>/environ
-# (wl-copy daemonizes).
+# The raw selection must never reach a daemonized wl-copy's /proc/<pid>/environ.
 _SAFE_ENV = {
     k: v
     for k, v in os.environ.items()
@@ -140,8 +139,7 @@ def main(argv: list[str]) -> int:
         _notify(msg)
         print(msg, file=sys.stderr)
         return 1
-    # End line = start + line breaks inside the selection; a trailing newline
-    # terminates the last line rather than opening the next.
+    # A trailing newline terminates the last line rather than opening the next.
     nl = text.count("\n") - (1 if text.endswith("\n") else 0)
     end = start + max(nl, 0)
     location = f"{rel_path}:{start}" if end == start else f"{rel_path}:{start}-{end}"

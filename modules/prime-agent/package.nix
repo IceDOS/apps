@@ -40,8 +40,7 @@ let
   ]
   ++ lib.optionals stdenv.hostPlatform.isLinux [ xdg-utils ];
 
-  # The zeromq npm package ships prebuilt native addons, so the addon is built
-  # from source against nixpkgs' libzmq instead.
+  # zeromq ships prebuilt addons; build from source against nixpkgs' libzmq instead.
   projectOptions = fetchzip {
     url = "https://github.com/aminya/project_options/archive/refs/tags/v0.41.0.zip";
     hash = "sha256-qZusLCSdzHHQ7XN7wGcroWGyDvNVYphojbTUre0od7s=";
@@ -66,14 +65,15 @@ let
 in
 buildNpmPackage (finalAttrs: {
   pname = "prime-agent";
-  version = "0.7.3";
+  version = "0.7.4";
   __structuredAttrs = true;
 
   src = fetchFromGitHub {
     owner = "PrimeIntellect-ai";
     repo = "prime-agent";
     tag = "v${finalAttrs.version}";
-    hash = "sha256-//pnPmDD5K2WuBmpnKE1nFiXXKL8whwUKsoyiAkdf1A=";
+    hash = "sha256-wlBuzGTn61z0TfbamEb7G+ngNXoSIo3Y8FgpzkiN1IA=";
+
     # The upstream lockfile omits registry metadata for workspace dependencies.
     postFetch = ''
       ${lib.optionalString stdenv.hostPlatform.isDarwin "export REQUESTS_CA_BUNDLE=${cacert}/etc/ssl/certs/ca-bundle.crt"}
@@ -82,19 +82,16 @@ buildNpmPackage (finalAttrs: {
   };
 
   patches = [
-    # Bootstrap runs `uv python install 3.11` explicitly when no
-    # venv exists yet (bootstrap.ts), which downloads a Python that is
-    # never used because the venv is created with the Python provided by nix
-    # (UV_PYTHON_PREFERENCE=system). Drop the redundant download.
+    # bootstrap.ts runs `uv python install 3.11` before creating the venv, downloading
+    # a Python that UV_PYTHON_PREFERENCE=system never uses. Drop the redundant fetch.
     ./remove-uv-python-install.patch
   ];
 
   npmDepsFetcherVersion = 2;
-  npmDepsHash = "sha256-tVdbkoilhCIG+VtzkFcnfJ2i3beUGFWYnXrkYEHn2E0=";
+  npmDepsHash = "sha256-QXiP6yfZ+pFLDyEcnLslNrlYyAmLvA/BgEI00//ftdU=";
 
-  # The zeromq addon is built from source in buildPhase; don't let `npm rebuild`
-  # touch install scripts (they would try to load the shipped prebuilt addons,
-  # which are broken on aarch64-darwin, or attempt a networked build).
+  # The addon is built from source in buildPhase; install scripts would load the shipped
+  # prebuilts (broken on aarch64-darwin) or attempt a networked build.
   npmRebuildFlags = [ "--ignore-scripts" ];
 
   nativeBuildInputs = [
@@ -109,9 +106,8 @@ buildNpmPackage (finalAttrs: {
   buildInputs = [
     cairo
     pango
-    # The npm addon is compiled with zeromq's draft APIs enabled (upstream
-    # default) and references draft symbols, so the libzmq it links against
-    # must have them too; otherwise the addon fails to load.
+    # The addon is compiled with zeromq's draft APIs (upstream default) and references
+    # draft symbols, so the libzmq it links against must have them or it fails to load.
     (zeromq.override { enableDrafts = true; })
   ];
 
@@ -127,9 +123,8 @@ buildNpmPackage (finalAttrs: {
     npm --workspace packages/agent run build
     npm --workspace packages/coding-agent run build
 
-    # Build the zeromq native addon from source against nixpkgs' libzmq;
-    # Strip the vcpkg call (which would fetch and build its own libzmq)
-    # and let zeromq's own cmake-ts build do the rest, fully offline.
+    # Strip the vcpkg call (it would fetch and build its own libzmq) and let zeromq's
+    # own cmake-ts build do the rest, fully offline.
     sed -i '/run_vcpkg/,/)/d' node_modules/zeromq/CMakeLists.txt
     mkdir -p node_modules/zeromq/project_options
     cp -r ${projectOptions}/. node_modules/zeromq/project_options/
@@ -178,8 +173,7 @@ buildNpmPackage (finalAttrs: {
       cp -R "packages/coding-agent/$path" "$packageDir/packages/coding-agent/$path"
     done
 
-    # The venv is created with the Python provided by nix (UV_PYTHON_PREFERENCE=system).
-    # UV_PYTHON_DOWNLOADS=manual stops any surprise Python downloads.
+    # The venv uses nix's Python; UV_PYTHON_DOWNLOADS=manual stops surprise downloads.
     makeWrapper ${lib.getExe nodejs} $out/bin/prime-agent \
       --add-flags "$packageDir/dist/bundle/cli.js" \
       --set PI_PACKAGE_DIR "$packageDir" \
@@ -201,7 +195,6 @@ buildNpmPackage (finalAttrs: {
   installCheckPhase = ''
     runHook preInstallCheck
 
-    # Verify the Python version matches what the source code requires
     requiredPythonVersion=$(grep -oP 'PYTHON_VERSION = "\K[^"]+' \
       packages/coding-agent/src/core/kernel/bootstrap.ts)
     actualVersion=$(${lib.getExe python311} -c 'import sys;print("%d.%d"%sys.version_info[:2])')
