@@ -70,10 +70,45 @@
             url = "github:icedos/hardware";
             name = "steamdeck";
           };
-          # lib/resolved-steam.nix: the parent DEFINES programs.steam.package,
-          # so it uses `raw`; `resolved` is reserved for consumers that read
-          # what Steam actually runs.
+
+          # raw = definer; resolved = consumer (reads programs.steam.package).
           steamPkg = (import ./lib/resolved-steam.nix) { inherit config pkgs; };
+
+          # When steamOS + beta are both on, wrap desktop Steam with -steamos3
+          # so the beta channel stays as steamdeck_publicbeta (no desktop/headless de-sync).
+          wrapSteamos3 =
+            pkg:
+            pkgs.symlinkJoin {
+              name = "steam-steamos3";
+              paths = [ pkg ];
+              postBuild = ''
+                mv $out/bin/steam $out/bin/steam.real
+                cat > $out/bin/steam <<'WRAPPER'
+                  #!${pkgs.bash}/bin/bash
+                  exec "$(dirname "$0")/steam.real" -steamos3 "$@"
+                WRAPPER
+                chmod +x $out/bin/steam
+              '';
+            };
+
+          steamFinal =
+            let
+              steamBase =
+                if (!hasGamescope && !hasProtonLaunch && !hasExtraPackages) then
+                  steamPkg.raw
+                else if (hasGamescope || hasProtonLaunch) then
+                  steamPkg.raw.override {
+                    extraPkgs = pkgs: extraPackages ++ optionalGamescope ++ optionalProtonLaunch;
+                  }
+                else
+                  null;
+            in
+            if steamBase == null then
+              null
+            else if optionalSunshineHeadlessSteamOS && beta then
+              wrapSteamos3 steamBase
+            else
+              steamBase;
         in
         {
           home-manager.sharedModules = [
@@ -91,36 +126,18 @@
                 };
               };
 
-              home.packages =
-                if (!hasGamescope && !hasProtonLaunch && !hasExtraPackages && !session) then
-                  [ steamPkg.raw ]
-                else if ((hasGamescope || hasProtonLaunch) && !session) then
-                  [
-                    (steamPkg.raw.override {
-                      extraPkgs = pkgs: extraPackages ++ optionalGamescope ++ optionalProtonLaunch;
-                    })
-                  ]
-                else
-                  [ ];
+              home.packages = if !session && steamFinal != null then [ steamFinal ] else [ ];
             }
           ];
 
-          # programs.steam.package is DEFINED here, so it must be lib's `raw`
-          # (pkgs.steam): deriving it from lib's `resolved` — which reads
-          # config.programs.steam.package whenever the module is enabled —
-          # would read the very option defined here (self-reference).
-          # Consumers (e.g. steam-sunshine-headless-session) import lib and
-          # use `resolved` to read what a bare `steam` actually runs.
+          # DEFINED here → must use `raw` (not `resolved`, which reads this option).
           programs.steam = {
             enable = steamdeck || session;
             extraPackages = extraPackages ++ optionalGamescope ++ optionalProtonLaunch;
             package = steamPkg.raw;
           };
 
-          # The `L+` symlink rule does not auto-create intermediate parent
-          # directories with user ownership; without explicit `d` rules first,
-          # systemd-tmpfiles may create them as root and break later HM
-          # activation steps that try to write inside Steam/.
+          # Explicit `d` rules before `L+` so tmpfiles doesn't create dirs as root.
           systemd.tmpfiles.rules = concatMap (
             user:
             let
