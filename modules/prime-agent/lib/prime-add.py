@@ -1,12 +1,8 @@
 #!/usr/bin/env python3
-"""prime-add - copy the current Zed selection's LOCATION to the clipboard.
+"""prime-add - copy the current Zed selection's location (path:start[-end]) to the clipboard.
 
-Reads ZED_RELATIVE_FILE, ZED_ROW and PRIME_ADD_SELECTED_TEXT from the env (Zed
-exports task variables), copies "path:start[-end]" with no trailing newline so a
-paste never submits, and leaves pasting to you. Multi-cursor is unsupported.
-
-Manual-testing fallback:
-    prime-add <ZED_FILE> <ZED_RELATIVE_FILE> <ZED_ROW> <ZED_SELECTED_TEXT>
+Env-driven (ZED_*), no trailing newline so a paste never submits; multi-cursor unsupported.
+Manual fallback: prime-add <ZED_FILE> <ZED_RELATIVE_FILE> <ZED_ROW> <ZED_SELECTED_TEXT>.
 """
 
 import os
@@ -35,7 +31,7 @@ def _notify(message: str) -> None:
     """Surface a failure via notify-send (best effort; wrapper adds libnotify)."""
     try:
         subprocess.run(
-            ["notify-send", "--urgency=critical", "prime-add", message],
+            ["notify-send", "--urgency=normal", "--expire-time=8000", "prime-add", message],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
             env=_SAFE_ENV,
