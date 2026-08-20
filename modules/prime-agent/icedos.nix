@@ -26,26 +26,20 @@
       defaultProvider = mkStrOption { default = defaultProvider; };
       defaultModel = mkStrOption { default = defaultModel; };
 
-      # Where prime-agent keeps its data. "" resolves to $XDG_CONFIG_HOME/prime-agent;
-      # $XDG_CONFIG_HOME / $XDG_DATA_HOME / $HOME / ~ are expanded per user.
       dataDir = mkStrOption { default = dataDir; };
 
       skillDirs = mkStrListOption { default = skillDirs; };
 
-      # First bridge port; each local server gets portBase + sha256(name) mod 200.
-      # Bound is 65335 so the derived port stays <= 65535.
+      # Bound is 65335 so portBase + (sha256(name) mod 200) stays <= 65535.
       portBase = mkIntBetweenOption {
         path = "icedos.applications.prime-agent.portBase";
         source = ./config.toml;
         default = portBase;
       } 0 65335;
 
-      # Pin a server to an exact port. Pins are system-wide, so effectively
-      # single-user; derived ports fold the username in and cannot collide.
+      # Pins are system-wide; derived ports fold the username in and cannot collide.
       portOverrides = mkAttrsOfOption { default = portOverrides; } (lib.types.ints.between 1 65535);
 
-      # One empty entry per normal user (materialized by genDefaults below); the
-      # home-manager sharedModule applies to exactly those users.
       users = mkSubmoduleAttrsOption { default = { }; } { };
     };
 
@@ -78,14 +72,11 @@
 
           inherit (config.icedos.applications) prime-agent;
           primeAgentUsers = prime-agent.users;
-          # peon-ping is a standalone module and may not be loaded at all;
-          # guard defensively, the same way opencode's module does.
-
+          # peon-ping is a standalone module and may not be loaded at all.
           peonPingEnabled = (config.icedos.applications.peon-ping.users or { }) != { };
         in
         {
-          # Not in nixpkgs yet: package.nix is a copy of nixpkgs PR #550774 at 0.7.3.
-          # Drop this overlay, package.nix and the patch once that PR merges.
+          # Copy of nixpkgs PR #550774 at 0.7.4; drop overlay, package.nix and patch once merged.
           nixpkgs.overlays = [
             (final: _prev: {
               prime-agent = final.callPackage ./package.nix { };
@@ -136,8 +127,7 @@
                           config.home.homeDirectory
                         ]
                         raw;
-                    # Strip trailing slashes so "$HOME/" degenerates into the "$HOME" case
-                    # the in-home assertion rejects, not a leading-slash relDataDir.
+                    # "$HOME/" must hit the rejected "$HOME" case, not a leading-slash relDataDir.
                     stripped =
                       let
                         stripTrailing =
@@ -160,14 +150,12 @@
                     else
                       stripped
                   );
-                # home.file keys are $HOME-relative. Only in-home dataDirs are supported
-                # (asserted below).
+                # home.file keys are $HOME-relative; only in-home dataDirs work (asserted below).
                 relDataDir = lib.removePrefix (config.home.homeDirectory + "/") dataDir;
                 # ---- shared MCP registry ----
                 # Also consumed by opencode; gated on programs.mcp.enable, where hm validates it.
                 registry = if config.programs.mcp.enable or false then config.programs.mcp.servers or { } else { };
-                # enabled/disabled both turn a server off; home-manager resolves them in a
-                # helper it does not export, so mirror it.
+                # enabled/disabled both disable; home-manager's resolver is unexported, so mirror it.
                 isEnabled =
                   s:
                   if (s.enabled or null) != null then
@@ -209,8 +197,7 @@
 
                 # Nix has no integer modulo operator; fold modulo by hand.
                 mod = a: b: a - b * (a / b);
-                # Per-user: folding the username in keeps two users' bridges off each
-                # other's ports. portOverrides pins stay system-wide.
+                # Username folded in so two users' bridges cannot collide; pins stay system-wide.
                 hashPort =
                   name:
                   prime-agent.portBase
@@ -223,8 +210,7 @@
                     sorted = lib.sort (a: b: a.name < b.name) (
                       lib.mapAttrsToList (name: s: s // { inherit name; }) localServers
                     );
-                    # Pins are reserved up front so a derived port bumps around them;
-                    # genuine double pins fail in the assertions below.
+                    # Reserved up front so derived ports bump around pins; double pins fail below.
                     pinnedUsed = lib.listToAttrs (
                       map (p: lib.nameValuePair (toString p) true) (lib.attrValues prime-agent.portOverrides)
                     );
@@ -266,8 +252,7 @@
                 urlFor =
                   name: s: if s.command != null then "http://127.0.0.1:${toString (portFor name)}/mcp" else s.url;
 
-                # Routed through home-manager's transform so freeform keys (timeout) survive.
-                # command/args/env are registry-side; prime-agent only ever speaks HTTP.
+                # Via home-manager's transform so freeform keys survive; prime-agent only speaks HTTP.
                 mcpServers = lib.mapAttrs (
                   name: s:
                   lib.hm.mcp.transformMcpServer {
@@ -291,8 +276,7 @@
                   }
                 ) enabled;
 
-                # Local bridges accept any token, so a dummy satisfies _resolve_token().
-                # Remotes get none: the header reaches their server and can be rejected.
+                # Local bridges accept any token; remotes get none, as they can reject the header.
                 dummyCreds = mapAttrs' (
                   name: _:
                   nameValuePair "mcp:${name}" {
@@ -308,13 +292,10 @@
                   builtins.toJSON (map (name: "mcp:${name}") (lib.attrNames remoteServers))
                 );
 
-                # Remote server with nothing to authenticate with: no bearer env var,
-                # no OAuth.
                 isNoAuthRemote =
                   s: s.command == null && (s.bearerTokenEnvVar or null) == null && !(s.oauth or false);
 
-                # Seed merge is seed-wins, so empty values would reset TUI-chosen ones.
-                # mcpServers always rides along: the registry is declarative.
+                # Seed-wins merge, so empty values would reset TUI choices; mcpServers always rides along.
                 seedSettings =
                   (lib.optionalAttrs (prime-agent.defaultProvider != "") {
                     defaultProvider = prime-agent.defaultProvider;
@@ -386,16 +367,14 @@
                   attrs:
                   "{" + concatStringsSep ", " (lib.mapAttrsToList (k: v: "${pyStr k}: ${pyStr v}") attrs) + "}";
 
-                # Nix strips a `''` block's common indent, which would leave this method
-                # at column 0 -- a module-level function rather than a class member.
+                # Nix strips the block's common indent, dropping this method to column 0.
                 indentPy =
                   block:
                   concatStringsSep "\n" (
                     map (line: if line == "" then "" else "    " + line) (splitString "\n" block)
                   );
 
-                # _open_session always sends `Authorization: Bearer <token>`, which a
-                # keyless endpoint that validates the header rejects. Connect without it.
+                # _open_session always sends Authorization; a keyless endpoint may reject it.
                 noAuthSession = ''
                   async def _open_session(self, stack):
                       import inspect
@@ -438,8 +417,7 @@
                     ]
                     # A remote server may need headers to answer at all.
                     ++ lib.optional (s.headers or { } != { }) "    headers = ${pyDict s.headers}"
-                    # _token() checks bearer_token_env before auth.json; these servers are
-                    # deliberately excluded from the credential seed.
+                    # _token() checks bearer_token_env before auth.json; these skip the cred seed.
                     ++ lib.optional (
                       (s.bearerTokenEnvVar or null) != null
                     ) "    bearer_token_env = ${pyStr s.bearerTokenEnvVar}"
@@ -490,8 +468,7 @@
                       c
                   ) (stringToCharacters arg)
                   + "\"";
-                # systemd does not expand `$` in Environment=; double `%` so a value is
-                # not read as a specifier.
+                # Environment= does not expand `$`, and reads `%` as a specifier, so double it.
                 quoteSystemdEnv =
                   arg:
                   "\""
@@ -507,11 +484,9 @@
                       c
                   ) (stringToCharacters arg)
                   + "\"";
-                # `env` may hold secret file refs ({ file = ...; }); home-manager's helper
-                # resolves them into a wrapper and leaves literals for Environment=.
+                # env may hold secret file refs; hm wraps those, leaving literals for Environment=.
                 withEnvFiles = name: s: lib.hm.mcp.wrapEnvFilesCommand { inherit pkgs name; } s;
-                # mcp-proxy serves /mcp on the port urlFor expects. --pass-environment is
-                # required: unlike supergateway's `sh -c` it hands the child no environment.
+                # --pass-environment is required: unlike supergateway's `sh -c`, the child gets no env.
                 mcpProxy = "${pkgs.mcp-proxy}/bin/mcp-proxy";
 
                 execStart =
@@ -615,8 +590,6 @@
                   ${pkgs.jq}/bin/jq -n --slurpfile a "$AUTH" --slurpfile k "${remoteCredKeysFile}" 'reduce $k[0][] as $key ($a[0]; if .[$key] == {"type":"api_key","key":"dummy"} then del(.[$key]) else . end)' > "$AUTH.tmp" && mv "$AUTH.tmp" "$AUTH"
                 '';
 
-                # The env pair that relocates prime-agent (see the dual-write
-                # comment in the mkIf block below).
                 primeEnv = {
                   PRIME_AGENT_CODING_AGENT_DIR = dataDir;
                   PRIME_AGENT_KERNEL_VENV = "${dataDir}/kernel-venv";
@@ -661,20 +634,17 @@
                     '';
                   }
                 ];
-                # Dual-written: home.sessionVariables for login shells, systemd.user for
-                # the graphical session (only re-read on re-login).
+                # Login shells read home.sessionVariables; the graphical session needs systemd.user.
                 home.sessionVariables = primeEnv;
                 systemd.user.sessionVariables = primeEnv;
 
                 home.file = mkMerge (
                   (lib.mapAttrsToList skillFiles enabled)
                   ++ [
-                    # prime-agent has no shell hooks; extensions are the hook surface,
-                    # auto-discovered from <agentDir>/extensions/*.ts.
+                    # No shell hooks; extensions auto-load from <agentDir>/extensions/*.ts.
                     (mkIf peonPingEnabled {
                       "${relDataDir}/extensions/peon-ping.ts".source = pkgs.replaceVars ./lib/peon-ping.ts {
-                        # Installed unconditionally by peon-ping's hm module; the bin/peon
-                        # wrapper carries its own runtime PATH.
+                        # Installed by peon-ping's hm module; bin/peon carries its own PATH.
                         peonSh = "${config.home.homeDirectory}/.openpeon/peon.sh";
                       };
                     })
@@ -686,12 +656,10 @@
                 home.activation.seed-prime-agent = lib.hm.dag.entryAfter [
                   "writeBoundary"
                 ] seedScript;
-                # Copies the selection's location only, with no trailing newline, so a paste
-                # never submits. Wrapper is hermetic: the task terminal's PATH is untrusted.
+                # No trailing newline so a paste never submits; the task terminal's PATH is untrusted.
                 home.packages = [
                   (pkgs.writeShellScriptBin "prime-add" ''
-                    # wl-copy execs `cat` to feed itself stdin, so coreutils
-                    # must be on PATH too for the hermetic guarantee.
+                    # wl-copy execs `cat`, so coreutils must be on PATH for the hermetic guarantee.
                     export PATH=${
                       lib.makeBinPath [
                         pkgs.wl-clipboard
@@ -703,8 +671,7 @@
                     exec ${pkgs.python3Minimal}/bin/python3 ${./lib/prime-add.py} "$@"
                   '')
                 ];
-                # Zed has no right-panel reveal target, so spawn into the terminal dock
-                # and drag it right. Concurrent runs allowed.
+                # Zed has no right-panel reveal target, so spawn into the terminal dock.
                 programs.zed-editor.userTasks = lib.mkIf (config.programs.zed-editor.enable or false) [
                   {
                     label = "prime-agent";
@@ -719,8 +686,7 @@
                     hide = "never";
                   }
                   {
-                    # Selection travels via env, not the command line (build_no_quote would
-                    # dump raw code into zsh -c). Empty selection leaves the task unresolved.
+                    # Selection via env, not argv: build_no_quote would dump raw code into zsh -c.
                     label = "prime-add: copy selection";
                     command = "prime-add";
                     args = [ ];
@@ -733,8 +699,7 @@
                     hide = "on_success";
                   }
                 ];
-                # ctrl-alt-p spawns the task above. Workspace context; merges with the
-                # user's own keymap.json by context.
+                # Merges with the user's own keymap.json by context.
                 programs.zed-editor.userKeymaps = lib.mkIf (config.programs.zed-editor.enable or false) [
                   {
                     context = "Workspace";
@@ -748,8 +713,7 @@
                     };
                   }
                   {
-                    # ctrl-alt-c copies selection + location. Free in Zed's Linux default
-                    # editor keymap (it only collides in panel contexts).
+                    # Free in Zed's Linux default editor keymap (collides only in panel contexts).
                     context = "Editor";
                     bindings = {
                       "ctrl-alt-c" = [

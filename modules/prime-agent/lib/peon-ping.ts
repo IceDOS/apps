@@ -1,5 +1,4 @@
-// peon-ping adapter. Writes no terminal escapes: stdout is the TUI, or the
-// RPC/ACP pipe. @peonSh@ is substituted by the prime-agent module at build time.
+// No terminal escapes: stdout is the TUI or the RPC/ACP pipe. @peonSh@ is substituted at build time.
 
 import { spawn } from "node:child_process";
 import type { StdioOptions } from "node:child_process";
@@ -47,9 +46,7 @@ export default function (pi: ExtensionAPI) {
     firePeon("UserPromptSubmit", ctx);
   });
 
-  // No error variant: 0.7.3 fires no extension event on a failed turn.
-
-  // No error variant: 0.7.3 fires no extension event on a failed turn.
+  // No error variant: 0.7.4 fires no extension event on a failed turn.
   pi.on("agent_end", async (_event, ctx) => {
     firePeon("Stop", ctx);
   });
