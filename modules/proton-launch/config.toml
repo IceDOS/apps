@@ -1,0 +1,4 @@
+[icedos.applications.proton-launch]
+# Default Vulkan present mode; "" leaves it to the driver. --present-mode overrides.
+# Options: fifo (strict vsync), relaxed, mailbox (tear-free, low latency), immediate (lowest latency, tears)
+presentMode = ""
