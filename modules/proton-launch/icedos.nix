@@ -1,4 +1,4 @@
-{ icedosLib, ... }:
+{ icedosLib, lib, ... }:
 
 {
   inputs.scopebuddy = {
@@ -6,7 +6,27 @@
     inputs.nixpkgs.follows = "nixpkgs";
   };
 
-  options.icedos.applications.proton-launch = icedosLib.mkBoolOption { default = true; };
+  options.icedos.applications.proton-launch =
+    let
+      inherit (lib) importTOML;
+      inherit ((importTOML ./config.toml).icedos.applications.proton-launch) presentMode;
+    in
+    {
+      presentMode =
+        icedosLib.mkEnumOption
+          {
+            path = "icedos.applications.proton-launch.presentMode";
+            source = ./config.toml;
+            default = presentMode;
+          }
+          [
+            ""
+            "fifo"
+            "relaxed"
+            "mailbox"
+            "immediate"
+          ];
+    };
 
   outputs.nixosModules =
     { inputs, ... }:
@@ -28,6 +48,7 @@
             length
             optional
             optionalAttrs
+            optionalString
             splitString
             ;
 
@@ -41,16 +62,19 @@
           hasMangohud = any (user: config.home-manager.users.${user}.programs.mangohud.enable) (
             attrNames users
           );
+          hasNvidia = icedosLib.hasModule {
+            inherit config;
+            url = "github:icedos/hardware";
+            name = "nvidia";
+          };
           hasPowerProfilesDaemon = config.services.power-profiles-daemon.enable;
+
+          inherit (config.icedos.applications.proton-launch) presentMode;
 
           packages = [ proton-launch ] ++ optional hasGamescope pkgs.gamescope;
 
-          # Heavy maintenance firing mid-game costs far more than any log spam:
-          # nix GC and fstrim are multi-GB I/O storms, and logrotate plus
-          # fwupd-refresh run hourly. `systemd-inhibit` cannot gate timers, so
-          # reuse the lock GAME_INHIBIT already holds as an ExecCondition. A
-          # failed condition skips that run cleanly and the timer retries on its
-          # next interval.
+          # Skip heavy maintenance (nix GC, fstrim, logrotate) during gameplay.
+          # Uses GAME_INHIBIT lock as ExecCondition since systemd-inhibit can't gate timers.
           deferWhileGaming = {
             serviceConfig.ExecCondition = pkgs.writeShellScript "defer-while-proton-launch" ''
               ! ${pkgs.systemd}/bin/systemd-inhibit --list --no-pager \
@@ -82,13 +106,24 @@
             if hasGamescope then
               ''
                 echo -e "> ${purpleString "--gamescope"}: wrap with gamescope (via scopebuddy)"
-                echo -e "> ${purpleString "--gamescope-args <args>"}: pass extra args to gamescope"
               ''
             else
               "";
 
-          conditionalLowLatencyHelp =
+          conditionalVrrHelp =
             if hasGamescope then
+              ''echo -e "> ${purpleString "--vrr"}: let gamescope drive the display with adaptive sync"''
+            else
+              "";
+
+          conditionalLowLatencyHelp =
+            if
+              (icedosLib.hasModule {
+                inherit config;
+                url = "github:icedos/hardware";
+                name = "low-latency-vulkan-layer";
+              })
+            then
               ''
                 echo -e "> ${purpleString "--low-latency"}: enable low-latency layer (AMD anti-lag)"
                 echo -e "> ${purpleString "--low-latency-force-decoupled"}: low-latency layer decoupled-queue mitigation (mostly there for marvel rivals)"
@@ -119,6 +154,7 @@
               destination = "/bin/proton-launch";
               text = ''
                 #!/usr/bin/env bash
+                set -o pipefail
                 export LD_LIBRARY_PATH="''${LD_LIBRARY_PATH:+$LD_LIBRARY_PATH:}/usr/lib32:/usr/lib"
 
                 ${prelude}
@@ -130,6 +166,7 @@
                   echo -e "> ${purpleString "--debug-logs"}: enable VKD3D/DXVK/Proton warn logging into \$XDG_RUNTIME_DIR and stop silencing output (off by default)"
                   ${conditionalGamemodeHelp}
                   ${conditionalGamescopeHelp}
+                  echo -e "> ${purpleString "--gamescope-args <args>"}: pass extra args to gamescope"
                   echo -e "> ${purpleString "--fps-limit <N>"}: cap framerate at N fps"
                   echo -e "> ${purpleString "--fsr4"}: enable FSR 4 frame upscaling"
                   echo -e "> ${purpleString "--fsr4-watermark"}: show FSR4/MLFG watermark overlay"
@@ -152,8 +189,15 @@
                   echo -e "> ${purpleString "--no-shader-cache"}: disable DXVK/VKD3D on-disk shader caches (diagnostic only: trades disk writes for much worse compilation stutter)"
                   echo -e "> ${purpleString "--shader-recording"}: enable steam's fossilize layer to record pipelines to disk while playing"
                   echo -e "> ${purpleString "--no-steam-overlay"}: disable the steam overlay vulkan layer"
+                  echo -e "> ${purpleString "--no-write-watch"}: drop wine's memory write watches (per-game hack: verify the game still works before using it)"
+                  echo -e "> ${purpleString "--present-mode <mode>"}: force the Vulkan present mode (fifo, relaxed, mailbox, immediate)${
+                    if presentMode != "" then " [default: ${presentMode}]" else ""
+                  }"
                   echo -e "> ${purpleString "--sdl-x11"}: force SDL to use X11 video driver"
                   echo -e "> ${purpleString "--shader-all-cores"}: use all CPU cores for DXVK shader compilation"
+                  echo -e "> ${purpleString "--tear-free"}: force DXVK mailbox presentation (no tearing without vsync)"
+                  echo -e "> ${purpleString "--no-tear-free"}: force DXVK relaxed-fifo presentation (may tear below refresh, but stutters less)"
+                  ${conditionalVrrHelp}
                   echo -e "> ${purpleString "--wayland"}: enable Proton's native Wayland backend"
                   echo -e "> ${purpleString "--wow64"}: enable Proton's 64-bit WoW translation"
                   exit 0
@@ -181,19 +225,42 @@
                 SteamDeck=0
                 VKD3D_CONFIG_OPTS=""
                 VKD3D_DEBUG=none
-                # Separate channel from VKD3D_DEBUG, and it also defaults to
-                # `fixme` when unset, so silencing one without the other still
-                # leaves the shader compiler spewing to stderr during the exact
-                # frames where compilation stutter hurts most.
+                # VKD3D_LOG is separate from VKD3D_DEBUG; silencing one without
+                # the other still spews shader compiler output during stutter.
                 VKD3D_SHADER_DEBUG=none
                 # winemenubuilder writes .desktop files, icons and mime entries
                 # into ~/.local/share every time it runs; nothing here wants it.
                 ENABLE_VK_LAYER_VALVE_steam_fossilize_1=0
-                WINEDLLOVERRIDES="d3d12=n,b;dbghelp=n,b;dinput8=n,b;dsound=n,b;dwrite=n,b;dxgi=n,b;version=n,b;winhttp=n,b;wininet=n,b;winmm=n,b;winemenubuilder.exe=d;$WINEDLLOVERRIDES"
+                WINEDLLOVERRIDES="d3d12=n,b;dbghelp=n,b;dinput8=n,b;dsound=n,b;dwrite=n,b;dxgi=n,b;version=n,b;winhttp=n,b;wininet=n,b;winmm=n,b;winemenubuilder.exe=d''${WINEDLLOVERRIDES:+;$WINEDLLOVERRIDES}"
+                # Per-game hack: breaks anything relying on wine's write tracking.
+                PROTON_NO_WRITE_WATCH=0
                 WINEFSYNC=1
                 mesa_glthread=true
-
+                # Single-file Mesa-DB cache: fewer files and syscalls than the
+                # default multi-file layout. Discards the old cache once.
+                MESA_DISK_CACHE_DATABASE=1
+                ${optionalString (presentMode != "") ''
+                  MESA_VK_WSI_PRESENT_MODE=${presentMode}
+                ''}
+                ${
+                  if hasNvidia then
+                    ''
+                      # Stop the NVIDIA driver purging the GL shader cache between
+                      # launches (CachyOS/Bazzite default). NVIDIA-only.
+                      __GL_SHADER_DISK_CACHE_SKIP_CLEANUP=1
+                    ''
+                  else
+                    ""
+                }
                 RUNTIME_DIR="''${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+
+                # Auto-detect ntsync — enable if kernel supports it,
+                # --no-ntsync overrides below.
+                if [ -e /dev/ntsync ]; then
+                  PROTON_USE_NTSYNC=1
+                else
+                  PROTON_USE_NTSYNC=0
+                fi
 
                 ${
                   if hasMangohud then
@@ -263,6 +330,7 @@
                       shift
                       ;;
                     --fps-limit)
+                      [ $# -ge 2 ] || { echo "Missing value for --fps-limit" >&2; exit 1; }
                       DXVK_FRAME_RATE="$2"
                       shift 2
                       ;;
@@ -341,26 +409,49 @@
                           ""
                       }
                     --gamescope-args)
+                      [ $# -ge 2 ] || { echo "Missing value for --gamescope-args" >&2; exit 1; }
                       GAMESCOPE_ARGS="$2"
 
-                      if [[ $GAMESCOPE_ARGS = *'-W'* ]] || [[ $GAMESCOPE_ARGS = *'-H'* ]]; then
+                      if [[ $GAMESCOPE_ARGS =~ (^| )(-W[0-9]|-W [0-9]|-H[0-9]|-H [0-9]) ]]; then
                         DEFAULT_WIDTH=""
                         DEFAULT_HEIGHT=""
                       fi
 
-                      if [[ $GAMESCOPE_ARGS = *'-r'* ]]; then
+                      if [[ $GAMESCOPE_ARGS =~ (^| )(-r[0-9]|-r [0-9]) ]]; then
                         DEFAULT_REFRESH_RATE=""
                       fi
 
                       shift 2
                       ;;
                     --lod-bias)
+                      [ $# -ge 2 ] || { echo "Missing value for --lod-bias" >&2; exit 1; }
                       DXVK_CONFIG_OPTS="''${DXVK_CONFIG_OPTS:+$DXVK_CONFIG_OPTS;}d3d11.samplerLodBias = $2;d3d9.samplerLodBias = $2"
                       shift 2
                       ;;
                     --max-frame-latency)
+                      [ $# -ge 2 ] || { echo "Missing value for --max-frame-latency" >&2; exit 1; }
                       DXVK_CONFIG_OPTS="''${DXVK_CONFIG_OPTS:+$DXVK_CONFIG_OPTS;}dxgi.maxFrameLatency = $2"
                       shift 2
+                      ;;
+                    --present-mode)
+                      [ $# -ge 2 ] || { echo "Missing value for --present-mode" >&2; exit 1; }
+                      case "$2" in
+                        fifo|relaxed|mailbox|immediate) ;;
+                        *)
+                          echo "Invalid --present-mode: $2 (expected fifo, relaxed, mailbox or immediate)" >&2
+                          exit 1
+                          ;;
+                      esac
+                      MESA_VK_WSI_PRESENT_MODE="$2"
+                      shift 2
+                      ;;
+                    --tear-free)
+                      DXVK_CONFIG_OPTS="''${DXVK_CONFIG_OPTS:+$DXVK_CONFIG_OPTS;}dxvk.tearFree = True"
+                      shift
+                      ;;
+                    --no-tear-free)
+                      DXVK_CONFIG_OPTS="''${DXVK_CONFIG_OPTS:+$DXVK_CONFIG_OPTS;}dxvk.tearFree = False"
+                      shift
                       ;;
                     --sdl-x11)
                       SDL_VIDEODRIVER="x11"
@@ -432,6 +523,9 @@
                     --no-shader-cache)
                       DXVK_SHADER_CACHE=0
                       VKD3D_SHADER_CACHE_PATH=0
+                      # Mesa's cache is the biggest of the three; leaving it on
+                      # would make this flag a half-measure.
+                      MESA_SHADER_CACHE_DISABLE=1
                       shift
                       ;;
                     --shader-recording)
@@ -442,6 +536,21 @@
                       DISABLE_VK_LAYER_VALVE_steam_overlay_1=1
                       shift
                       ;;
+                    --no-write-watch)
+                      PROTON_NO_WRITE_WATCH=1
+                      shift
+                      ;;
+                      ${
+                        if hasGamescope then
+                          ''
+                            --vrr)
+                              GAMESCOPE_ARGS="''${GAMESCOPE_ARGS:+$GAMESCOPE_ARGS }--adaptive-sync"
+                              shift
+                              ;;
+                          ''
+                        else
+                          ""
+                      }
                     --wayland)
                       PROTON_ENABLE_WAYLAND=1
                       shift
@@ -455,13 +564,13 @@
                       COMMAND=("$@")
                       break
                       ;;
-                    *)
-                      COMMAND=("$@")
-                      break
-                      ;;
                     -*|--*)
                       echo "Unknown arg: $1" >&2
                       exit 1
+                      ;;
+                    *)
+                      COMMAND=("$@")
+                      break
                       ;;
                   esac
                 done
@@ -481,11 +590,16 @@
                 DXVK_SHADER_CACHE \
                 ENABLE_VK_LAYER_VALVE_steam_fossilize_1 \
                 FSR4_WATERMARK \
+                __GL_SHADER_DISK_CACHE_SKIP_CLEANUP \
                 GST_DEBUG \
                 LOW_LATENCY_LAYER \
                 LOW_LATENCY_LAYER_FORCE_DECOUPLED \
                 LOW_LATENCY_LAYER_REFLEX \
                 LOW_LATENCY_LAYER_SPOOF_NVIDIA \
+                MESA_DISK_CACHE_DATABASE \
+                MESA_SHADER_CACHE_DISABLE \
+                MESA_VK_WSI_PRESENT_MODE \
+                MANGOHUD_CONFIGFILE \
                 MLFG_WATERMARK \
                 PROTON_ENABLE_HDR \
                 PROTON_ENABLE_HIDRAW \
@@ -495,6 +609,7 @@
                 PROTON_LOG \
                 PROTON_LOG_DIR \
                 PROTON_NO_ESYNC \
+                PROTON_NO_WRITE_WATCH \
                 PROTON_PREFER_SDL \
                 PROTON_USE_NTSYNC \
                 PROTON_USE_WOW64 \
@@ -510,10 +625,8 @@
                 WINEFSYNC \
                 mesa_glthread
 
-                # Proton uses `env.setdefault("WINEDEBUG", "-all")`, so exporting
-                # it unconditionally would neuter PROTON_LOG=1. Only force it
-                # when we are not debugging; it still matters for native wine,
-                # umu and non-Proton commands, which have no such default.
+                # WINEDEBUG=-all only when not debugging; Proton uses
+                # env.setdefault so unconditional export would neuter PROTON_LOG.
                 if [ "$DEBUG_LOGS" = "0" ]; then
                   export WINEDEBUG="-all"
                 fi
@@ -526,15 +639,8 @@
                   ulimit -c 0
                 fi
 
-                # Catch-all for whatever still writes to stderr: proton's python
-                # wrapper, pressure-vessel, anti-cheat, gamescope, mangohud and
-                # any `err:` surviving WINEDEBUG=-all. Under KDE's systemd
-                # startup the game runs in an app-*.scope, so all of that lands
-                # in journald and gets fsynced to disk while playing. Rebinding
-                # the fds with a command-less `exec` leaves the shell (and the
-                # baloo trap below) intact. Point PROTON_LAUNCH_LOG at
-                # "$RUNTIME_DIR/proton-launch.log" for a readable last-run log
-                # that still costs no disk I/O.
+                # Redirect stderr to tmpfs to avoid journald fsync during gameplay.
+                # PROTON_LAUNCH_LOG provides a readable last-run log at no disk cost.
                 if [ "$DEBUG_LOGS" = "0" ]; then
                   exec >"''${PROTON_LAUNCH_LOG:-/dev/null}" 2>&1
                 fi
@@ -564,7 +670,7 @@
           nixpkgs.overlays = [
             (final: super: {
               inherit proton-launch;
-              scopebuddy = inputs.scopebuddy.packages.${pkgs.stdenv.hostPlatform.system}.default;
+              scopebuddy = inputs.scopebuddy.packages.${final.stdenv.hostPlatform.system}.default;
             })
           ];
         }
