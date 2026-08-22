@@ -65,14 +65,14 @@ let
 in
 buildNpmPackage (finalAttrs: {
   pname = "prime-agent";
-  version = "0.7.4";
+  version = "0.8.0";
   __structuredAttrs = true;
 
   src = fetchFromGitHub {
     owner = "PrimeIntellect-ai";
     repo = "prime-agent";
     tag = "v${finalAttrs.version}";
-    hash = "sha256-wlBuzGTn61z0TfbamEb7G+ngNXoSIo3Y8FgpzkiN1IA=";
+    hash = "sha256-U/NuEI3i5viEJij9p7WsTS6SA6qWD4fgswPuX28yZyw=";
 
     # The upstream lockfile omits registry metadata for workspace dependencies.
     postFetch = ''
@@ -88,7 +88,7 @@ buildNpmPackage (finalAttrs: {
   ];
 
   npmDepsFetcherVersion = 2;
-  npmDepsHash = "sha256-QXiP6yfZ+pFLDyEcnLslNrlYyAmLvA/BgEI00//ftdU=";
+  npmDepsHash = "sha256-Xgo++NngGrS71kypaDJXE3WbyijdbvESfsV2TdoItbI=";
 
   # The addon is built from source in buildPhase; install scripts would load the shipped
   # prebuilts (broken on aarch64-darwin) or attempt a networked build.
