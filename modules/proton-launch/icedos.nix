@@ -59,15 +59,18 @@
           hasGamemode = config.programs.gamemode.enable;
           hasGamescope = config.programs.gamescope.enable;
           hasKde = config.services.desktopManager.plasma6.enable;
+
           hasMangohud = any (user: config.home-manager.users.${user}.programs.mangohud.enable) (
             attrNames users
           );
-          hasNvidia = icedosLib.hasModule {
+
+          hasPowerProfilesDaemon = config.services.power-profiles-daemon.enable;
+
+          hasSteamWaylandOverlay = icedosLib.hasModule {
             inherit config;
             url = "github:icedos/hardware";
-            name = "nvidia";
+            name = "steam-wayland-overlay";
           };
-          hasPowerProfilesDaemon = config.services.power-profiles-daemon.enable;
 
           inherit (config.icedos.applications.proton-launch) presentMode;
 
@@ -141,6 +144,14 @@
             else
               "";
 
+          conditionalSteamWaylandOverlayHelp =
+            if hasSteamWaylandOverlay then
+              ''
+                echo -e "> ${purpleString "--wayland-steam-overlay"}: enable proton-ge's steam overlay + steam input bridge for wine-wayland (implies --wayland and --no-proton-sdl)"
+              ''
+            else
+              "";
+
           conditionalNoGamePerformanceHelp =
             if hasPowerProfilesDaemon then
               ''echo -e "> ${purpleString "--no-game-performance"}: don't switch to performance power profile"''
@@ -199,6 +210,7 @@
                   echo -e "> ${purpleString "--no-tear-free"}: force DXVK relaxed-fifo presentation (may tear below refresh, but stutters less)"
                   ${conditionalVrrHelp}
                   echo -e "> ${purpleString "--wayland"}: enable Proton's native Wayland backend"
+                  ${conditionalSteamWaylandOverlayHelp}
                   echo -e "> ${purpleString "--wow64"}: enable Proton's 64-bit WoW translation"
                   exit 0
                 fi
@@ -223,6 +235,7 @@
                 PROTON_PREFER_SDL=1
                 PROTON_USE_WOW64=0
                 SteamDeck=0
+                WAYLAND_STEAM_OVERLAY=0
                 VKD3D_CONFIG_OPTS=""
                 VKD3D_DEBUG=none
                 # VKD3D_LOG is separate from VKD3D_DEBUG; silencing one without
@@ -242,16 +255,11 @@
                 ${optionalString (presentMode != "") ''
                   MESA_VK_WSI_PRESENT_MODE=${presentMode}
                 ''}
-                ${
-                  if hasNvidia then
-                    ''
-                      # Stop the NVIDIA driver purging the GL shader cache between
-                      # launches (CachyOS/Bazzite default). NVIDIA-only.
-                      __GL_SHADER_DISK_CACHE_SKIP_CLEANUP=1
-                    ''
-                  else
-                    ""
-                }
+
+                # Stop the NVIDIA driver purging the GL shader cache between
+                # launches (CachyOS/Bazzite default). NVIDIA-only.
+                __GL_SHADER_DISK_CACHE_SKIP_CLEANUP=1
+
                 RUNTIME_DIR="''${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
 
                 # Auto-detect ntsync — enable if kernel supports it,
@@ -555,6 +563,18 @@
                       PROTON_ENABLE_WAYLAND=1
                       shift
                       ;;
+                      ${
+                        if hasSteamWaylandOverlay then
+                          ''
+                            --wayland-steam-overlay)
+                              PROTON_ENABLE_WAYLAND=1
+                              WAYLAND_STEAM_OVERLAY=1
+                              shift
+                              ;;
+                          ''
+                        else
+                          ""
+                      }
                     --wow64)
                       PROTON_USE_WOW64=1
                       shift
@@ -579,6 +599,23 @@
 
                 [ -n "$DXVK_CONFIG_OPTS" ] && DXVK_CONFIG="$DXVK_CONFIG_OPTS"
                 [ -n "$VKD3D_CONFIG_OPTS" ] && VKD3D_CONFIG="$VKD3D_CONFIG_OPTS"
+
+                # Shim for Protons predating proton-ge's activation block: their
+                # wayland branch drops DISPLAY and forces PROTON_NO_STEAMINPUT=1.
+                if [ "$WAYLAND_STEAM_OVERLAY" = "1" ]; then
+                  export WINE_WAYLAND_STEAM_OVERLAY_LAYER=1
+                  # sdlinput forces PROTON_NO_STEAMINPUT=1 unconditionally, before
+                  # the wayland branch that would honour a preset value.
+                  PROTON_PREFER_SDL=0
+                  export PROTON_NO_STEAMINPUT="''${PROTON_NO_STEAMINPUT:-0}"
+                  if [ -z "$GAMESCOPE" ] && [ -n "$DISPLAY" ]; then
+                    export GAMESCOPE_XWAYLAND_DISPLAY="''${GAMESCOPE_XWAYLAND_DISPLAY:-$DISPLAY}"
+                  fi
+                  # Layer traces to stderr, only attached under --debug-logs.
+                  [ "$DEBUG_LOGS" = "1" ] && export GE_WAYLAND_STEAM_OVERLAY_DEBUG=1
+                else
+                  export WINE_WAYLAND_STEAM_OVERLAY_LAYER=0
+                fi
 
                 export \
                 DISABLE_VK_LAYER_VALVE_steam_overlay_1 \
