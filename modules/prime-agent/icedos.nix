@@ -19,6 +19,7 @@
         defaultProvider
         portBase
         portOverrides
+        providers
         skillDirs
         ;
     in
@@ -39,6 +40,60 @@
 
       # Pins are system-wide; derived ports fold the username in and cannot collide.
       portOverrides = mkAttrsOfOption { default = portOverrides; } (lib.types.ints.between 1 65535);
+
+      # Provider overrides merged into models.json (modelOverrides is partial merge).
+      providers = mkSubmoduleAttrsOption { default = providers; } {
+        apiKey = lib.mkOption {
+          type = lib.types.nullOr lib.types.str;
+          default = null;
+          description = "API key for the provider. null = hardcoded default.";
+        };
+
+        baseUrl = lib.mkOption {
+          type = lib.types.nullOr lib.types.str;
+          default = null;
+          description = "Base URL for the provider API.";
+        };
+
+        headers = lib.mkOption {
+          type = lib.types.attrsOf lib.types.str;
+          default = { };
+          description = "Extra HTTP headers for provider requests.";
+        };
+
+        modelOverrides = lib.mkOption {
+          type = lib.types.attrsOf (lib.types.submodule {
+            options = {
+              contextWindow = lib.mkOption {
+                type = lib.types.nullOr lib.types.int;
+                default = null;
+                description = "Context window size in tokens.";
+              };
+
+              maxTokens = lib.mkOption {
+                type = lib.types.nullOr lib.types.int;
+                default = null;
+                description = "Max output tokens per response.";
+              };
+
+              name = lib.mkOption {
+                type = lib.types.nullOr lib.types.str;
+                default = null;
+                description = "Model display name.";
+              };
+
+              reasoning = lib.mkOption {
+                type = lib.types.nullOr lib.types.bool;
+                default = null;
+                description = "Whether the model supports reasoning.";
+              };
+            };
+          });
+
+          default = { };
+          description = "Per-model overrides keyed by model id.";
+        };
+      };
 
       users = mkSubmoduleAttrsOption { default = { }; } { };
     };
@@ -543,18 +598,36 @@
                   };
 
                 # ---- models.json ----
-
-                # zen 429s unless identified as an opencode client; built-in entry has no headers.
+                # zen 429s unless identified as an opencode client.
                 opencodeVersion = config.programs.opencode.package.version or pkgs.opencode.version;
 
-                modelsJson = builtins.toJSON {
-                  providers.opencode = {
+                providerDefaults = {
+                  opencode = {
                     headers = {
                       "User-Agent" = "opencode/${opencodeVersion}";
                     };
+
                     apiKey = "!node -p 'JSON.parse(require(\"fs\").readFileSync(process.env.HOME + \"/.local/share/opencode/auth.json\", \"utf8\")).opencode.key'";
                   };
                 };
+
+                # modelOverrides stays as-is for partial merge (models[] would replace).
+                userProvidersConverted = lib.mapAttrs (
+                  name: p:
+                  let
+                    attrs = lib.filterAttrs (_: v: v != null) {
+                      inherit (p) apiKey baseUrl headers;
+                    };
+                    overrides = lib.mapAttrs
+                      (_: o: lib.filterAttrs (_: v: v != null) o)
+                      (p.modelOverrides or { });
+                  in
+                  attrs // lib.optionalAttrs (overrides != { }) { modelOverrides = overrides; }
+                ) prime-agent.providers;
+
+                mergedProviders = lib.recursiveUpdate providerDefaults userProvidersConverted;
+
+                modelsJson = builtins.toJSON { providers = mergedProviders; };
 
                 modelsFile = pkgs.writeText "prime-agent-models.json" modelsJson;
                 # ---- first-run seed ----

@@ -7,3 +7,6 @@ skillDirs = []
 dataDir = ""
 portBase = 8850
 portOverrides = {}
+
+# Per-provider overrides merged into models.json (partial merge).
+providers = {}
