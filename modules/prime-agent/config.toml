@@ -8,5 +8,8 @@ dataDir = ""
 portBase = 8850
 portOverrides = {}
 
+# MCP tool-call timeout in seconds (60–3600). Heavy reviews may need more.
+mcpCallTimeout = 900
+
 # Per-provider overrides merged into models.json (partial merge).
 providers = {}

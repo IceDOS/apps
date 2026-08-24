@@ -17,6 +17,7 @@
         dataDir
         defaultModel
         defaultProvider
+        mcpCallTimeout
         portBase
         portOverrides
         providers
@@ -28,6 +29,12 @@
       defaultModel = mkStrOption { default = defaultModel; };
 
       dataDir = mkStrOption { default = dataDir; };
+
+      mcpCallTimeout = mkIntBetweenOption {
+        path = "icedos.applications.prime-agent.mcpCallTimeout";
+        source = ./config.toml;
+        default = mcpCallTimeout;
+      } 60 3600;
 
       skillDirs = mkStrListOption { default = skillDirs; };
 
@@ -134,7 +141,9 @@
           # Copy of nixpkgs PR #550774 at 0.7.4; drop overlay, package.nix and patch once merged.
           nixpkgs.overlays = [
             (final: _prev: {
-              prime-agent = final.callPackage ./package.nix { };
+              prime-agent = final.callPackage ./package.nix {
+                mcpCallTimeout = prime-agent.mcpCallTimeout;
+              };
             })
           ];
 
@@ -638,29 +647,53 @@
                 # `install` not `cp` (cp copies the store read-only mode), `+` not `*` for
                 # auth.json (`*` recurses into credentials), `--slurpfile` (jq 1.8 dropped --argfile).
                 seedScript = ''
+                  JQ=${pkgs.jq}/bin/jq
+                  SYNC=${pkgs.coreutils}/bin/sync
+                  DATE=${pkgs.coreutils}/bin/date
+
+                  # jq's `*` errors on a null lhs, so one empty or truncated state file would
+                  # fail every later activation and stay broken. Treat unreadable state as absent.
+                  json_ok() { [ -s "$1" ] && "$JQ" -e . "$1" >/dev/null 2>&1; }
+
+                  # `> tmp && mv` alone is not crash-safe under delayed allocation (xfs, ext4):
+                  # an unclean shutdown leaves a 0-byte file. fsync the tmp before the rename.
+                  # Mode is set explicitly: the tmp inherits the umask, and mv carries it over.
+                  commit_json() { chmod "$3" "$1" && "$SYNC" -d "$1" && mv "$1" "$2"; }
+
                   mkdir -p "${dataDir}"
 
                   SETTINGS="${dataDir}/settings.json"
-                  if [ ! -f "$SETTINGS" ]; then
-                    install -m 0644 "${seedSettingsFile}" "$SETTINGS"
+                  if json_ok "$SETTINGS"; then
+                    "$JQ" -n --slurpfile a "$SETTINGS" --slurpfile b "${seedSettingsFile}" '$a[0] * $b[0]' > "$SETTINGS.tmp" && commit_json "$SETTINGS.tmp" "$SETTINGS" 0644 || { rm -f "$SETTINGS.tmp"; echo "prime-agent: failed to merge $SETTINGS, left unchanged" >&2; }
                   else
-                    ${pkgs.jq}/bin/jq -n --slurpfile a "$SETTINGS" --slurpfile b "${seedSettingsFile}" '$a[0] * $b[0]' > "$SETTINGS.tmp" && mv "$SETTINGS.tmp" "$SETTINGS"
+                    [ -e "$SETTINGS" ] && echo "prime-agent: $SETTINGS unreadable, reseeding" >&2
+                    rm -f "$SETTINGS.tmp"
+                    install -m 0644 "${seedSettingsFile}" "$SETTINGS"
                   fi
 
                   MODELS="${dataDir}/models.json"
-                  if [ ! -f "$MODELS" ]; then
-                    install -m 0644 "${modelsFile}" "$MODELS"
+                  if json_ok "$MODELS"; then
+                    "$JQ" -n --slurpfile a "$MODELS" --slurpfile b "${modelsFile}" '$a[0] * $b[0]' > "$MODELS.tmp" && commit_json "$MODELS.tmp" "$MODELS" 0644 || { rm -f "$MODELS.tmp"; echo "prime-agent: failed to merge $MODELS, left unchanged" >&2; }
                   else
-                    ${pkgs.jq}/bin/jq -n --slurpfile a "$MODELS" --slurpfile b "${modelsFile}" '$a[0] * $b[0]' > "$MODELS.tmp" && mv "$MODELS.tmp" "$MODELS"
+                    [ -e "$MODELS" ] && echo "prime-agent: $MODELS unreadable, reseeding" >&2
+                    rm -f "$MODELS.tmp"
+                    install -m 0644 "${modelsFile}" "$MODELS"
                   fi
 
                   AUTH="${dataDir}/auth.json"
-                  if [ ! -f "$AUTH" ]; then
-                    printf '%s\n' '{}' > "$AUTH"
+                  # auth.json holds real credentials, so a corrupt one is moved aside, never merged over.
+                  if ! json_ok "$AUTH"; then
+                    if [ -e "$AUTH" ]; then
+                      mv "$AUTH" "$AUTH.corrupt.$("$DATE" +%s)"
+                      echo "prime-agent: $AUTH was unreadable, moved aside; re-run /login" >&2
+                    fi
+                    rm -f "$AUTH.tmp"
+                    # 0600 from the start; prime-agent writes it 0600 and it holds credentials.
+                    printf '%s\n' '{}' > "$AUTH" && chmod 0600 "$AUTH"
                   fi
-                  ${pkgs.jq}/bin/jq -n --slurpfile a "$AUTH" --slurpfile b "${dummyCredsFile}" '$a[0] + $b[0]' > "$AUTH.tmp" && mv "$AUTH.tmp" "$AUTH"
+                  "$JQ" -n --slurpfile a "$AUTH" --slurpfile b "${dummyCredsFile}" '$a[0] + $b[0]' > "$AUTH.tmp" && commit_json "$AUTH.tmp" "$AUTH" 0600 || { rm -f "$AUTH.tmp"; echo "prime-agent: failed to seed MCP credentials into $AUTH" >&2; }
                   # Retract a dummy we seeded, but only if the entry is still exactly ours.
-                  ${pkgs.jq}/bin/jq -n --slurpfile a "$AUTH" --slurpfile k "${remoteCredKeysFile}" 'reduce $k[0][] as $key ($a[0]; if .[$key] == {"type":"api_key","key":"dummy"} then del(.[$key]) else . end)' > "$AUTH.tmp" && mv "$AUTH.tmp" "$AUTH"
+                  "$JQ" -n --slurpfile a "$AUTH" --slurpfile k "${remoteCredKeysFile}" 'reduce $k[0][] as $key ($a[0]; if .[$key] == {"type":"api_key","key":"dummy"} then del(.[$key]) else . end)' > "$AUTH.tmp" && commit_json "$AUTH.tmp" "$AUTH" 0600 || { rm -f "$AUTH.tmp"; echo "prime-agent: failed to retract seeded MCP credentials from $AUTH" >&2; }
                 '';
 
                 primeEnv = {

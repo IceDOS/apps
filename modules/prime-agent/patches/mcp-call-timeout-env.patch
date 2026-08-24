@@ -1,0 +1,17 @@
+--- a/prime-agent-runtime/src/rlm/mcp.py
++++ b/prime-agent-runtime/src/rlm/mcp.py
+@@ -20,7 +20,13 @@
+ __all__ = ["McpStartupError", "call_tool", "close", "list_tools", "reload"]
+ 
+ _DEFAULT_STARTUP_TIMEOUT = 20.0
+-_DEFAULT_CALL_TIMEOUT = 60.0
++def _resolve_call_timeout():
++    try:
++        v = float(os.environ.get("PRIME_AGENT_MCP_CALL_TIMEOUT", "60"))
++        return v if v > 0 and not (v != v) else 60.0
++    except (TypeError, ValueError):
++        return 60.0
++_DEFAULT_CALL_TIMEOUT = _resolve_call_timeout()
+ # Must stay strictly below the host's KERNEL_SHUTDOWN_TIMEOUT_MS (5s) kill deadline.
+ _SHUTDOWN_TIMEOUT = 2.5
+ _T = TypeVar("_T")
