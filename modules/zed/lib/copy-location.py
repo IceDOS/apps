@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""prime-add - copy the current Zed selection's location (path:start[-end]) to the clipboard.
+"""copy-location - copy the current Zed selection's location (path:start[-end]) to the clipboard.
 
 Env-driven (ZED_*), no trailing newline so a paste never submits; multi-cursor unsupported.
-Manual fallback: prime-add <ZED_FILE> <ZED_RELATIVE_FILE> <ZED_ROW> <ZED_SELECTED_TEXT>.
+Manual fallback: copy-location <ZED_FILE> <ZED_ROW> <ZED_SELECTED_TEXT>.
 """
 
 import os
@@ -11,7 +11,7 @@ import signal
 import subprocess
 import sys
 
-_SENSITIVE_ENV_PREFIXES = ("PRIME_ADD_", "ZED_")
+_SENSITIVE_ENV_PREFIXES = ("COPY_LOCATION_", "ZED_")
 
 # Full argv per tool: xclip defaults to PRIMARY, but ctrl-shift-v reads CLIPBOARD.
 _CLIPBOARD_CMDS = (
@@ -31,7 +31,7 @@ def _notify(message: str) -> None:
     """Surface a failure via notify-send (best effort; wrapper adds libnotify)."""
     try:
         subprocess.run(
-            ["notify-send", "--urgency=normal", "--expire-time=8000", "prime-add", message],
+            ["notify-send", "--urgency=normal", "--expire-time=8000", "copy-location", message],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
             env=_SAFE_ENV,
@@ -94,22 +94,19 @@ def clipboard_copy(content: str) -> bool:
 
 
 def main(argv: list[str]) -> int:
-    # Zed passes everything via env; 4 positional args are a testing fallback.
+    # Zed passes everything via env; 3 positional args are a testing fallback.
     if argv:
-        if len(argv) != 4:
+        if len(argv) != 3:
             print(
-                "usage: prime-add <ZED_FILE> <ZED_RELATIVE_FILE> <ZED_ROW> <ZED_SELECTED_TEXT>",
+                "usage: copy-location <ZED_FILE> <ZED_ROW> <ZED_SELECTED_TEXT>",
                 file=sys.stderr,
             )
             return 2
-        file_path, rel_path, row_s, text = argv
+        file_path, row_s, text = argv
     else:
         file_path = os.environ.get("ZED_FILE", "")
-        rel_path = os.environ.get("ZED_RELATIVE_FILE") or file_path
         row_s = os.environ.get("ZED_ROW", "")
-        text = os.environ.get(
-            "PRIME_ADD_SELECTED_TEXT", os.environ.get("ZED_SELECTED_TEXT", "")
-        )
+        text = os.environ.get("ZED_SELECTED_TEXT", "")
 
     if not text:
         msg = "no selection to copy"
@@ -117,7 +114,7 @@ def main(argv: list[str]) -> int:
         print(msg, file=sys.stderr)
         return 1
 
-    if not rel_path:
+    if not file_path:
         msg = "no file path (unsaved buffer or file outside the worktree?)"
         _notify(msg)
         print(msg, file=sys.stderr)
@@ -138,7 +135,7 @@ def main(argv: list[str]) -> int:
     # A trailing newline terminates the last line rather than opening the next.
     nl = text.count("\n") - (1 if text.endswith("\n") else 0)
     end = start + max(nl, 0)
-    location = f"{rel_path}:{start}" if end == start else f"{rel_path}:{start}-{end}"
+    location = f"{file_path}:{start}" if end == start else f"{file_path}:{start}-{end}"
 
     if not clipboard_copy(location):
         if any(shutil.which(cmd[0]) for cmd in _CLIPBOARD_CMDS):

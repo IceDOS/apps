@@ -6,6 +6,10 @@ fhs = false
 formatOnSave = false
 vim = false
 
+[icedos.applications.zed.copySelectionLocation]
+enable = false
+keybind = "ctrl-alt-c"
+
 [icedos.applications.zed.font]
 name = "" # "" = use stylix font
 size = 0 # 0 = use stylix size

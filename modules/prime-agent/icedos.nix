@@ -762,21 +762,7 @@
                 home.activation.seed-prime-agent = lib.hm.dag.entryAfter [
                   "writeBoundary"
                 ] seedScript;
-                # No trailing newline so a paste never submits; the task terminal's PATH is untrusted.
-                home.packages = [
-                  (pkgs.writeShellScriptBin "prime-add" ''
-                    # wl-copy execs `cat`, so coreutils must be on PATH for the hermetic guarantee.
-                    export PATH=${
-                      lib.makeBinPath [
-                        pkgs.wl-clipboard
-                        pkgs.xclip
-                        pkgs.libnotify
-                        pkgs.coreutils
-                      ]
-                    }"''${PATH:+:$PATH}"
-                    exec ${pkgs.python3Minimal}/bin/python3 ${./lib/prime-add.py} "$@"
-                  '')
-                ];
+
                 # Zed has no right-panel reveal target, so spawn into the terminal dock.
                 programs.zed-editor.userTasks = lib.mkIf (config.programs.zed-editor.enable or false) [
                   {
@@ -791,20 +777,8 @@
                     reveal_target = "dock";
                     hide = "never";
                   }
-                  {
-                    # Selection via env, not argv: build_no_quote would dump raw code into zsh -c.
-                    label = "prime-add: copy selection";
-                    command = "prime-add";
-                    args = [ ];
-                    env = {
-                      PRIME_ADD_SELECTED_TEXT = "$ZED_SELECTED_TEXT";
-                    };
-                    use_new_terminal = false;
-                    allow_concurrent_runs = true;
-                    reveal = "never";
-                    hide = "on_success";
-                  }
                 ];
+
                 # Merges with the user's own keymap.json by context.
                 programs.zed-editor.userKeymaps = lib.mkIf (config.programs.zed-editor.enable or false) [
                   {
@@ -814,18 +788,6 @@
                         "task::Spawn"
                         {
                           task_name = "prime-agent";
-                        }
-                      ];
-                    };
-                  }
-                  {
-                    # Free in Zed's Linux default editor keymap (collides only in panel contexts).
-                    context = "Editor";
-                    bindings = {
-                      "ctrl-alt-c" = [
-                        "task::Spawn"
-                        {
-                          task_name = "prime-add: copy selection";
                         }
                       ];
                     };
