@@ -29,6 +29,10 @@
 }:
 
 let
+  # Pin refreshed by ./update.sh; `rev` is tracked separately from `version` so an
+  # upstream tag-prefix change does not need a package edit.
+  source = builtins.fromJSON (builtins.readFile ./source.json);
+
   runtimePath = [
     nodejs
     bash
@@ -66,14 +70,14 @@ let
 in
 buildNpmPackage (finalAttrs: {
   pname = "prime-agent";
-  version = "0.8.0";
+  inherit (source) version;
   __structuredAttrs = true;
 
   src = fetchFromGitHub {
     owner = "PrimeIntellect-ai";
     repo = "prime-agent";
     tag = "v${finalAttrs.version}";
-    hash = "sha256-U/NuEI3i5viEJij9p7WsTS6SA6qWD4fgswPuX28yZyw=";
+    inherit (source) hash;
 
     # The upstream lockfile omits registry metadata for workspace dependencies.
     postFetch = ''
@@ -97,7 +101,7 @@ buildNpmPackage (finalAttrs: {
   ];
 
   npmDepsFetcherVersion = 2;
-  npmDepsHash = "sha256-Xgo++NngGrS71kypaDJXE3WbyijdbvESfsV2TdoItbI=";
+  inherit (source) npmDepsHash;
 
   # The addon is built from source in buildPhase; install scripts would load the shipped
   # prebuilts (broken on aarch64-darwin) or attempt a networked build.
