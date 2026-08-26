@@ -293,7 +293,7 @@
             description = "Boot-time idle gamescope so Sunshine's display probe passes";
             wantedBy = [ "graphical-session.target" ];
             partOf = [ "graphical-session.target" ];
-            after = [ "graphical-session.target" ];
+
             serviceConfig = {
               Type = "oneshot";
               RemainAfterExit = true;
