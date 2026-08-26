@@ -13,3 +13,6 @@ mcpCallTimeout = 900
 
 # Per-provider overrides merged into models.json (partial merge).
 providers = {}
+
+# Zed keybind to spawn prime-agent (Ctrl-Alt-P default).
+keybind = "ctrl-alt-p"
