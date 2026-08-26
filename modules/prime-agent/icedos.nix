@@ -17,6 +17,7 @@
         dataDir
         defaultModel
         defaultProvider
+        keybind
         mcpCallTimeout
         portBase
         portOverrides
@@ -27,6 +28,9 @@
     {
       defaultProvider = mkStrOption { default = defaultProvider; };
       defaultModel = mkStrOption { default = defaultModel; };
+
+      # Zed keybind to spawn prime-agent (Ctrl-Alt-P default).
+      keybind = mkStrOption { default = keybind; };
 
       dataDir = mkStrOption { default = dataDir; };
 
@@ -784,7 +788,7 @@
                   {
                     context = "Workspace";
                     bindings = {
-                      "ctrl-alt-p" = [
+                      ${prime-agent.keybind} = [
                         "task::Spawn"
                         {
                           task_name = "prime-agent";
