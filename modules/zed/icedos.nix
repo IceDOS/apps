@@ -19,6 +19,7 @@
 
       inherit ((importTOML ./config.toml).icedos.applications.zed)
         autosave
+        copySelectionLocation
         extensions
         extraPackages
         fhs
@@ -32,6 +33,12 @@
     in
     {
       autosave = mkBoolOption { default = autosave; };
+
+      copySelectionLocation = {
+        enable = mkBoolOption { default = copySelectionLocation.enable; };
+        keybind = mkStrOption { default = copySelectionLocation.keybind; };
+      };
+
       extensions = mkStrListOption { default = extensions; };
       extraPackages = mkStrListOption { default = extraPackages; };
       fhs = mkBoolOption { default = fhs; };
@@ -79,6 +86,7 @@
 
           inherit (zed)
             autosave
+            copySelectionLocation
             extensions
             extraPackages
             fhs
@@ -224,7 +232,51 @@
                       in
                       if stylixTarget then mkIf hasUserOverride (mkForce themeAttrs) else themeAttrs;
                   };
+
+                  userTasks = mkIf copySelectionLocation.enable [
+                    {
+                      # Selection via env, not argv: build_no_quote would dump raw code into zsh -c.
+                      label = "copy-location: copy selection";
+                      command = "copy-location";
+                      args = [ ];
+                      use_new_terminal = false;
+                      allow_concurrent_runs = true;
+                      reveal = "never";
+                      hide = "on_success";
+                    }
+                  ];
+
+                  userKeymaps = mkIf copySelectionLocation.enable [
+                    {
+                      # Free in Zed's Linux default editor keymap (collides only in panel contexts).
+                      context = "Editor";
+                      bindings = {
+                        ${copySelectionLocation.keybind} = [
+                          "task::Spawn"
+                          {
+                            task_name = "copy-location: copy selection";
+                          }
+                        ];
+                      };
+                    }
+                  ];
                 };
+
+                # copy-location: copy selection's file path to clipboard
+                home.packages = mkIf copySelectionLocation.enable [
+                  (pkgs.writeShellScriptBin "copy-location" ''
+                    # wl-copy execs \`cat\`, so coreutils must be on PATH for the hermetic guarantee.
+                    export PATH=${
+                      lib.makeBinPath [
+                        pkgs.wl-clipboard
+                        pkgs.xclip
+                        pkgs.libnotify
+                        pkgs.coreutils
+                      ]
+                    }"''${PATH:+:$PATH}"
+                    exec ${pkgs.python3Minimal}/bin/python3 ${./lib/copy-location.py} "$@"
+                  '')
+                ];
               }
             )
           ];
