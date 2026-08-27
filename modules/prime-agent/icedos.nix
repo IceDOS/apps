@@ -3,7 +3,7 @@
 {
   options.icedos.applications.prime-agent =
     let
-      inherit (lib) importTOML;
+      inherit (lib) importTOML types;
 
       inherit (icedosLib)
         mkAttrsOfOption
@@ -21,6 +21,8 @@
         mcpCallTimeout
         portBase
         portOverrides
+        builtinExtensions
+        extensions
         providers
         skillDirs
         ;
@@ -41,6 +43,12 @@
       } 60 3600;
 
       skillDirs = mkStrListOption { default = skillDirs; };
+
+      # Built-in example extensions to load (names under examples/extensions/).
+      builtinExtensions = mkStrListOption { default = builtinExtensions; };
+
+      # Inline .ts sources for auto-loaded local extensions (like Claude skills).
+      extensions = mkAttrsOfOption { default = extensions; } types.str;
 
       # Bound is 65335 so portBase + (sha256(name) mod 200) stays <= 65535.
       portBase = mkIntBetweenOption {
@@ -704,6 +712,29 @@
                   PRIME_AGENT_CODING_AGENT_DIR = dataDir;
                   PRIME_AGENT_KERNEL_VENV = "${dataDir}/kernel-venv";
                 };
+
+                # Mirror requested built-in examples into the auto-load dir.
+                upstreamExtDir = "${pkgs.prime-agent}/lib/prime-agent/examples/extensions";
+
+                # Resolve each name to its file (.ts) or folder (index.ts) source; null if absent.
+                builtinExtSrc = name:
+                  if builtins.pathExists "${upstreamExtDir}/${name}/index.ts" then {
+                    src = "${upstreamExtDir}/${name}";
+                    target = "${relDataDir}/extensions/${name}";
+                  } else if builtins.pathExists "${upstreamExtDir}/${name}.ts" then {
+                    src = "${upstreamExtDir}/${name}.ts";
+                    target = "${relDataDir}/extensions/${name}.ts";
+                  } else null;
+
+                extensionHomeFiles = map (name: {
+                  "${(builtinExtSrc name).target}".source = (builtinExtSrc name).src;
+                }) prime-agent.builtinExtensions;
+
+                missingExtensions = lib.filter (n: builtinExtSrc n == null) prime-agent.builtinExtensions;
+
+                extensionLocalHomeFiles = lib.mapAttrsToList (name: src: {
+                  "${relDataDir}/extensions/${name}.ts".text = src;
+                }) prime-agent.extensions;
               in
               mkIf (userCfg != null) {
                 assertions = [
@@ -743,13 +774,35 @@
                       servers resolving to one port must be re-pinned.
                     '';
                   }
+                  {
+                    assertion = missingExtensions == [ ];
+                    message = ''
+                      icedos.applications.prime-agent.builtinExtensions references upstream
+                      prime-agent example extensions that do not exist:
+                      ${builtins.concatStringsSep ", " missingExtensions}
+                      Each name is a folder/file under
+                      <prime-agent>/lib/prime-agent/examples/extensions/.
+                    '';
+                  }
+                  {
+                    assertion = lib.all (n: builtins.match "[A-Za-z0-9._-]+" n != null) (lib.attrNames prime-agent.extensions);
+                    message = ''
+                      icedos.applications.prime-agent.extensions names must be
+                      simple: ${
+                        builtins.concatStringsSep ", " (lib.filter (n: builtins.match "[A-Za-z0-9._-]+" n == null) (lib.attrNames prime-agent.extensions))
+                      }
+                    '';
+                  }
                 ];
+
                 # Login shells read home.sessionVariables; the graphical session needs systemd.user.
                 home.sessionVariables = primeEnv;
                 systemd.user.sessionVariables = primeEnv;
 
                 home.file = mkMerge (
                   (lib.mapAttrsToList skillFiles enabled)
+                  ++ extensionHomeFiles
+                  ++ extensionLocalHomeFiles
                   ++ [
                     # No shell hooks; extensions auto-load from <agentDir>/extensions/*.ts.
                     (mkIf peonPingEnabled {

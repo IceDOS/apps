@@ -98,6 +98,10 @@ buildNpmPackage (finalAttrs: {
     # bootstrap.ts runs `uv python install 3.11` before creating the venv, downloading
     # a Python that UV_PYTHON_PREFERENCE=system never uses. Drop the redundant fetch.
     ./patches/remove-uv-python-install.patch
+
+    # daemon writes its ownership registry to hardcoded ~/.prime; its env override is
+    # stripped on launch. Follow PRIME_AGENT_CODING_AGENT_DIR instead so nothing lives there.
+    ./patches/daemon-supervisor-registry-follow-agentdir.patch
   ];
 
   npmDepsFetcherVersion = 2;

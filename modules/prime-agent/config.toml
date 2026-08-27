@@ -3,6 +3,12 @@ defaultProvider = ""
 defaultModel = ""
 skillDirs = []
 
+# Built-in prime-agent example extensions to load (names under examples/extensions/).
+builtinExtensions = []
+
+# Inline .ts sources for auto-loaded local extensions (like Claude skills).
+extensions = {}
+
 # "" means $XDG_CONFIG_HOME/prime-agent; $XDG_CONFIG_HOME / $XDG_DATA_HOME / $HOME / ~ expand per user.
 dataDir = ""
 portBase = 8850
