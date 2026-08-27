@@ -64,7 +64,25 @@
               *" --profile-directory"*) ;;
               *) set -- --profile-directory=Default "$@" ;;
             esac
-            exec ${helium}/bin/helium --enable-features=AcceleratedVideoEncoder "$@"
+            # Chromium keeps only the last --enable-features occurrence, so a
+            # caller-supplied list would silently drop ours. Merge into theirs.
+            features=AcceleratedVideoEncoder
+            merged=0
+
+            for arg do
+              shift
+              case "$arg" in
+                --enable-features=*)
+                  arg="$arg,$features"
+                  merged=1
+                  ;;
+              esac
+              set -- "$@" "$arg"
+            done
+
+            [ "$merged" -eq 1 ] || set -- --enable-features="$features" "$@"
+
+            exec ${helium}/bin/helium "$@"
           '';
 
           package = pkgs.symlinkJoin {
