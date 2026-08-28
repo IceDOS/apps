@@ -5,12 +5,16 @@
     let
       inherit (icedosLib)
         mkAttrsOfOption
+        mkBoolOption
+        mkIntBetweenOption
         ;
       inherit (lib) importTOML;
 
       inherit ((importTOML ./config.toml).icedos.applications.opencode)
         extraSettings
+        includeInIcedosGc
         peonPingOverrides
+        sessionRetentionDays
         skills
         ;
     in
@@ -31,25 +35,98 @@
       peonPingOverrides = mkAttrsOfOption { default = peonPingOverrides; } lib.types.anything;
 
       skills = mkAttrsOfOption { default = skills; } lib.types.anything;
+
+      # Whether `icedos gc` prunes stale opencode data under
+      # ~/.local/share/opencode (unshade-style postGc hook).
+      includeInIcedosGc = mkBoolOption { default = includeInIcedosGc; };
+
+      # Retain runtime files/logs newer than this many days when GC runs.
+      sessionRetentionDays = mkIntBetweenOption {
+        path = "icedos.applications.opencode.sessionRetentionDays";
+        source = ./config.toml;
+        default = sessionRetentionDays;
+      } 1 3650;
     };
 
   outputs.nixosModules =
     { inputs, ... }:
     [
       (
-        { config, lib, ... }:
+        {
+          config,
+          lib,
+          pkgs,
+          ...
+        }:
         let
           inherit (lib) recursiveUpdate;
           inherit (config.icedos.applications.opencode)
             extraSettings
+            includeInIcedosGc
             peonPingOverrides
+            sessionRetentionDays
             skills
             ;
 
           peonPingUsers = config.icedos.applications.peon-ping.users or { };
           peonPingEnabled = peonPingUsers != { };
+
+          # Pin sqlite3 for the prune; it's absent from the minimal gc PATH.
+          sqlite = "${pkgs.sqlite}/bin/sqlite3";
+
+          # Prune idle opencode runtime data during `icedos gc` (unshade-style).
+          opencodeGcHook = ''
+            O="''${HOME}/.local/share/opencode"
+            [ -d "''${O}" ] || exit 0
+            find "''${O}/log" -maxdepth 1 -type f -mtime "+${toString sessionRetentionDays}" -delete 2>/dev/null || true
+            find "''${O}/tool-output" -maxdepth 1 -type f -mtime "+${toString sessionRetentionDays}" -delete 2>/dev/null || true
+            find "''${O}/storage/session_diff" -maxdepth 1 -type f -name '*.json' -mtime "+${toString sessionRetentionDays}" -delete 2>/dev/null || true
+            # snapshot/<id> are git object stores. Dir mtime tracks only the single
+            # worktree child's creation, so test file recency, not -mtime.
+            for d in "''${O}"/snapshot/*/; do
+              [ -d "$d" ] || continue
+              case "''${d%/}" in */global) continue ;; esac
+              find "$d" -type f -newermt "@$(( $(date +%s) - ${toString sessionRetentionDays}*86400 ))" -print -quit | grep -q . || rm -rf -- "$d"
+            done
+            # SQLite store dominates disk. Delete per-session children explicitly
+            # (FKs are off) and VACUUM only while no live writer holds the lock.
+            NOW_MS=$(( $(date +%s) * 1000 ))
+            for DB in "''${O}"/*.db; do
+              [ -f "$DB" ] || continue
+              # Probe units; an empty store or non-ms timestamps must not mass-delete.
+              probe=$("${sqlite}" "$DB" "SELECT CASE WHEN (SELECT COUNT(*) FROM session)=0 THEN 'empty' WHEN (SELECT MAX(time_updated) FROM session)>1000000000000 THEN 'ms' ELSE 'x' END;" 2>/dev/null)
+              case "$probe" in
+                empty) continue ;;
+                ms) ;;
+                *) log_warn "opencode gc: $DB timestamps not epoch-ms; skipping prune"; continue ;;
+              esac
+              if ! perr=$("${sqlite}" "$DB" "
+                PRAGMA busy_timeout=8000;
+                BEGIN;
+                CREATE TEMP TABLE _stale AS SELECT id FROM session WHERE time_updated < $NOW_MS - ${toString sessionRetentionDays}*86400000;
+                DELETE FROM part WHERE session_id IN (SELECT id FROM _stale);
+                DELETE FROM message WHERE session_id IN (SELECT id FROM _stale);
+                DELETE FROM session_message WHERE session_id IN (SELECT id FROM _stale);
+                DELETE FROM session_input WHERE session_id IN (SELECT id FROM _stale);
+                DELETE FROM session_context_epoch WHERE session_id IN (SELECT id FROM _stale);
+                DELETE FROM todo WHERE session_id IN (SELECT id FROM _stale);
+                DELETE FROM session_share WHERE session_id IN (SELECT id FROM _stale);
+                DELETE FROM event WHERE aggregate_id IN (SELECT id FROM _stale);
+                DELETE FROM event_sequence WHERE aggregate_id IN (SELECT id FROM _stale);
+                DELETE FROM session WHERE id IN (SELECT id FROM _stale);
+                DROP TABLE _stale;
+                COMMIT;
+              " 2>&1 >/dev/null); then
+                log_warn "opencode gc: prune failed for $DB: $perr"
+              elif ! v_err=$("${sqlite}" "$DB" "PRAGMA wal_checkpoint(TRUNCATE); VACUUM;" 2>&1 >/dev/null); then
+                log_warn "opencode gc: VACUUM skipped for $DB (in use?): $v_err"
+              fi
+            done
+          '';
         in
         {
+          # `icedos gc` prunes stale opencode data per user (unshade-style).
+          icedos.system.gc.hooks.postGc = lib.mkIf includeInIcedosGc [ opencodeGcHook ];
           home-manager.sharedModules = [
             # MCP servers come from the shared programs.mcp.servers registry
             # (the apps `agent-memory` module and the config root's mcp.toml

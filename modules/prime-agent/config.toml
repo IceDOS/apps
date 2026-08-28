@@ -22,3 +22,9 @@ providers = {}
 
 # Zed keybind to spawn prime-agent (Ctrl-Alt-P default).
 keybind = "ctrl-alt-p"
+
+# Whether `icedos gc` prunes stale prime-agent session data.
+includeInIcedosGc = false
+
+# GC retention: prune sessions/logs older than this many days.
+sessionRetentionDays = 30
