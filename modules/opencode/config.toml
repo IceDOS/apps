@@ -1,3 +1,11 @@
 [icedos.applications.opencode.extraSettings]
 [icedos.applications.opencode.peonPingOverrides]
 [icedos.applications.opencode.skills]
+
+# Whether `icedos gc` prunes stale opencode runtime data (logs + SQLite
+# session store) under ~/.local/share/opencode, via a postGc hook.
+[icedos.applications.opencode]
+includeInIcedosGc = false
+
+# Retain runtime files/logs newer than this many days when GC runs.
+sessionRetentionDays = 30

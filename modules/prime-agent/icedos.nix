@@ -7,6 +7,7 @@
 
       inherit (icedosLib)
         mkAttrsOfOption
+        mkBoolOption
         mkIntBetweenOption
         mkStrListOption
         mkStrOption
@@ -23,6 +24,8 @@
         portOverrides
         builtinExtensions
         extensions
+        includeInIcedosGc
+        sessionRetentionDays
         providers
         skillDirs
         ;
@@ -35,6 +38,16 @@
       keybind = mkStrOption { default = keybind; };
 
       dataDir = mkStrOption { default = dataDir; };
+
+      # Whether `icedos gc` prunes stale prime-agent sessions (unshade-style).
+      includeInIcedosGc = mkBoolOption { default = includeInIcedosGc; };
+
+      # Sessions/logs older than this many days are pruned by the GC hook.
+      sessionRetentionDays = mkIntBetweenOption {
+        path = "icedos.applications.prime-agent.sessionRetentionDays";
+        source = ./config.toml;
+        default = sessionRetentionDays;
+      } 1 3650;
 
       mcpCallTimeout = mkIntBetweenOption {
         path = "icedos.applications.prime-agent.mcpCallTimeout";
@@ -148,6 +161,27 @@
           primeAgentUsers = prime-agent.users;
           # peon-ping is a standalone module and may not be loaded at all.
           peonPingEnabled = (config.icedos.applications.peon-ping.users or { }) != { };
+
+          # Prune stale prime-agent session data during `icedos gc`.
+          primeAgentGcHook = ''
+            D='${prime-agent.dataDir}'
+            # Matches config.xdg.configHome default ($HOME/.config); env -i strips
+            # per-user xdg, so non-default paths go through the dataDir option.
+            [ -z "$D" ] && D='$HOME/.config/prime-agent'
+            # Expand XDG/tilde refs under the minimal gc env (HOME-only).
+            D=''${D/\$XDG_CONFIG_HOME/$HOME/.config}
+            D=''${D/\$XDG_DATA_HOME/$HOME/.local/share}
+            D=''${D/#~/\$HOME}
+            D=''${D//\$HOME/$HOME}
+            [ -d "''${D}" ] || { log_warn "prime-agent gc: data dir ''${D} not found; skipping"; exit 0; }
+            find "''${D}/sessions" -maxdepth 1 -type f -name '*.jsonl' -mtime "+${toString prime-agent.sessionRetentionDays}" -delete 2>/dev/null || true
+            for a in "''${D}"/session-artifacts/*; do
+              [ -d "$a" ] || continue
+              [ -f "''${D}/sessions/$(basename "$a").jsonl" ] && continue
+              [ -n "$(find "$a" -prune -mtime "+${toString prime-agent.sessionRetentionDays}" -print)" ] && rm -rf -- "$a"
+            done
+            find "''${D}/logs" -maxdepth 1 -type f -mtime "+${toString prime-agent.sessionRetentionDays}" -delete 2>/dev/null || true
+          '';
         in
         {
           # Copy of nixpkgs PR #550774 at 0.7.4; drop overlay, package.nix and patch once merged.
@@ -164,6 +198,12 @@
           icedos.applications.prime-agent.users = icedosLib.users.genDefaults {
             inherit (config.icedos) users;
           };
+
+          # `icedos gc` prunes stale prime-agent sessions per user (unshade-style).
+          icedos.system.gc.hooks.postGc = mkIf prime-agent.includeInIcedosGc [
+            primeAgentGcHook
+          ];
+
           # Same TUI the Zed task spawns, as a toolset leaf so `icedos <tool>` stays uniform.
           icedos.system.toolset.commands = lib.mkIf (primeAgentUsers != { }) [
             {
