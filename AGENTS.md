@@ -56,3 +56,9 @@ checkout (`path:/abs/path/to/apps`), then `icedos rebuild --build` (no activatio
   into the global package set. The only consumer of the NUR overlay today.
 - `prefixer`, `proton-launch` — Proton prefix tooling (protontricks is deprecated here;
   use `prefixer <APP_ID> run <exe>`).
+- `prime-agent` — mirrors the bundled models.dev catalog into `models.json`. Only models in
+  that snapshot show up today (it lags upstream). To add a newly released model without waiting
+  for a prime-agent bump, define it under `icedos.applications.prime-agent.providers.<name>.models`:
+  prime-agent's `models[]` **merges** with the catalog — an unknown id is added (inheriting the
+  built-in provider's api/baseUrl), a known id replaces the bundled definition. Use the model's
+  real dot id (e.g. `glm-5.3-flash`, not `glm-5-3-flash`) and the same id in `modelOverrides`.

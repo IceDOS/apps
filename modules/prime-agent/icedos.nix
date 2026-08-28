@@ -94,36 +94,110 @@
         };
 
         modelOverrides = lib.mkOption {
-          type = lib.types.attrsOf (lib.types.submodule {
-            options = {
-              contextWindow = lib.mkOption {
-                type = lib.types.nullOr lib.types.int;
-                default = null;
-                description = "Context window size in tokens.";
-              };
+          type = lib.types.attrsOf (
+            lib.types.submodule {
+              options = {
+                contextWindow = lib.mkOption {
+                  type = lib.types.nullOr lib.types.int;
+                  default = null;
+                  description = "Context window size in tokens.";
+                };
 
-              maxTokens = lib.mkOption {
-                type = lib.types.nullOr lib.types.int;
-                default = null;
-                description = "Max output tokens per response.";
-              };
+                maxTokens = lib.mkOption {
+                  type = lib.types.nullOr lib.types.int;
+                  default = null;
+                  description = "Max output tokens per response.";
+                };
 
-              name = lib.mkOption {
-                type = lib.types.nullOr lib.types.str;
-                default = null;
-                description = "Model display name.";
-              };
+                name = lib.mkOption {
+                  type = lib.types.nullOr lib.types.str;
+                  default = null;
+                  description = "Model display name.";
+                };
 
-              reasoning = lib.mkOption {
-                type = lib.types.nullOr lib.types.bool;
-                default = null;
-                description = "Whether the model supports reasoning.";
+                reasoning = lib.mkOption {
+                  type = lib.types.nullOr lib.types.bool;
+                  default = null;
+                  description = "Whether the model supports reasoning.";
+                };
               };
-            };
-          });
+            }
+          );
 
           default = { };
           description = "Per-model overrides keyed by model id.";
+        };
+
+        # Custom model definitions emitted into models.json "models". A model whose
+        # id the bundled catalog lacks is ADDED (inheriting the provider's built-in
+        # api/baseUrl); an id that already exists replaces the bundled definition.
+        models = lib.mkOption {
+          type = lib.types.listOf (
+            lib.types.submodule {
+              options = {
+                id = lib.mkOption {
+                  type = lib.types.str;
+                  description = "Model id (also the key used in modelOverrides).";
+                };
+
+                name = lib.mkOption {
+                  type = lib.types.nullOr lib.types.str;
+                  default = null;
+                  description = "Model display name.";
+                };
+
+                reasoning = lib.mkOption {
+                  type = lib.types.nullOr lib.types.bool;
+                  default = null;
+                  description = "Whether the model supports reasoning.";
+                };
+
+                contextWindow = lib.mkOption {
+                  type = lib.types.nullOr lib.types.int;
+                  default = null;
+                  description = "Context window size in tokens.";
+                };
+
+                maxTokens = lib.mkOption {
+                  type = lib.types.nullOr lib.types.int;
+                  default = null;
+                  description = "Max output tokens per response.";
+                };
+
+                input = lib.mkOption {
+                  type = lib.types.listOf (
+                    lib.types.enum [
+                      "text"
+                      "image"
+                    ]
+                  );
+                  default = [ ];
+                  description = "Input modalities the model accepts.";
+                };
+
+                cost = lib.mkOption {
+                  type = lib.types.nullOr (lib.types.attrsOf lib.types.number);
+                  default = null;
+                  description = "Per-token cost (USD per 1M tokens). prime-agent requires input, output, cacheRead, cacheWrite.";
+                };
+
+                api = lib.mkOption {
+                  type = lib.types.nullOr lib.types.str;
+                  default = null;
+                  description = "API protocol; defaults to the provider's built-in api.";
+                };
+
+                baseUrl = lib.mkOption {
+                  type = lib.types.nullOr lib.types.str;
+                  default = null;
+                  description = "API base URL; defaults to the provider's built-in baseUrl.";
+                };
+              };
+            }
+          );
+
+          default = [ ];
+          description = "Custom model definitions for providers. Adds a model the bundled catalog lacks (e.g. a newly released one) so it appears in the model list without rebuilding the package.";
         };
       };
 
@@ -672,18 +746,20 @@
                   };
                 };
 
-                # modelOverrides stays as-is for partial merge (models[] would replace).
+                # modelOverrides stays as-is for partial merge; models[] merges in
+                # custom models (adds unknown ids, replaces known ones).
                 userProvidersConverted = lib.mapAttrs (
                   name: p:
                   let
                     attrs = lib.filterAttrs (_: v: v != null) {
                       inherit (p) apiKey baseUrl headers;
                     };
-                    overrides = lib.mapAttrs
-                      (_: o: lib.filterAttrs (_: v: v != null) o)
-                      (p.modelOverrides or { });
+                    overrides = lib.mapAttrs (_: o: lib.filterAttrs (_: v: v != null) o) (p.modelOverrides or { });
+                    models = map (m: lib.filterAttrs (_: v: v != null) m) (p.models or [ ]);
                   in
-                  attrs // lib.optionalAttrs (overrides != { }) { modelOverrides = overrides; }
+                  attrs
+                  // lib.optionalAttrs (overrides != { }) { modelOverrides = overrides; }
+                  // lib.optionalAttrs (models != [ ]) { models = models; }
                 ) prime-agent.providers;
 
                 mergedProviders = lib.recursiveUpdate providerDefaults userProvidersConverted;
@@ -757,14 +833,20 @@
                 upstreamExtDir = "${pkgs.prime-agent}/lib/prime-agent/examples/extensions";
 
                 # Resolve each name to its file (.ts) or folder (index.ts) source; null if absent.
-                builtinExtSrc = name:
-                  if builtins.pathExists "${upstreamExtDir}/${name}/index.ts" then {
-                    src = "${upstreamExtDir}/${name}";
-                    target = "${relDataDir}/extensions/${name}";
-                  } else if builtins.pathExists "${upstreamExtDir}/${name}.ts" then {
-                    src = "${upstreamExtDir}/${name}.ts";
-                    target = "${relDataDir}/extensions/${name}.ts";
-                  } else null;
+                builtinExtSrc =
+                  name:
+                  if builtins.pathExists "${upstreamExtDir}/${name}/index.ts" then
+                    {
+                      src = "${upstreamExtDir}/${name}";
+                      target = "${relDataDir}/extensions/${name}";
+                    }
+                  else if builtins.pathExists "${upstreamExtDir}/${name}.ts" then
+                    {
+                      src = "${upstreamExtDir}/${name}.ts";
+                      target = "${relDataDir}/extensions/${name}.ts";
+                    }
+                  else
+                    null;
 
                 extensionHomeFiles = map (name: {
                   "${(builtinExtSrc name).target}".source = (builtinExtSrc name).src;
@@ -825,11 +907,15 @@
                     '';
                   }
                   {
-                    assertion = lib.all (n: builtins.match "[A-Za-z0-9._-]+" n != null) (lib.attrNames prime-agent.extensions);
+                    assertion = lib.all (n: builtins.match "[A-Za-z0-9._-]+" n != null) (
+                      lib.attrNames prime-agent.extensions
+                    );
                     message = ''
                       icedos.applications.prime-agent.extensions names must be
                       simple: ${
-                        builtins.concatStringsSep ", " (lib.filter (n: builtins.match "[A-Za-z0-9._-]+" n == null) (lib.attrNames prime-agent.extensions))
+                        builtins.concatStringsSep ", " (
+                          lib.filter (n: builtins.match "[A-Za-z0-9._-]+" n == null) (lib.attrNames prime-agent.extensions)
+                        )
                       }
                     '';
                   }
