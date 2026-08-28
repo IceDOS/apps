@@ -1,0 +1,290 @@
+diff --git a/src/steamcompmgr.cpp b/src/steamcompmgr.cpp
+index ff9ae1f..e008df3 100644
+--- a/src/steamcompmgr.cpp
++++ b/src/steamcompmgr.cpp
+@@ -4184,6 +4184,38 @@ determine_and_apply_focus( global_focus_t *pFocus )
+ 
+ 	for ( steamcompmgr_win_t *focusable_window : vecPossibleFocusWindows )
+ 	{
++		// Steam only treats an app as running once it shows up in these lists, and
++		// a native Wayland game has no X11 window. Publish its appID and synthetic
++		// xdg id; that id is a small counter and never collides with an Xwayland id.
++		if ( focusable_window->type == steamcompmgr_win_type_t::XDG )
++		{
++			if ( focusable_window->appID == 0 )
++				continue;
++
++			// Publish under both ids: appID is what Steam Input and the overlay bind
++			// to, launchAppID is the app Steam launched and looks for a window for.
++			// They differ only for a non-Steam shortcut whose game exports its own.
++			const uint32_t unXdgAppIDs[ 2 ] = { focusable_window->appID, focusable_window->launchAppID };
++			for ( size_t i = 0; i < 2; i++ )
++			{
++				const uint32_t unXdgAppID = unXdgAppIDs[ i ];
++				if ( unXdgAppID == 0 || ( i > 0 && unXdgAppID == unXdgAppIDs[ 0 ] ) )
++					continue;
++
++				bool bKnownAppID = false;
++				for ( unsigned long unKnownAppID : focusable_appids )
++					bKnownAppID |= unKnownAppID == unXdgAppID;
++
++				if ( !bKnownAppID )
++					focusable_appids.push_back( unXdgAppID );
++
++				focusable_windows.push_back( focusable_window->id() );
++				focusable_windows.push_back( unXdgAppID );
++				focusable_windows.push_back( focusable_window->pid );
++			}
++			continue;
++		}
++
+ 		if ( focusable_window->type != steamcompmgr_win_type_t::XWAYLAND )
+ 			continue;
+ 
+@@ -5060,6 +5092,29 @@ get_appid_from_pid( pid_t pid )
+ 	return unFoundAppId;
+ }
+ 
++// Fallback for a wl_client whose parent chain no longer reaches its reaper: read the
++// AppId the game exports for itself, as the STEAM_GAME atom does for Xwayland.
++uint32_t
++get_appid_from_pid_env( pid_t pid )
++{
++	char filename[256];
++	snprintf( filename, sizeof( filename ), "/proc/%i/environ", pid );
++
++	std::ifstream proc_environ_file( filename );
++	if ( !proc_environ_file.is_open() )
++		return 0;
++
++	std::string entry;
++	while ( std::getline( proc_environ_file, entry, '\0' ) )
++	{
++		uint32_t unAppId = 0;
++		if ( sscanf( entry.c_str(), "SteamAppId=%u", &unAppId ) == 1 && unAppId != 0 )
++			return unAppId;
++	}
++
++	return 0;
++}
++
+ static pid_t
+ get_win_pid(xwayland_ctx_t *ctx, Window id)
+ {
+@@ -5832,6 +5887,18 @@ steamcompmgr_flush_frame_done( steamcompmgr_win_t *w )
+ 			wlserver_send_frame_done(current_surface, &now);
+ 		}
+ 
++		// A Wayland client waits on its subsurface's frame callback; without this it
++		// presents one frame and blocks forever.
++		if ( w->type == steamcompmgr_win_type_t::XDG )
++		{
++			wlr_surface *content_surface = w->xdg().surface.content_surface.load();
++
++			if ( content_surface != nullptr && content_surface != main_surface && content_surface != current_surface )
++			{
++				wlserver_send_frame_done( content_surface, &now );
++			}
++		}
++
+ 		wlserver_unlock();
+ 	}
+ }
+diff --git a/src/steamcompmgr_shared.hpp b/src/steamcompmgr_shared.hpp
+index 21ddc5f..0506ef8 100644
+--- a/src/steamcompmgr_shared.hpp
++++ b/src/steamcompmgr_shared.hpp
+@@ -48,6 +48,10 @@ struct wlserver_xdg_surface_info
+ 	steamcompmgr_win_t *win = nullptr;
+ 	bool bDoneConfigure = false;
+ 
++	// Largest subsurface driving this window. Identity only, never dereferenced.
++	std::atomic<struct wlr_surface *> content_surface = { nullptr };
++	std::atomic<uint64_t> content_area = { 0 };
++
+ 	std::atomic<bool> mapped = { false };
+ 
+ 	struct wl_list link;
+@@ -114,6 +118,10 @@ struct steamcompmgr_win_t {
+ 	bool isSteamStreamingClientVideo = false;
+ 	uint32_t inputFocusMode = 0;
+ 	uint32_t appID = 0;
++	// The AppId of the reaper that launched this window's process. A non-Steam
++	// shortcut running a modded game exports the game's own SteamAppId, so appID
++	// is what Steam Input binds to while this is the app Steam actually launched.
++	uint32_t launchAppID = 0;
+ 	bool isOverlay = false;
+ 	bool isExternalOverlay = false;
+ 
+diff --git a/src/wlserver.cpp b/src/wlserver.cpp
+index 923a632..cb1868d 100644
+--- a/src/wlserver.cpp
++++ b/src/wlserver.cpp
+@@ -32,6 +32,8 @@
+ #include <wlr/interfaces/wlr_keyboard.h>
+ #include <wlr/render/wlr_renderer.h>
+ #include <wlr/types/wlr_compositor.h>
++#include <wlr/types/wlr_subcompositor.h>
++#include <wlr/types/wlr_viewporter.h>
+ #include <wlr/types/wlr_keyboard.h>
+ #include <wlr/types/wlr_keyboard_group.h>
+ #include <wlr/types/wlr_pointer.h>
+@@ -202,12 +204,62 @@ struct PendingCommit_t
+ 
+ std::list<PendingCommit_t> g_PendingCommits;
+ 
+-void wlserver_xdg_commit(struct wlr_surface *surf, struct wlr_buffer *buf)
++// Native Wayland clients render into a subsurface over a blank toplevel; gamescope tracks
++// one surface per window, so attribute subsurface content to its root's window.
++static struct wlr_surface *subsurface_root_surface( struct wlr_surface *pSurface )
++{
++	struct wlr_surface *pRoot = pSurface;
++
++	for ( int i = 0; i < 32; i++ )
++	{
++		struct wlr_subsurface *pSubsurface = wlr_subsurface_try_from_wlr_surface( pRoot );
++		if ( !pSubsurface || !pSubsurface->parent )
++			break;
++
++		pRoot = pSubsurface->parent;
++	}
++
++	return pRoot;
++}
++
++// Wine backs every HWND with a surface, so last-commit-wins picks the wrong one.
++// Keep the largest.
++static bool wlserver_xdg_pick_content_surface( struct wlserver_xdg_surface_info *pXdgInfo, struct wlr_surface *pSurface, struct wlr_buffer *pBuffer )
++{
++	const uint64_t ulWidth = pBuffer->width > 0 ? uint64_t( pBuffer->width ) : 0;
++	const uint64_t ulHeight = pBuffer->height > 0 ? uint64_t( pBuffer->height ) : 0;
++	const uint64_t ulArea = ulWidth * ulHeight;
++
++	// A 1x1 winning would scale to the whole output: a solid-colour screen.
++	if ( ulArea < 64 )
++		return false;
++
++	if ( pXdgInfo->content_surface.load() == pSurface )
++	{
++		pXdgInfo->content_area = ulArea;
++		return true;
++	}
++
++	if ( ulArea <= pXdgInfo->content_area.load() )
++		return false;
++
++	wl_log.infof( "xdg: content surface for window %p is now %p (%dx%d)",
++		(void *)pXdgInfo->win, (void *)pSurface, pBuffer->width, pBuffer->height );
++
++	pXdgInfo->content_surface = pSurface;
++	pXdgInfo->content_area = ulArea;
++	return true;
++}
++
++// pOwner is what steamcompmgr matches the commit against; differs from surf for subsurfaces.
++static void wlserver_xdg_commit_for(struct wlr_surface *pOwner, struct wlr_surface *surf, struct wlr_buffer *buf)
+ {
+ 	std::optional<ResListEntry_t> oEntry = PrepareCommit( surf, buf );
+ 	if ( !oEntry )
+ 		return;
+ 
++	oEntry->surf = pOwner;
++
+ 	{
+ 		std::lock_guard<std::mutex> lock( wlserver.xdg_commit_lock );
+ 		wlserver.xdg_commit_queue.push_back( std::move( *oEntry ) );
+@@ -216,6 +268,11 @@ void wlserver_xdg_commit(struct wlr_surface *surf, struct wlr_buffer *buf)
+ 	nudge_steamcompmgr();
+ }
+ 
++void wlserver_xdg_commit(struct wlr_surface *surf, struct wlr_buffer *buf)
++{
++	wlserver_xdg_commit_for( surf, surf, buf );
++}
++
+ void xwayland_surface_commit(struct wlr_surface *wlr_surface) {
+ 	wlr_surface->current.committed = 0;
+ 
+@@ -257,11 +314,24 @@ void xwayland_surface_commit(struct wlr_surface *wlr_surface) {
+ 	}
+ 	else if (wlserver_xdg_surface_info)
+ 	{
+-		wlserver_xdg_commit(wlr_surface, buf);
++		// Toplevel buffer is the blank background once a subsurface drives the window.
++		if ( wlserver_xdg_surface_info->content_surface.load() )
++			wlr_buffer_unlock( buf );
++		else
++			wlserver_xdg_commit(wlr_surface, buf);
+ 	}
+ 	else
+ 	{
+-		g_PendingCommits.push_back(PendingCommit_t{ wlr_surface, buf });
++		struct wlr_surface *pRoot = subsurface_root_surface( wlr_surface );
++		struct wlserver_wl_surface_info *pRootInfo = pRoot != wlr_surface ? get_wl_surface_info( pRoot ) : nullptr;
++		struct wlserver_xdg_surface_info *pRootXdgInfo = pRootInfo ? pRootInfo->xdg_surface : nullptr;
++
++		if ( !pRootXdgInfo )
++			g_PendingCommits.push_back(PendingCommit_t{ wlr_surface, buf });
++		else if ( wlserver_xdg_pick_content_surface( pRootXdgInfo, wlr_surface, buf ) )
++			wlserver_xdg_commit_for( pRoot, wlr_surface, buf );
++		else
++			wlr_buffer_unlock( buf );
+ 	}
+ }
+ 
+@@ -604,6 +674,19 @@ static void handle_wl_surface_destroy( struct wl_listener *l, void *data )
+ 
+ 	wlserver.current_dropdown_surfaces.erase( surf->wlr );
+ 
++	{
++		std::unique_lock lock( g_wlserver_xdg_shell_windows_lock );
++		for ( auto &pWin : wlserver.xdg_wins )
++		{
++			wlserver_xdg_surface_info &xdgSurface = pWin->xdg().surface;
++			if ( xdgSurface.content_surface.load() == surf->wlr )
++			{
++				xdgSurface.content_surface = nullptr;
++				xdgSurface.content_area = 0;
++			}
++		}
++	}
++
+ 	for (auto it = g_PendingCommits.begin(); it != g_PendingCommits.end();)
+ 	{
+ 		if (it->surf == surf->wlr)
+@@ -1900,6 +1983,7 @@ void xdg_toplevel_new(struct wl_listener *listener, void *data)
+ }
+ 
+ uint32_t get_appid_from_pid( pid_t pid );
++uint32_t get_appid_from_pid_env( pid_t pid );
+ 
+ wlserver_xdg_surface_info* waylandy_type_surface_new(struct wl_client *client, struct wlr_surface *surface)
+ {
+@@ -1922,7 +2006,16 @@ wlserver_xdg_surface_info* waylandy_type_surface_new(struct wl_client *client, s
+ 	{
+ 		pid_t nPid = 0;
+ 		wl_client_get_credentials( client, &nPid, nullptr, nullptr );
+-		window->appID = get_appid_from_pid( nPid );
++		// Steam Input and the overlay bind to the AppId the game process exports, so
++		// that one has to be the window's appID. Keep the reaper's separately: it is
++		// the app Steam launched, and Steam needs to see a window for it too.
++		window->launchAppID = get_appid_from_pid( nPid );
++		window->appID = get_appid_from_pid_env( nPid );
++		if ( !window->appID )
++			window->appID = window->launchAppID;
++		// Steam matches focusable windows on (window, appid, pid); XDG windows
++		// otherwise keep the -1 default and never match a launched app.
++		window->pid = nPid;
+ 	}
+ 	window->_window_types.emplace<steamcompmgr_xdg_win_t>();
+ 
+@@ -2044,6 +2137,9 @@ bool wlserver_init( void ) {
+ 	wlr_renderer_init_wl_display(wlserver.wlr.renderer, wlserver.display);
+ 
+ 	wlserver.wlr.compositor = wlr_compositor_create(wlserver.display, 5, wlserver.wlr.renderer);
++	// winewayland.drv aborts without both of these.
++	wlr_subcompositor_create(wlserver.display);
++	wlr_viewporter_create(wlserver.display);
+ 
+ 	wl_signal_add( &wlserver.wlr.compositor->events.new_surface, &new_surface_listener );
+ 

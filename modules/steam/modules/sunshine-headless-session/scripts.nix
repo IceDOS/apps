@@ -20,6 +20,7 @@ let
     sdrContentNits
     sdrGamutWideness
     mangoApp
+    nativeWayland
     pauseOnDisconnect
     steamOS
     upscaleFilter
@@ -35,12 +36,14 @@ let
   # Gamescope HDR flags, applied per-stream only when the client requests HDR.
   hdrFlags = lib.optionalString hdr "--hdr-enabled --hdr-debug-force-output --hdr-debug-force-support --sdr-gamut-wideness ${toString sdrGamutWideness} --hdr-sdr-content-nits ${toString sdrContentNits} ";
 
-  # Two Xwaylands (games on :2, tagger focus on :1); HDR env is injected per-stream in `start`.
-  # PATH: shortcuts name helpers (proton-launch, me3); user services get no login PATH.
-  # PROTON_LAUNCH_LOG: proton-launch otherwise drops its child's stdio on /dev/null.
+  # Two Xwaylands (:2 games, :1 tagger); HDR env injected per-stream in `start`.
+  # PATH names helpers (proton-launch, me3); PROTON_LAUNCH_LOG keeps the child's stdio on /dev/null.
   sessionEnv =
     "PATH=\"$steam_path\" PROTON_LAUNCH_LOG=\"$rt\"/proton-launch.log "
     + "GAMESCOPE_WAYLAND_DISPLAY=gamescope-0 STEAM_MULTIPLE_XWAYLANDS=1 QT_QPA_PLATFORM=xcb "
+    # GAMESCOPE_XWAYLAND_DISPLAY: with STEAM_MULTIPLE_XWAYLANDS=1 Steam's runtime client
+    # (not launcher/gamescope) picks its X display here; only in nativeWayland && steamOS mode.
+    + lib.optionalString (nativeWayland && steamOS) "GAMESCOPE_XWAYLAND_DISPLAY=:1 "
     + lib.optionalString colorManagement "STEAM_GAMESCOPE_COLOR_MANAGED=1 STEAM_GAMESCOPE_COLOR_TOYS=1 "
     + lib.optionalString mangoApp "STEAM_USE_MANGOAPP=1 STEAM_MANGOAPP_HORIZONTAL_SUPPORTED=1 STEAM_MANGOAPP_PRESETS_SUPPORTED=1 STEAM_DISABLE_MANGOAPP_ATOM_WORKAROUND=1 MANGOHUD_CONFIGFILE=\"$rt\"/sunshine-mangoapp.conf ";
 
@@ -143,6 +146,38 @@ let
         done
         return 1
       }
+
+      ${lib.optionalString (nativeWayland && steamOS) ''
+        # Return the native-Wayland game's exported SteamAppId plus its launch appid (a
+        # shortcut may export its own id, not the real game's) so the baselayer stays focused for either.
+        wl_rejected_note=
+        wayland_game_ids() {
+          local p a launch sess
+          # Scope to this session's Steam (the normal/secondary sessions share one
+          # gamescope and one root window), matching route_session_audio's pattern.
+          sess=" $(session_steam_pids | tr '\n' ' ')"
+          for p in /proc/[0-9]*; do
+            grep -qz '^PROTON_ENABLE_WAYLAND=1$' "$p/environ" 2>/dev/null || continue
+            tr '\0' '\n' <"$p/environ" 2>/dev/null | grep -q '^DISPLAY=.' && continue
+            if ! audio_pid_in_session "''${p##*/}" "$sess"; then
+              if [ "''${wl_rejected_note:-0}" != 1 ]; then
+                wl_rejected_note=1
+                # Rejected as not-attributable to this session; can also be an in-session
+                # proc whose parent chain no longer reaches this session's steam pid.
+                echo "sunshine-headless: skipped native-Wayland proc ''${p##*/} (not attributable to this session)" >&2
+              fi
+              continue
+            fi
+            a="$(tr '\0' '\n' <"$p/environ" 2>/dev/null | sed -n 's/^SteamAppId=//p' | head -n1 || true)"
+            case "$a" in "" | 0 | *[!0-9]*) continue ;; esac
+            launch="$(steam_launch_appid "''${p##*/}" || true)"
+            case "$launch" in "" | 0 | *[!0-9]*) launch="" ;; esac
+            printf '%s\n%s\n' "$a" "$launch"
+            return 0
+          done
+          return 1
+        }
+      ''}
 
       audio_pid_in_session() {
         local p="$1"
@@ -483,7 +518,32 @@ let
                     DISPLAY=:2 xprop -id "$w" -f STEAM_GAME 32c -set STEAM_GAME "$a" 2>/dev/null || true
                   fi
                 done < <(DISPLAY=:2 xwininfo -root -children 2>/dev/null | grep -oE '0x[0-9a-f]+')
+
+                ${lib.optionalString (nativeWayland && steamOS) ''
+                  # Steam only reorders the baselayer for X11 windows it can see, and may list
+                  # the shortcut's appid instead of the game's, so drive it from the process.
+                  wl_ids="$(wayland_game_ids || true)"
+                  wl_appid="$(printf '%s\n' "$wl_ids" | sed -n 1p)"
+                  wl_launch="$(printf '%s\n' "$wl_ids" | sed -n 2p)"
+                  if [ -n "$wl_appid" ]; then
+                    base="$(DISPLAY=:1 xprop -root GAMESCOPECTRL_BASELAYER_APPID 2>/dev/null | sed -n 's/^.*= //p' | tr -d ' ' || true)"
+                    # Seed the game's exported id only when Steam hasn't listed it (multi-app
+                    # wrappers launch the real game); else let Steam's own reordering drive focus.
+                    if [[ ",$base," != *",$wl_appid,"* ]]; then
+                      desired="$wl_appid"
+                      if [ -n "$wl_launch" ] && [ "$wl_launch" != "$wl_appid" ]; then
+                        desired="$desired,$wl_launch"
+                      fi
+                      rest="$(printf '%s' "$base" | tr ',' '\n' | grep -vx "$wl_appid" | grep -vx "$wl_launch" | tr '\n' ',' | sed 's/,$//' || true)"
+                      [ -n "$rest" ] && rest=",$rest"
+                      if [ "$base" != "$desired$rest" ]; then
+                        DISPLAY=:1 xprop -root -f GAMESCOPECTRL_BASELAYER_APPID 32c \
+                          -set GAMESCOPECTRL_BASELAYER_APPID "$desired$rest" 2>/dev/null || true
+                      fi
+                    fi
+                  fi''}
               fi
+
               dname="$(wpctl inspect @DEFAULT_AUDIO_SINK@ 2>/dev/null | grep -oP 'node.name = "\K[^"]+' || true)"
               case "$dname" in
                 steam-sunshine-headless-sink | sink-sunshine-*)

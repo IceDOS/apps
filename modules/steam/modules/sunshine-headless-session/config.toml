@@ -1,25 +1,26 @@
 [icedos.applications.steam.headless-session]
-autoStart = true # Auto-start the headless daemon at the graphical session; false = start it manually.
-name = "SteamOS Headless" # mDNS name; MUST differ from the primary.
-port = 48989 # Base port (primary uses 47989); Sunshine derives its whole TCP/UDP block from it.
-openFirewall = false # Open the headless instance's derived port block in the host firewall (plain-LAN streaming).
-excludeHostControllers = true # Keep host controllers out of the headless Steam (cgroup device policy denies /dev/input+hidraw).
-isolateVirtualControllers = true # Hide the headless Sunshine pad from the host desktop (uaccess strip + setgid-`input` shim).
-nv12BlackFrameFix = true # Fix black PipeWire frames on Intel/NVIDIA (missing bSampled; upstream 9851c60).
-nv12ChromaFix = true # Fix R/B-swapped NV12/AVIF capture on NVIDIA (XBGR fallback; upstream #2271). Inert on AMD.
-preferDiscreteGpu = true # Prefer the discrete GPU on hybrid rigs (stock picks the iGPU; upstream #2217). Inert on single GPU.
-hdr = true # HDR-capable gamescope; stream HDR follows the client per-stream. false = always SDR.
-normalSteamSession = true # Inject the default Steam app (normal HOME/account/library).
-secondarySteamSession = false # Inject a second Steam app under secondarySteamSessionPath (separate account/library).
-secondarySteamSessionPath = "" # HOME for the second session; REQUIRED when secondarySteamSession = true.
-sdrContentNits = 203 # Nits SDR content is shown at on the HDR output (203 = BT.2408 reference white).
-sdrGamutWideness = 0 # SDR->wide-gamut stretch on the HDR output: 0 = accurate, 1 = full BT2020 (vivid).
-upscaleFilter = "" # gamescope upscaler (-F): fsr | nis | linear | nearest | pixel.
-fsrSharpness = 20 # FSR/NIS sharpness: 0 = max sharp .. 20 = min sharp (gamescope default 2).
-renderWidth = 0 # gamescope internal render width, upscaled to output; 0 = output resolution.
-renderHeight = 0 # gamescope internal render height; 0 = output resolution.
-steamOS = true # Steam Deck UI mode (`steam -steamos3`): Steam manages gamescope focus; takes over host Bluetooth.
-colorManagement = true # Steam Display color controls (vibrance/temperature sliders); requires the patched gamescope.
-mangoApp = true # MangoHud overlay (mangoapp): --mangoapp on the idle gamescope + STEAM_USE_MANGOAPP=1 on Steam.
-inputInjection = true # Forward Moonlight keyboard/mouse into the headless session; composites the cursor too (one feature).
-pauseOnDisconnect = false # Freeze the session cgroup ~10s after the last client leaves; thaw on reconnect.
+autoStart = true # Auto-start the headless daemon at the graphical session; false = start it manually
+name = "SteamOS Headless" # mDNS name; MUST differ from the primary
+port = 48989 # Base port (primary uses 47989); Sunshine derives its whole TCP/UDP block from it
+openFirewall = false # Open the headless instance's derived port block in the host firewall (plain-LAN streaming)
+excludeHostControllers = true # Keep host controllers out of the headless Steam (cgroup device policy denies /dev/input+hidraw)
+isolateVirtualControllers = true # Hide the headless Sunshine pad from the host desktop (uaccess strip + setgid-`input` shim)
+nv12BlackFrameFix = true # Fix black PipeWire frames on Intel/NVIDIA (missing bSampled; upstream 9851c60)
+nv12ChromaFix = true # Fix R/B-swapped NV12/AVIF capture on NVIDIA (XBGR fallback; upstream #2271). Inert on AMD
+preferDiscreteGpu = true # Prefer the discrete GPU on hybrid rigs (stock picks the iGPU; upstream #2217). Inert on single GPU
+hdr = true # HDR-capable gamescope; stream HDR follows the client per-stream. false = always SDR
+normalSteamSession = true # Inject the default Steam app (normal HOME/account/library)
+secondarySteamSession = false # Inject a second Steam app under secondarySteamSessionPath (separate account/library)
+secondarySteamSessionPath = "" # HOME for the second session; REQUIRED when secondarySteamSession = true
+sdrContentNits = 203 # Nits SDR content is shown at on the HDR output (203 = BT.2408 reference white)
+sdrGamutWideness = 0 # SDR->wide-gamut stretch on the HDR output: 0 = accurate, 1 = full BT2020 (vivid)
+upscaleFilter = "" # gamescope upscaler (-F): fsr | nis | linear | nearest | pixel
+fsrSharpness = 20 # FSR/NIS sharpness: 0 = max sharp .. 20 = min sharp (gamescope default 2)
+renderWidth = 0 # gamescope internal render width, upscaled to output; 0 = output resolution
+renderHeight = 0 # gamescope internal render height; 0 = output resolution
+steamOS = true # Steam Deck UI mode (`steam -steamos3`): Steam manages gamescope focus; takes over host Bluetooth
+colorManagement = true # Steam Display color controls (vibrance/temperature sliders); requires the patched gamescope
+mangoApp = true # MangoHud overlay (mangoapp): --mangoapp on the idle gamescope + STEAM_USE_MANGOAPP=1 on Steam
+inputInjection = true # Forward Moonlight keyboard/mouse into the headless session; composites the cursor too (one feature)
+nativeWayland = true # Render Proton Wayland games natively (patched gamescope); inert without steamOS
+pauseOnDisconnect = false # Freeze the session cgroup ~10s after the last client leaves; thaw on reconnect

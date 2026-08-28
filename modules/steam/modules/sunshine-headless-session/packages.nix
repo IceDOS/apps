@@ -17,6 +17,8 @@ let
     colorManagement
     inputInjection
     mangoApp
+    nativeWayland
+    steamOS
     nv12BlackFrameFix
     nv12ChromaFix
     preferDiscreteGpu
@@ -27,13 +29,14 @@ let
   # Marker group for the input bridge; the wrapper alone turns it into `input` access.
   inputBridgeGroup = "sunshine-headless";
 
-  # Every patch is gated behind its own option (each forces a local rebuild); all off
-  # = stock gamescope. PR refs: 9851c60 (bSampled), #2271 (XBGR chroma), #2217 (discrete GPU), #2270 (HDR LUTs).
+  # Every patch is gated by its own option (each forces a local rebuild). PR refs: 9851c60, #2271, #2217, #2270.
+  # Bespoke native-wayland.patch has no upstream PR; gamescopePkg always adds a Steam-overlay postPatch.
   anyGamescopePatch =
     nv12BlackFrameFix
     || nv12ChromaFix
     || preferDiscreteGpu
     || inputInjection
+    || (nativeWayland && steamOS)
     || hdr
     || colorManagement;
 
@@ -43,6 +46,9 @@ let
       ++ lib.optionals nv12BlackFrameFix [ ./lib/pipewire-bsampled.patch ]
       ++ lib.optionals nv12ChromaFix [ ./lib/pipewire-xbgr-rgb10.patch ]
       ++ lib.optionals preferDiscreteGpu [ ./lib/prefer-discrete-gpu.patch ]
+      # nativeWayland works only in SteamOS mode (baselayer driver is in the steamos
+      # wait-loop branch), so the patch applies there only; non-steamOS keeps stock.
+      ++ lib.optionals (nativeWayland && steamOS) [ ./lib/native-wayland.patch ]
       ++ lib.optionals inputInjection [
         ./lib/pipewire-cursor.patch
         ./lib/headless-input.patch
@@ -68,19 +74,38 @@ let
 
   gamescopeSelected = if anyGamescopePatch then gamescopePatched else pkgs.gamescope;
 
-  # Repaint mangoapp's overlay into the pipewire stream (scanout-only otherwise),
-  # incl. static Steam UI (the focus/override repaint gate misses it).
-  gamescopePkg =
-    if mangoApp then
-      gamescopeSelected.overrideAttrs (old: {
-        postPatch = (old.postPatch or "") + ''
-          substituteInPlace src/steamcompmgr.cpp \
-            --replace-fail 'gamescope::Rc<CVulkanTexture> pRGBTexture = s_pPipewireBuffer->texture->isYcbcr()' 'if ( global_focus_t *pMangoOverlayFocus = GetCurrentFocus() ) { if ( pMangoOverlayFocus->externalOverlayWindow && pMangoOverlayFocus->externalOverlayWindow->opacity ) paint_window( pMangoOverlayFocus->externalOverlayWindow, pMangoOverlayFocus->externalOverlayWindow, &frameInfo, nullptr, PaintWindowFlag::NoScale | PaintWindowFlag::NoFilter | ( cv_overlay_unmultiplied_alpha ? PaintWindowFlag::CoverageMode : 0 ) ); } gamescope::Rc<CVulkanTexture> pRGBTexture = s_pPipewireBuffer->texture->isYcbcr()' \
-            --replace-fail 'ulOverrideCommitId == s_ulLastOverrideCommitId &&' 'ulOverrideCommitId == s_ulLastOverrideCommitId && !( GetCurrentFocus() && GetCurrentFocus()->externalOverlayWindow && GetCurrentFocus()->externalOverlayWindow->opacity ) &&'
-        '';
-      })
-    else
-      gamescopeSelected;
+  # Always paint the Steam overlay into the stream when visible: upstream gates overlayWindow
+  # painting on !ulFocusAppId, so a focused game hides the Big Picture overlay from capture.
+  gamescopePkg = gamescopeSelected.overrideAttrs (old: {
+    postPatch =
+      (old.postPatch or "")
+      + ''
+                substituteInPlace src/steamcompmgr.cpp \
+                  --replace-fail '!ulFocusAppId && pFocus->overlayWindow && pFocus->overlayWindow->opacity' 'pFocus->overlayWindow && pFocus->overlayWindow->opacity'
+
+                # paint_pipewire() focuses a synthetic window that never sets overlayWindow; copy it
+                # from the real global focus so the overlay paint conditions above can find the window.
+                substituteInPlace src/steamcompmgr.cpp \
+                  --replace-fail 'pick_primary_focus_and_override( &s_PipewireFocus, None, vecPossibleFocusWindows, false, vecAppIds, 0, gamescope::VirtualConnectorStrategies::SteamControlled );' \
+                                  'pick_primary_focus_and_override( &s_PipewireFocus, None, vecPossibleFocusWindows, false, vecAppIds, 0, gamescope::VirtualConnectorStrategies::SteamControlled );
+         			if ( focus_t *pGlobalFocus = GetCurrentFocus() )
+         			{
+        				s_PipewireFocus.overlayWindow = pGlobalFocus->overlayWindow;
+        				s_PipewireFocus.externalOverlayWindow = pGlobalFocus->externalOverlayWindow;
+         			}'
+
+                # Skip the early return when the overlay is visible (overlayWindow && opacity>0) so
+                # open/close repaints; anchored on a line stable across the inputInjection patch.
+                substituteInPlace src/steamcompmgr.cpp \
+                  --replace-fail 'if ( ulFocusCommitId == s_ulLastFocusCommitId &&' \
+                                  'if ( !( pFocus->overlayWindow && pFocus->overlayWindow->opacity ) && ulFocusCommitId == s_ulLastFocusCommitId &&'
+      ''
+      + lib.optionalString mangoApp ''
+        substituteInPlace src/steamcompmgr.cpp \
+          --replace-fail 'gamescope::Rc<CVulkanTexture> pRGBTexture = s_pPipewireBuffer->texture->isYcbcr()' 'if ( global_focus_t *pMangoOverlayFocus = GetCurrentFocus() ) { if ( pMangoOverlayFocus->externalOverlayWindow && pMangoOverlayFocus->externalOverlayWindow->opacity ) paint_window( pMangoOverlayFocus->externalOverlayWindow, pMangoOverlayFocus->externalOverlayWindow, &frameInfo, nullptr, PaintWindowFlag::NoScale | PaintWindowFlag::NoFilter | ( cv_overlay_unmultiplied_alpha ? PaintWindowFlag::CoverageMode : 0 ) ); } gamescope::Rc<CVulkanTexture> pRGBTexture = s_pPipewireBuffer->texture->isYcbcr()' \
+          --replace-fail 'ulOverrideCommitId == s_ulLastOverrideCommitId &&' 'ulOverrideCommitId == s_ulLastOverrideCommitId && !( GetCurrentFocus() && GetCurrentFocus()->externalOverlayWindow && GetCurrentFocus()->externalOverlayWindow->opacity ) &&'
+      '';
+  });
 
   # Jovian's portal, patched for stream size, wrapped onto gamescope-0 (private D-Bus).
   xdg-desktop-portal-gamescope =
