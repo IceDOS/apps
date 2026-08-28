@@ -19,6 +19,7 @@ let
     inputInjection
     isolateVirtualControllers
     mangoApp
+    nativeWayland
     name
     nv12BlackFrameFix
     nv12ChromaFix
@@ -122,14 +123,18 @@ in
     default = fsrSharpness;
   } 0 20;
 
-  # Each patch forces a local gamescope rebuild, so each is its own option;
-  # all off (plus hdr/colorManagement/inputInjection/mangoApp) = stock gamescope.
+  # Each patch forces a local rebuild, so each is its own option; even all-off is
+  # still rebuilt (gamescopePkg's always-on Steam-overlay postPatch).
   nv12BlackFrameFix = mkBoolOption { default = nv12BlackFrameFix; }; # black PipeWire frames (upstream 9851c60)
   nv12ChromaFix = mkBoolOption { default = nv12ChromaFix; }; # R/B swap on NVIDIA NV12/AVIF (upstream #2271)
   preferDiscreteGpu = mkBoolOption { default = preferDiscreteGpu; };
 
   # HDR-capable gamescope (HDR/colorimetry patches); stream HDR follows the client per-stream.
   hdr = mkBoolOption { default = hdr; };
+
+  # Render Proton Wayland games natively (instead of via Xwayland); inert unless steamOS=true
+  # (the baselayer driver lives in the steamos branch of the wait loop).
+  nativeWayland = mkBoolOption { default = nativeWayland; };
 
   # Forward Moonlight keyboard/mouse via inputtino passthrough + composite the X cursor
   # into the stream (the capture never composites it otherwise). One feature, one option.
