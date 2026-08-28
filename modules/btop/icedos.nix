@@ -66,10 +66,16 @@
               CONFIG_DIR="''${XDG_CONFIG_HOME:-''${HOME:-/nonexistent}/.config}/btop"
             fi
             if [ -f "$CONFIG_DIR/btop.conf" ]; then
-              exec ${pkgs.btop}/bin/btop \
-                -c "$CONFIG_DIR/btop.conf" \
-                --themes-dir "$CONFIG_DIR/themes" \
-                "$@"
+              if [ -d "$CONFIG_DIR/themes" ]; then
+                exec ${pkgs.btop}/bin/btop \
+                  -c "$CONFIG_DIR/btop.conf" \
+                  --themes-dir "$CONFIG_DIR/themes" \
+                  "$@"
+              fi
+
+              # Stylix disabled => no themes dir; run with config only so btop
+              # falls back to its bundled themes.
+              exec ${pkgs.btop}/bin/btop -c "$CONFIG_DIR/btop.conf" "$@"
             fi
             exec ${pkgs.btop}/bin/btop "$@"
           '';
