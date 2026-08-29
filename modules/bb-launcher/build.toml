@@ -1,0 +1,7 @@
+[[icedos.repositories]]
+url = "github:icedos/apps"
+fetchDependencies = false
+modules = ["bb-launcher"]
+
+[icedos.system]
+version = "26.05"
