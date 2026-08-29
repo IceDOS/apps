@@ -3,7 +3,10 @@
 import { spawn } from "node:child_process";
 import type { StdioOptions } from "node:child_process";
 import { existsSync } from "node:fs";
-import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import type {
+  ExtensionAPI,
+  ExtensionContext,
+} from "@earendil-works/pi-coding-agent";
 
 // peon-ping's hm module always installs this; the wrapper has its own PATH.
 const PEON_SH = "@peonSh@";

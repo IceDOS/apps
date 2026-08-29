@@ -17,6 +17,10 @@ portOverrides = {}
 # MCP tool-call timeout in seconds (60–3600). Heavy reviews may need more.
 mcpCallTimeout = 900
 
+# Install the cost-footer extension: live session cost (USD) in the TUI bottom bar,
+# with token totals and the active model; /cost toggles it at runtime.
+costFooter = true
+
 # Per-provider overrides merged into models.json (partial merge).
 providers = {}
 
