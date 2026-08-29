@@ -1,0 +1,10 @@
+[[icedos.repositories]]
+url = "github:icedos/apps"
+fetchDependencies = false
+modules = ["spotube"]
+
+[icedos.applications.spotube]
+nightly = true
+
+[icedos.system]
+version = "26.05"
