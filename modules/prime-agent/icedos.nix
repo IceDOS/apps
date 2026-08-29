@@ -15,6 +15,7 @@
         ;
 
       inherit ((importTOML ./config.toml).icedos.applications.prime-agent)
+        costFooter
         dataDir
         defaultModel
         defaultProvider
@@ -54,6 +55,9 @@
         source = ./config.toml;
         default = mcpCallTimeout;
       } 60 3600;
+
+      # Install the cost-footer extension: live session cost (USD) in the TUI bottom bar.
+      costFooter = mkBoolOption { default = costFooter; };
 
       skillDirs = mkStrListOption { default = skillDirs; };
 
@@ -907,6 +911,16 @@
                     '';
                   }
                   {
+                    # Both load a "cost-footer" extension and would double-render.
+                    assertion = !prime-agent.costFooter || !(prime-agent.extensions ? "cost-footer");
+                    message = ''
+                      icedos.applications.prime-agent.extensions already declares
+                      "cost-footer"; the built-in cost footer ships the same
+                      extension. Remove the inline declaration or set
+                      costFooter = false.
+                    '';
+                  }
+                  {
                     assertion = lib.all (n: builtins.match "[A-Za-z0-9._-]+" n != null) (
                       lib.attrNames prime-agent.extensions
                     );
@@ -936,6 +950,10 @@
                         # Installed by peon-ping's hm module; bin/peon carries its own PATH.
                         peonSh = "${config.home.homeDirectory}/.openpeon/peon.sh";
                       };
+                    })
+                    # Live session cost (USD) + token totals in the TUI bottom bar.
+                    (mkIf prime-agent.costFooter {
+                      "${relDataDir}/extensions/cost-footer".source = ./lib/cost-footer;
                     })
                   ]
                 );
