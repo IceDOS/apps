@@ -36,6 +36,7 @@ def _notify(message: str) -> None:
             stderr=subprocess.DEVNULL,
             env=_SAFE_ENV,
             timeout=5,
+            check=False,
         )
     except Exception:
         pass
@@ -69,9 +70,12 @@ def clipboard_copy(content: str) -> bool:
                 env=_SAFE_ENV,
                 start_new_session=True,
             )
+            stdin = proc.stdin
+            if stdin is None:  # unreachable with stdin=PIPE
+                continue
             try:
-                proc.stdin.write(content.encode())
-                proc.stdin.close()
+                stdin.write(content.encode())
+                stdin.close()
             except OSError:
                 # tool exited before consuming stdin (no display, ...)
                 try:
