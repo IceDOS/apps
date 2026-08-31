@@ -19,7 +19,7 @@
         let
           cfg = config.icedos.applications.steam.headless-session;
 
-          inherit (lib) mkIf;
+          inherit (lib) mkIf mkMerge;
 
           inherit (cfg)
             excludeHostControllers
@@ -55,6 +55,7 @@
             sunshinePortalConfig
             gidExec
             inputBridgeGroup
+            gamescopePkg
             ;
 
           inherit
@@ -149,25 +150,38 @@
               ''
             );
 
-          # setgid-`input` shim: `input` access for Steam/gamescope; gate = root or marker group.
-          security.wrappers = mkIf bridgeNeeded {
-            # Mode A (setgid `input`): Steam/gamescope. Daemon must NOT use it
-            # (gid-`input` fails the portal's /proc/<pid>/root check -> 503).
-            sunshine-headless-gid = {
-              setgid = true;
-              owner = "root";
-              group = "input";
-              source = "${gidExec}";
-            };
-            # Mode B (setuid root, daemon only): keeps caller gids, adds `input`, drops root.
-            sunshine-headless-gid-root = {
-              setuid = true;
-              owner = "root";
-              group = inputBridgeGroup;
-              permissions = "u+rx,g+x";
-              source = "${gidExec}";
-            };
-          };
+          # gamescope CAP_SYS_NICE wrapper (cap-only, setuid=false, always): lets gamescope
+          # SetNice(-20) + --rt. Registered regardless of the input bridge — the gid shim's
+          # setgid exec clears ambient caps, so the cap must enter via the wrapper it EXECs
+          # (chain: shim -> this wrapper -> gamescope). Mirrors the kwin_wayland cap wrapper.
+          security.wrappers = mkMerge [
+            (mkIf bridgeNeeded {
+              # Mode A (setgid `input`): Steam/gamescope. Daemon must NOT use it
+              # (gid-`input` fails the portal's /proc/<pid>/root check -> 503).
+              sunshine-headless-gid = {
+                setgid = true;
+                owner = "root";
+                group = "input";
+                source = "${gidExec}";
+              };
+              # Mode B (setuid root, daemon only): keeps caller gids, adds `input`, drops root.
+              sunshine-headless-gid-root = {
+                setuid = true;
+                owner = "root";
+                group = inputBridgeGroup;
+                permissions = "u+rx,g+x";
+                source = "${gidExec}";
+              };
+            })
+            {
+              sunshine-headless-gamescope = {
+                owner = "root";
+                group = "root";
+                source = "${gamescopePkg}/bin/gamescope";
+                capabilities = "cap_sys_nice+pie";
+              };
+            }
+          ];
 
           # Marker group the shim's caller gate checks; the wrapper turns it into `input`.
           users.groups = mkIf bridgeNeeded {
@@ -308,6 +322,36 @@
               RestrictRealtime = true;
               RestrictSUIDSGID = true;
               UMask = "0027";
+            };
+          };
+
+          # Recycler: tears the session down after sessionIdleTimeout without a stream,
+          # and regrows the minimal probe gamescope after gamescopeRegrowTimeout with no
+          # gamescope at all. Hardened like idle.service; it systemd-runs gamescope too.
+          systemd.user.services.sunshine-headless-recycle = {
+            description = "Sunshine headless session recycler (idle teardown + probe gamescope regrow)";
+            serviceConfig = {
+              Type = "oneshot";
+              ExecStart = "${lib.getExe sessionApp} recycle";
+              PrivateTmp = true;
+              NoNewPrivileges = true;
+              ProtectClock = true;
+              ProtectKernelTunables = true;
+              ProtectKernelModules = true;
+              ProtectControlGroups = true;
+              RestrictRealtime = true;
+              RestrictSUIDSGID = true;
+              UMask = "0027";
+            };
+          };
+
+          systemd.user.timers.sunshine-headless-recycle = {
+            wantedBy = [ "graphical-session.target" ];
+            partOf = [ "graphical-session.target" ];
+            timerConfig = {
+              Unit = "sunshine-headless-recycle.service";
+              OnBootSec = "1min";
+              OnUnitActiveSec = "30s";
             };
           };
 

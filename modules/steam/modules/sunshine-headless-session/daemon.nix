@@ -34,6 +34,11 @@ let
     sunshine_name=${name}
     port=${toString port}
     capture=portal
+    # Stream to Vulkan Video (RADV) directly: skips the futile nvenc probe and its
+    # libcuda/CUDA noise on AMD-only rigs.
+    encoder=vulkan
+    # Low Latency tune: reduces encoding delay at the cost of peak quality.
+    vk_tune=2
     audio_sink=steam-sunshine-headless-sink
     system_tray=false
     file_apps=${appsJson}
@@ -113,7 +118,12 @@ let
       # would deny /proc/<pid>/root).
       UMask = "0027";
     };
-    unitConfig.StartLimitIntervalSec = 0;
+    unitConfig = {
+      # Bounded restart window: a persistent failure (e.g. a port collision) must not loop
+      # in `/bin/false` every 3s forever; systemd backoffs after StartLimitBurst tries.
+      StartLimitIntervalSec = 300;
+      StartLimitBurst = 10;
+    };
   };
 in
 {
