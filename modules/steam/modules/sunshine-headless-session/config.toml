@@ -20,5 +20,8 @@ steamOS = true # Steam Deck UI mode (`steam -steamos3`): Steam manages gamescope
 colorManagement = true # Steam Display color controls (vibrance/temperature sliders); requires the patched gamescope
 mangoApp = true # MangoHud overlay (mangoapp): --mangoapp on the idle gamescope + STEAM_USE_MANGOAPP=1 on Steam
 inputInjection = true # Forward Moonlight keyboard/mouse into the headless session; composites the cursor too (one feature)
+realtime = true # Gamescope --rt (realtime SCHED_FIFO); off = only SetNice(-20)
 nativeWayland = true # Render Proton Wayland games natively (patched gamescope); inert without steamOS
 pauseOnDisconnect = false # Freeze the session cgroup ~10s after the last client leaves; thaw on reconnect
+sessionIdleTimeout = 900 # Seconds (15m) with no active stream before the session is torn down (Steam + full gamescope); 0 = never tear down
+gamescopeRegrowTimeout = 120 # Seconds (2m) with no gamescope at all before the minimal 1x1x1 probe gamescope is rerun (needs the daemon up); 0 = never regrow

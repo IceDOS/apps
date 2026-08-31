@@ -15,6 +15,7 @@ let
     autoStart
     colorManagement
     excludeHostControllers
+    gamescopeRegrowTimeout
     hdr
     inputInjection
     isolateVirtualControllers
@@ -26,8 +27,10 @@ let
     pauseOnDisconnect
     port
     preferDiscreteGpu
+    realtime
     secondarySteamSession
     secondarySteamSessionPath
+    sessionIdleTimeout
     renderHeight
     renderWidth
     sdrContentNits
@@ -60,6 +63,22 @@ in
   # Freeze the per-session Steam cgroup (SIGSTOP) ~10s after the last client disconnects;
   # thaw on reconnect. Off = keep running idle.
   pauseOnDisconnect = mkBoolOption { default = pauseOnDisconnect; };
+
+  # Seconds with no active stream before the session is torn down (injected Steam +
+  # the full gamescope); the minimal probe gamescope regrows on its own timer. 0 = off.
+  sessionIdleTimeout = mkIntBetweenOption {
+    path = "icedos.applications.steam.headless-session.sessionIdleTimeout";
+    source = ./config.toml;
+    default = sessionIdleTimeout;
+  } 0 86400;
+
+  # Seconds with no gamescope at all (teardown, crash, manual stop) before the minimal
+  # 1x1x1 probe gamescope is rerun so Sunshine's display probe keeps passing. 0 = off.
+  gamescopeRegrowTimeout = mkIntBetweenOption {
+    path = "icedos.applications.steam.headless-session.gamescopeRegrowTimeout";
+    source = ./config.toml;
+    default = gamescopeRegrowTimeout;
+  } 0 86400;
 
   # Keep host physical controllers out of the injected Steam (see scripts.nix).
   excludeHostControllers = mkBoolOption { default = excludeHostControllers; };
@@ -120,6 +139,9 @@ in
     source = ./config.toml;
     default = fsrSharpness;
   } 0 20;
+
+  # Gamescope --rt (realtime SCHED_FIFO; needs the cap_sys_nice wrapper). Off = only SetNice(-20).
+  realtime = mkBoolOption { default = realtime; };
 
   # Each patch forces a local rebuild, so each is its own option; even all-off is
   # still rebuilt (gamescopePkg's always-on Steam-overlay postPatch).

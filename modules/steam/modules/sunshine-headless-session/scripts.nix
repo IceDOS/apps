@@ -28,6 +28,11 @@ let
     excludeHostControllers
     inputInjection
     isolateVirtualControllers
+    realtime
+    secondarySteamSession
+    secondarySteamSessionPath
+    sessionIdleTimeout
+    gamescopeRegrowTimeout
     ;
 
   upscaleFlags =
@@ -113,7 +118,10 @@ let
           --setenv=HEADLESS_INPUT_MOUSE_ABS="Mouse passthrough (${headlessSeat}) (absolute)"
         )
       fi
-      gamescope_marker="${gamescopePkg}|''${input_inject}|''${gscope_wrap[*]:-}|''${input_args[*]:-}"
+      # gamescope always runs through the cap_sys_nice wrapper (SetNice(-20); --rt adds
+      # realtime). Wrapper is exec'd by the gid shim when inputInjection is on.
+      gamescope_wrapper=(/run/wrappers/bin/sunshine-headless-gamescope)
+      gamescope_marker="${gamescopePkg}|''${input_inject}|${if realtime then 1 else 0}|''${gamescope_wrapper[*]}|''${gscope_wrap[*]:-}|''${input_args[*]:-}"
       steamos_args=(${if steamOS then ''"-steamos3"'' else ""})
 
       # Match Steam by $HOME so wait/stop never touch a coexisting desktop/second-session Steam.
@@ -249,7 +257,7 @@ let
           --same-dir \
           --property="Environment=$gamescope_env" \
           "''${input_args[@]}" \
-          -- "''${gscope_wrap[@]}" ${gamescopePkg}/bin/gamescope \
+          -- "''${gscope_wrap[@]}" "''${gamescope_wrapper[@]}" ${if realtime then "--rt" else ""} \
               --backend headless \
               --expose-wayland \
               --steam \
@@ -265,6 +273,11 @@ let
           [ -S "$rt/gamescope-0" ] && break
           sleep 0.1
         done
+        # Surface a launch failure instead of streaming a black frame (previously silent).
+        if [ ! -S "$rt/gamescope-0" ]; then
+          echo "sunshine-headless: gamescope-0 never appeared within 30s of start_gamescope -W $w -H $h -r $fps (see: journalctl --user -u sunshine-headless-gamescope.service)" >&2
+          exit 1
+        fi
         sleep 1
       }
 
@@ -275,8 +288,17 @@ let
           | grep -q '/session/'
       }
 
+      # Recycle teardown: the full `stop` path per session HOME (idempotent; Sunshine's
+      # own undo may race in and re-run it, which is a no-op).
+      recycle_stop_sessions() {
+        "$0" stop
+        ${lib.optionalString secondarySteamSession ''"$0" stop "${secondarySteamSessionPath}"''}
+      }
+
       case "''${1:-}" in
         start)
+          # Heartbeat for the recycle timer: age of this file = minutes since the last stream.
+          touch "$rt/sunshine-headless-stream-hb" 2>/dev/null || true
           # Record the pre-stream desktop default sink (restored in `stop`).
           for _ in $(seq 1 10); do
             did="$(wpctl inspect @DEFAULT_AUDIO_SINK@ 2>/dev/null | grep -oP '^id \K[0-9]+' || true)"
@@ -616,8 +638,60 @@ let
           [ -S "$rt/gamescope-0" ] && systemctl --user is-active --quiet sunshine-headless-gamescope.service && exit 0
           start_gamescope "1" "1" "1" "0"
           ;;
+        recycle)
+          # 30s timer: tear the session down after sessionIdleTimeout without a stream,
+          # and regrow the minimal probe gamescope after gamescopeRegrowTimeout with
+          # no gamescope at all (teardown, crash, or manual stop).
+          hb="$rt/sunshine-headless-stream-hb"
+          gone="$rt/sunshine-headless-gamescope-gone"
+          if streaming_active; then
+            touch "$hb" 2>/dev/null || true
+            rm -f "$gone"
+            exit 0
+          fi
+          now="$(date +%s)"
+          hb_at="$(stat -c %Y "$hb" 2>/dev/null || echo 0)"
+          age=$(( now - hb_at ))
+          # Nix-injected values (seconds): assigned here so shellcheck sees them.
+          idle=${toString sessionIdleTimeout}
+          regrow=${toString gamescopeRegrowTimeout}
+
+          gs_active=0
+          if [ -S "$rt/gamescope-0" ] && systemctl --user is-active --quiet sunshine-headless-gamescope.service; then
+            gs_active=1
+          fi
+
+          if [ "$gs_active" = 1 ]; then
+            rm -f "$gone"
+            # The minimal probe gamescope has nothing to tear down.
+            params="$(cat "$rt/sunshine-headless-gamescope-params" 2>/dev/null || true)"
+            [ "$params" = "1 1 1 0" ] && exit 0
+            if [ "$idle" -gt 0 ] && [ "$age" -ge "$idle" ]; then
+              recycle_stop_sessions
+              stop_gamescope
+            fi
+            exit 0
+          fi
+
+          # No gamescope at all: clean up a session orphaned by a gamescope crash.
+          if [ "$idle" -gt 0 ] && [ "$age" -ge "$idle" ]; then
+            recycle_stop_sessions
+          fi
+          [ "$regrow" -gt 0 ] || exit 0
+          # Regrow only serves the daemon's display probe; a stopped daemon opts out.
+          systemctl --user is-active --quiet sunshine-headless.service || exit 0
+          gone_at="$(stat -c %Y "$gone" 2>/dev/null || true)"
+          if [ -z "$gone_at" ]; then
+            printf '%s\n' "$now" >"$gone"
+            exit 0
+          fi
+          if [ $(( now - gone_at )) -ge "$regrow" ]; then
+            rm -f "$gone"
+            start_gamescope "1" "1" "1" "0"
+          fi
+          ;;
         *)
-          echo "usage: sunshine-headless-session start [HOME]|wait [HOME]|stop [HOME]|cleanup|idle" >&2
+          echo "usage: sunshine-headless-session start [HOME]|wait [HOME]|stop [HOME]|cleanup|idle|recycle" >&2
           exit 1
           ;;
       esac

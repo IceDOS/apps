@@ -55,7 +55,6 @@
           inherit (applications.steam) beta cpuUsageWorkaround downloadsWorkaround;
 
           extraPackages = mapper pkgs applications.steam.extraPackages;
-          hasExtraPackages = length extraPackages != 0;
           hasGamescope = config.programs.gamescope.enable;
 
           hasProtonLaunch = icedosLib.hasModule {
@@ -68,9 +67,17 @@
             name = "me3";
           };
 
+          hasReigntweak = icedosLib.hasModule {
+            inherit config repoUrl;
+            name = "reigntweak";
+          };
+
           optionalGamescope = optional hasGamescope pkgs.gamescope;
           optionalProtonLaunch = optional hasProtonLaunch pkgs.proton-launch;
           optionalMe3 = optional hasMe3 pkgs.me3;
+          optionalReigntweak = optional hasReigntweak pkgs.reigntweak;
+          steamExtras =
+            extraPackages ++ optionalGamescope ++ optionalProtonLaunch ++ optionalMe3 ++ optionalReigntweak;
           optionalSunshineHeadlessSteamOS = applications.steam.headless-session.steamOS or false;
           session = hasAttr "session" applications.steam;
 
@@ -102,11 +109,11 @@
               # Any extras at all require the override; extras-only hosts must
               # not fall through to null or their packages get dropped.
               steamBase =
-                if (!hasGamescope && !hasProtonLaunch && !hasMe3 && !hasExtraPackages) then
+                if steamExtras == [ ] then
                   steamPkg.raw
                 else
                   steamPkg.raw.override {
-                    extraPkgs = pkgs: extraPackages ++ optionalGamescope ++ optionalProtonLaunch ++ optionalMe3;
+                    extraPkgs = _: steamExtras;
                   };
             in
             if optionalSunshineHeadlessSteamOS && beta then
@@ -137,7 +144,7 @@
           # DEFINED here → must use `raw` (not `resolved`, which reads this option).
           programs.steam = {
             enable = steamdeck || session;
-            extraPackages = extraPackages ++ optionalGamescope ++ optionalProtonLaunch ++ optionalMe3;
+            extraPackages = steamExtras;
             package = steamPkg.raw;
           };
 

@@ -5,7 +5,8 @@
   lib,
   inputs,
   cfg,
-  # The resolved system Steam (programs.steam.package when enabled, else pkgs.steam).
+  # The resolved system Steam (programs.steam.package when enabled, else an FHS env
+  # carrying programs.steam.extraPackages so launch-option helpers exist in /usr).
   steamPkg,
   # The headless daemon's Sunshine (pkgs.sunshine, same as daemon.nix).
   sunshinePkg,

@@ -78,6 +78,22 @@ static int IsAllowedTarget(const char *szPath)
 	return 0;
 }
 
+/* The gamescope cap_sys_nice wrapper (security.wrappers, setuid=false): its realpath is an
+ * opaque /run/wrappers/wrappers.<rand>/<name>, not a /nix/store shape. /run/wrappers is
+ * root-owned and populated only by NixOS activation, so an exact-basename gate drops the
+ * wrapper-in -> gamescope hop into the chain: shim -> cap-wrapper -> gamescope (the cap must
+ * come AFTER the shim's setgid exec, which clears ambient). */
+static int IsGamescopeCapWrapperTarget(const char *szPath)
+{
+	static const char k_szRunWrappers[] = "/run/wrappers/";
+	if (strncmp(szPath, k_szRunWrappers, sizeof(k_szRunWrappers) - 1) != 0)
+		return 0;
+	const char *szName = strrchr(szPath, '/');
+	if (szName == NULL)
+		return 0;
+	return strcmp(szName, "/sunshine-headless-gamescope") == 0;
+}
+
 /* Mode B (root/daemon) accepts sunshine-<ver> only. Same store-path shape
  * parsing as IsAllowedTarget. */
 static int IsSunshineTarget(const char *szPath)
@@ -236,6 +252,15 @@ int main(int argc, char **argv)
 	assert(!IsSunshineTarget("/nix/store/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-sunshine-" SUNSHINE_VERSION "-bwrap"));
 
 	/* Outside the store fails. */
+	/* Gamescope cap wrapper: exact basename under /run/wrappers (the opaque realpath
+	 * after ResolveTarget walks the wrappers.<rand> symlink); other names/paths fail. */
+	assert(IsGamescopeCapWrapperTarget("/run/wrappers/wrappers.abc123/sunshine-headless-gamescope"));
+	assert(IsGamescopeCapWrapperTarget("/run/wrappers/bin/sunshine-headless-gamescope"));
+	assert(!IsGamescopeCapWrapperTarget("/run/wrappers/wrappers.abc123/sunshine-headless-gamescope-extra"));
+	assert(!IsGamescopeCapWrapperTarget("/run/wrappers/bin/sunshine-headless-gid"));
+	assert(!IsGamescopeCapWrapperTarget("/nix/store/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-gamescope-3.16.28/bin/gamescope"));
+	assert(!IsGamescopeCapWrapperTarget("/bin/sh"));
+
 	assert(!IsAllowedTarget("/bin/sh"));
 	assert(!IsAllowedTarget("/nix/store/foo"));
 
@@ -320,9 +345,9 @@ int main(int argc, char **argv)
 	if (getegid() != getgid()) {
 		/* Mode A — SETGID-INPUT (gamescope / injected Steam): promote the wrapper group to the real
 		 * gid so bwrap mirrors `input` into the sandbox; these never talk to the portal. */
-		if (!IsAllowedTarget(szResolved)) {
+		if (!IsAllowedTarget(szResolved) && !IsGamescopeCapWrapperTarget(szResolved)) {
 			fprintf(stderr,
-			        "%s: refusing to exec '%s': target name is not a /nix/store steam-*/gamescope-* binary\n",
+			        "%s: refusing to exec '%s': target name is not a /nix/store steam-*/gamescope-* binary (or the gamescope cap wrapper)\n",
 			        argv[ 0 ], argv[ 1 ]);
 			return 2;
 		}
