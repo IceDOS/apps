@@ -29,6 +29,8 @@
         sessionRetentionDays
         providers
         skillDirs
+        shareTraces
+        telemetry
         ;
     in
     {
@@ -58,6 +60,14 @@
 
       # Install the cost-footer extension: live session cost (USD) in the TUI bottom bar.
       costFooter = mkBoolOption { default = costFooter; };
+
+      # Upload full session traces (transcripts, cwd, git repo/commit) to Prime
+      # Intellect to train open-source LLMs. Off by default; /traces on toggles it.
+      shareTraces = mkBoolOption { default = shareTraces; };
+
+      # Send product analytics (token usage, model/provider categories) to Prime
+      # Intellect. Off by default (flips upstream's telemetry.enabled = true).
+      telemetry = mkBoolOption { default = telemetry; };
 
       skillDirs = mkStrListOption { default = skillDirs; };
 
@@ -502,8 +512,10 @@
                   })
                   // {
                     mcpServers = mcpServers;
-                    # Upstream defaults this to true.
-                    telemetry.enabled = false;
+                    # Deterministic even at the upstream default (agentTraces off).
+                    agentTraces.enabled = prime-agent.shareTraces;
+                    # Upstream defaults this to true; expose it so a user can flip it on.
+                    telemetry.enabled = prime-agent.telemetry;
                   };
 
                 # ---- per-server skill files ----

@@ -32,3 +32,11 @@ includeInIcedosGc = false
 
 # GC retention: prune sessions/logs older than this many days.
 sessionRetentionDays = 30
+
+# Send session traces (full transcripts, cwd, git repo/commit) to Prime Intellect to
+# train open-source LLMs. Off by default; /traces on in the TUI toggles it at runtime.
+shareTraces = false
+
+# Send product analytics (token usage, model/provider categories) to Prime Intellect.
+# Off by default; flips prime-agent's upstream `telemetry.enabled` (default true).
+telemetry = false
