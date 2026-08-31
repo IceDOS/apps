@@ -1,22 +1,20 @@
 diff --git a/src/steamcompmgr.cpp b/src/steamcompmgr.cpp
-index ff9ae1f..a77b673 100644
+index 35cd64e..bf633a6 100644
 --- a/src/steamcompmgr.cpp
 +++ b/src/steamcompmgr.cpp
-@@ -135,6 +135,10 @@ bool g_bWasPartialComposite = false;
+@@ -134,6 +134,8 @@ bool g_bWasPartialComposite = false;
  
  bool ShouldDrawCursor();
  
-+// Defined later in this file; declared up front because paint_pipewire() paints
-+// the cursor into the stream and must gate on the same flag as the main path.
 +extern gamescope::ConVar<bool> cv_paint_cursor_plane;
 +
  std::atomic<uint32_t> g_unCurrentVRSceneAppId;
  std::atomic<uint64_t> g_FocusedVROverlayMouse;
  std::atomic<uint64_t> g_FocusedVROverlayKeyboard;
-@@ -2391,8 +2395,22 @@ static void paint_pipewire()
+@@ -2422,6 +2424,18 @@ static void paint_pipewire()
+ 
  	uint64_t ulFocusCommitId = window_last_done_commit_id( pFocus->focusWindow );
  	uint64_t ulOverrideCommitId = window_last_done_commit_id( pFocus->overrideWindow );
- 
 +	// Composite a live cursor into the stream: repaint when the cursor moves
 +	// (or its visibility flips), not only when a window commits, so the cursor
 +	// stays usable over a static UI. Mirrors the main output path's behaviour.
@@ -29,15 +27,20 @@ index ff9ae1f..a77b673 100644
 +	s_LastCursorX = pCursorFocus && pCursorFocus->cursor ? pCursorFocus->cursor->x() : s_LastCursorX;
 +	s_LastCursorY = pCursorFocus && pCursorFocus->cursor ? pCursorFocus->cursor->y() : s_LastCursorY;
 +	s_LastCursorVisible = cursorVisible;
-+
+ 	uint64_t ulUnderlayCommitId = window_last_done_commit_id( pFocus->overrideUnderlayWindow );
+ 
+ 	// Combine the decoration commits so damage to any of them, or a change
+@@ -2433,7 +2447,8 @@ static void paint_pipewire()
  	if ( ulFocusCommitId == s_ulLastFocusCommitId &&
--	     ulOverrideCommitId == s_ulLastOverrideCommitId )
-+	     ulOverrideCommitId == s_ulLastOverrideCommitId &&
+ 	     ulOverrideCommitId == s_ulLastOverrideCommitId &&
+ 	     ulUnderlayCommitId == s_ulLastUnderlayCommitId &&
+-	     ulDecorationCommitId == s_ulLastDecorationCommitId )
++	     ulDecorationCommitId == s_ulLastDecorationCommitId &&
 +	     !cursorChanged )
  		return;
  
  	s_ulLastFocusCommitId = ulFocusCommitId;
-@@ -2421,6 +2439,18 @@ static void paint_pipewire()
+@@ -2483,6 +2498,18 @@ static void paint_pipewire()
  				( cv_overlay_unmultiplied_alpha ? PaintWindowFlag::CoverageMode : 0 )  );
  	}
  
@@ -54,5 +57,5 @@ index ff9ae1f..a77b673 100644
 +	}
 +
  	gamescope::Rc<CVulkanTexture> pRGBTexture = s_pPipewireBuffer->texture->isYcbcr()
- 		? vulkan_acquire_capture_texture( uWidth, uHeight, false, DRM_FORMAT_XRGB2101010 )
+ 		? vulkan_acquire_capture_texture( uWidth, uHeight, false, vulkan_get_rgb10_capture_format() )
  		: gamescope::Rc<CVulkanTexture>{ s_pPipewireBuffer->texture };
