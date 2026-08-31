@@ -19,8 +19,6 @@ let
     mangoApp
     nativeWayland
     steamOS
-    nv12BlackFrameFix
-    nv12ChromaFix
     preferDiscreteGpu
     sdrGamutWideness
     sdrContentNits
@@ -29,12 +27,10 @@ let
   # Marker group for the input bridge; the wrapper alone turns it into `input` access.
   inputBridgeGroup = "sunshine-headless";
 
-  # Every patch is gated by its own option (each forces a local rebuild). PR refs: 9851c60, #2271, #2217, #2270.
+  # Every patch is gated by its own option (each forces a local rebuild). PR refs: #2271, #2217, #2270.
   # Bespoke native-wayland.patch has no upstream PR; gamescopePkg always adds a Steam-overlay postPatch.
   anyGamescopePatch =
-    nv12BlackFrameFix
-    || nv12ChromaFix
-    || preferDiscreteGpu
+    preferDiscreteGpu
     || inputInjection
     || (nativeWayland && steamOS)
     || hdr
@@ -43,8 +39,6 @@ let
   gamescopePatched = pkgs.gamescope.overrideAttrs (old: {
     patches =
       (old.patches or [ ])
-      ++ lib.optionals nv12BlackFrameFix [ ./lib/pipewire-bsampled.patch ]
-      ++ lib.optionals nv12ChromaFix [ ./lib/pipewire-xbgr-rgb10.patch ]
       ++ lib.optionals preferDiscreteGpu [ ./lib/prefer-discrete-gpu.patch ]
       # nativeWayland works only in SteamOS mode (baselayer driver is in the steamos
       # wait-loop branch), so the patch applies there only; non-steamOS keeps stock.
