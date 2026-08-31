@@ -4,7 +4,6 @@
   at-spi2-core,
   atk,
   autoPatchelfHook,
-  bash,
   cairo,
   cups,
   dbus,
@@ -29,6 +28,7 @@
   libxcb,
   libxkbcommon,
   makeDesktopItem,
+  makeWrapper,
   mesa,
   nspr,
   nss,
@@ -74,6 +74,7 @@ stdenv.mkDerivation {
 
   nativeBuildInputs = [
     autoPatchelfHook
+    makeWrapper
   ];
 
   buildInputs = [
@@ -125,11 +126,7 @@ stdenv.mkDerivation {
     rm -f $out/usr/lib/libXtst.so.6
 
         mkdir -p $out/bin
-        cat > $out/bin/${pname} <<WRAPPER
-    #!${bash}/bin/bash
-    exec $out/${pname}.bin --no-sandbox "\$@"
-    WRAPPER
-        chmod +x $out/bin/${pname}
+        makeWrapper $out/${pname}.bin $out/bin/${pname}
 
         install -Dm644 $out/${icon} \
           $out/share/icons/hicolor/512x512/apps/${icon}

@@ -81,13 +81,10 @@
             pkgs.symlinkJoin {
               name = "steam-steamos3";
               paths = [ pkg ];
+              nativeBuildInputs = [ pkgs.makeWrapper ];
               postBuild = ''
                 mv $out/bin/steam $out/bin/steam.real
-                cat > $out/bin/steam <<'WRAPPER'
-                  #!${pkgs.bash}/bin/bash
-                  exec "$(dirname "$0")/steam.real" -steamos3 "$@"
-                WRAPPER
-                chmod +x $out/bin/steam
+                makeWrapper $out/bin/steam.real $out/bin/steam --add-flags "-steamos3"
               '';
             };
 
