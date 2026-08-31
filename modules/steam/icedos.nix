@@ -57,14 +57,23 @@
           extraPackages = mapper pkgs applications.steam.extraPackages;
           hasExtraPackages = length extraPackages != 0;
           hasGamescope = config.programs.gamescope.enable;
+
           hasProtonLaunch = icedosLib.hasModule {
             inherit config repoUrl;
             name = "proton-launch";
           };
+
+          hasMe3 = icedosLib.hasModule {
+            inherit config repoUrl;
+            name = "me3";
+          };
+
           optionalGamescope = optional hasGamescope pkgs.gamescope;
           optionalProtonLaunch = optional hasProtonLaunch pkgs.proton-launch;
+          optionalMe3 = optional hasMe3 pkgs.me3;
           optionalSunshineHeadlessSteamOS = applications.steam.headless-session.steamOS or false;
           session = hasAttr "session" applications.steam;
+
           steamdeck = icedosLib.hasModule {
             inherit config;
             url = "github:icedos/hardware";
@@ -90,19 +99,17 @@
 
           steamFinal =
             let
+              # Any extras at all require the override; extras-only hosts must
+              # not fall through to null or their packages get dropped.
               steamBase =
-                if (!hasGamescope && !hasProtonLaunch && !hasExtraPackages) then
+                if (!hasGamescope && !hasProtonLaunch && !hasMe3 && !hasExtraPackages) then
                   steamPkg.raw
-                else if (hasGamescope || hasProtonLaunch) then
-                  steamPkg.raw.override {
-                    extraPkgs = pkgs: extraPackages ++ optionalGamescope ++ optionalProtonLaunch;
-                  }
                 else
-                  null;
+                  steamPkg.raw.override {
+                    extraPkgs = pkgs: extraPackages ++ optionalGamescope ++ optionalProtonLaunch ++ optionalMe3;
+                  };
             in
-            if steamBase == null then
-              null
-            else if optionalSunshineHeadlessSteamOS && beta then
+            if optionalSunshineHeadlessSteamOS && beta then
               wrapSteamos3 steamBase
             else
               steamBase;
@@ -123,14 +130,14 @@
                 };
               };
 
-              home.packages = if !session && steamFinal != null then [ steamFinal ] else [ ];
+              home.packages = if !session then [ steamFinal ] else [ ];
             }
           ];
 
           # DEFINED here → must use `raw` (not `resolved`, which reads this option).
           programs.steam = {
             enable = steamdeck || session;
-            extraPackages = extraPackages ++ optionalGamescope ++ optionalProtonLaunch;
+            extraPackages = extraPackages ++ optionalGamescope ++ optionalProtonLaunch ++ optionalMe3;
             package = steamPkg.raw;
           };
 
