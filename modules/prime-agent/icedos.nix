@@ -1005,6 +1005,18 @@
                       ];
                     };
                   }
+                  {
+                    # Zed's terminal lacks the kitty keyboard protocol; send the
+                    # CSI-u shift+enter both prime-agent and Claude Code parse.
+                    context = "Terminal";
+                    bindings = {
+                      shift-enter = [
+                        "terminal::SendText"
+                        # Nix has no \u escapes; parse the JSON escape to a real ESC.
+                        (builtins.fromJSON "\"\\u001b[13;2u\"")
+                      ];
+                    };
+                  }
                 ];
               }
             )
