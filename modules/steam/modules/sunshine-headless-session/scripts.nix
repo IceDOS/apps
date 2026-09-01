@@ -121,7 +121,7 @@ let
       # gamescope always runs through the cap_sys_nice wrapper (SetNice(-20); --rt adds
       # realtime). Wrapper is exec'd by the gid shim when inputInjection is on.
       gamescope_wrapper=(/run/wrappers/bin/sunshine-headless-gamescope)
-      gamescope_marker="${gamescopePkg}|''${input_inject}|${if realtime then 1 else 0}|''${gamescope_wrapper[*]}|''${gscope_wrap[*]:-}|''${input_args[*]:-}"
+      gamescope_marker="${gamescopePkg}|''${input_inject}|${if realtime then "1" else "0"}|''${gamescope_wrapper[*]}|''${gscope_wrap[*]:-}|''${input_args[*]:-}"
       steamos_args=(${if steamOS then ''"-steamos3"'' else ""})
 
       # Match Steam by $HOME so wait/stop never touch a coexisting desktop/second-session Steam.
