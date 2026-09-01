@@ -751,16 +751,7 @@
                 # ---- models.json ----
                 # zen 429s unless identified as an opencode client.
                 opencodeVersion = config.programs.opencode.package.version or pkgs.opencode.version;
-
-                providerDefaults = {
-                  opencode = {
-                    headers = {
-                      "User-Agent" = "opencode/${opencodeVersion}";
-                    };
-
-                    apiKey = "!node -p 'JSON.parse(require(\"fs\").readFileSync(process.env.HOME + \"/.local/share/opencode/auth.json\", \"utf8\")).opencode.key'";
-                  };
-                };
+                providerDefaults.opencode.headers."User-Agent" = "opencode/${opencodeVersion}";
 
                 # modelOverrides stays as-is for partial merge; models[] merges in
                 # custom models (adds unknown ids, replaces known ones).
