@@ -46,7 +46,8 @@ main() {
 
   # Compute npmDepsHash from the fixed lockfile.
   info "  Computing npmDepsHash..."
-  local tmpdir
+  # global on purpose: the EXIT trap fires after main() returns,
+  # where a `local` would already be out of scope (set -u)
   tmpdir=$(mktemp -d)
   trap 'rm -rf "$tmpdir"' EXIT
 
