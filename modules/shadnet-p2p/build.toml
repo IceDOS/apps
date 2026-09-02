@@ -1,0 +1,7 @@
+[[icedos.repositories]]
+url = "github:icedos/apps"
+fetchDependencies = false
+modules = ["shadnet-p2p"]
+
+[icedos.system]
+version = "26.05"

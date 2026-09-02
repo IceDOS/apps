@@ -5,9 +5,7 @@ modules = ["shadps4"]
 
 [icedos.applications.shadps4]
 prerelease = true
-# Explicit: config.toml defaults shadnet = true now, but this build config must
-# stay the prerelease-only variant (build-prerelease-shadnet.toml covers the merge).
-shadnet = false
+shadnet = true
 
 [icedos.system]
 version = "26.05"

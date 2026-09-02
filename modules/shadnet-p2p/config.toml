@@ -1,0 +1,18 @@
+[icedos.applications.shadnet-p2p]
+# Run the server as a managed systemd unit. False = just install the binary.
+enable = false
+# Bloodborne seamless co-op (pairs with the seamless client fork). Normal co-op
+# works with a stock shadPS4 client. Must match the client's mode: the shadps4
+# module's shadnet builds wrap the shadps4 binary with
+# SHADPS4_BLOODBORNE_SEAMLESS_COOP=1, so every entry point runs seamless.
+seamless = true
+# IP to bind. 0.0.0.0 makes the server reachable on the LAN.
+host = "0.0.0.0"
+# Writable state dir for db/shadnet.cfg/worlds.cfg/scoreboards.cfg (SHADNET_HOME).
+stateDir = "/var/lib/shadnet-p2p"
+# Open the server's TCP/UDP/HTTP ports in the firewall.
+openFirewall = false
+# Also expose the server as a per-user systemd unit via home-manager
+# (systemd --user, state in ~/.local/share/shadnet). Don't enable both this
+# and `enable` at once: they bind the same ports.
+userService = false
