@@ -1,0 +1,21 @@
+name: Update shadnet-p2p
+
+# Thin wrapper: all logic lives in .github/workflows/module-update.yml. The
+# updater opens a PR and cache-server's external build gates the merge, so this
+# repo's main only advances after a green build.
+on:
+  schedule:
+    # GitHub may delay or skip scheduled runs, and they only run on the default branch.
+    - cron: "30 3 * * *"
+  workflow_dispatch:
+permissions: {}
+
+jobs:
+  update:
+    uses: ./.github/workflows/module-update.yml
+    with:
+      module: shadnet-p2p
+      paths: modules/shadnet-p2p
+      command: nix-shell modules/shadnet-p2p/update.sh
+      version-file: modules/shadnet-p2p/source.json
+    secrets: inherit

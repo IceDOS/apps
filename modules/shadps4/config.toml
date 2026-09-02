@@ -1,2 +1,3 @@
 [icedos.applications.shadps4]
 prerelease = false
+shadnet = false
