@@ -8204,7 +8204,7 @@ index a8ac368b..9407325c 100644
  void PrePatchInstructions(u64 segment_addr, u64 segment_size);
  
 diff --git a/src/core/libraries/network/http.cpp b/src/core/libraries/network/http.cpp
-index 4d78800a..b319e6ee 100644
+index bd7c13b4..9289d4c3 100644
 --- a/src/core/libraries/network/http.cpp
 +++ b/src/core/libraries/network/http.cpp
 @@ -6,6 +6,7 @@
@@ -8215,7 +8215,7 @@ index 4d78800a..b319e6ee 100644
  #include <cstring>
  #include <deque>
  #include <fstream>
-@@ -22,6 +23,8 @@
+@@ -23,6 +24,8 @@
  #include "common/elf_info.h"
  #include "common/logging/log.h"
  #include "common/path_util.h"
@@ -8223,8 +8223,8 @@ index 4d78800a..b319e6ee 100644
 +#include "core/debugger.h"
  #include "core/emulator_settings.h"
  #include "core/libraries/error_codes.h"
- #include "core/libraries/kernel/orbis_error.h"
-@@ -207,14 +210,16 @@ static std::string HttpStatusLabel(int sc);
+ #include "core/libraries/kernel/kernel.h"
+@@ -220,14 +223,16 @@ static std::string HttpStatusLabel(int sc);
  //     "api.something.dev":                    "http://localhost:8080",
  //     "discovery.something.com:5300":         "http://localhost:8080",
  //     "https://api.example.com:443":          "http://localhost:8081",
@@ -8245,7 +8245,7 @@ index 4d78800a..b319e6ee 100644
  //
  // Replacement value is a URL with scheme + host + optional port. When port is
  // omitted the default for the scheme is used (80 for http, 443 for https).
-@@ -229,7 +234,8 @@ struct HostOverrideTarget {
+@@ -242,7 +247,8 @@ struct HostOverrideTarget {
  std::unordered_map<std::string, HostOverrideTarget> ParseHostOverridesJson(
      const std::string& json_text);
  
@@ -8255,7 +8255,7 @@ index 4d78800a..b319e6ee 100644
  
  // Populate a response object with the shape a transport-level failure produces:
  // no status line, no headers, no body. Used by the no-internet path.
-@@ -350,12 +356,14 @@ static const HostOverrideState& GetHostOverrideState() {
+@@ -363,12 +369,14 @@ static const HostOverrideState& GetHostOverrideState() {
      return s;
  }
  
@@ -8271,7 +8271,7 @@ index 4d78800a..b319e6ee 100644
      //   "scheme://host:port"  - matches that exact endpoint
      //   "host:port"           - matches host+port on any scheme
      //   "host"                - matches host on any scheme/port
-@@ -363,7 +371,44 @@ bool ApplyHostOverride(std::string& scheme, std::string& host, u16& port, bool&
+@@ -376,7 +384,44 @@ bool ApplyHostOverride(std::string& scheme, std::string& host, u16& port, bool&
      const std::string full_key = scheme + "://" + host + ":" + std::to_string(port);
      const std::string host_port_key = host + ":" + std::to_string(port);
  
@@ -8317,7 +8317,7 @@ index 4d78800a..b319e6ee 100644
      if (it == state.entries.end()) {
          it = state.entries.find(host_port_key);
      }
-@@ -629,6 +674,174 @@ bool IsFollowableRedirect(int status, s32 method) {
+@@ -649,6 +694,174 @@ bool IsFollowableRedirect(int status, s32 method) {
      return true;
  }
  
@@ -8492,7 +8492,7 @@ index 4d78800a..b319e6ee 100644
  // 303 changes the new method to GET unless original was HEAD
  // Every other followable status preserves the original method.
  s32 MethodAfterRedirect(int status, s32 original_method) {
-@@ -1247,7 +1460,8 @@ int PS4_SYSV_ABI sceHttpCreateConnectionWithURL(int tmplId, const char* url, boo
+@@ -1401,7 +1614,8 @@ int PS4_SYSV_ABI sceHttpCreateConnectionWithURL(int tmplId, const char* url, boo
      scheme_str = is_secure ? "https" : "http";
      u16 port = parsed.port;
      std::string host_str = parsed.hostname;
@@ -8502,7 +8502,7 @@ index 4d78800a..b319e6ee 100644
  
      std::lock_guard<std::mutex> lock(g_state.m_mutex);
      if (!g_state.inited) {
-@@ -1563,6 +1777,8 @@ int PS4_SYSV_ABI sceHttpSendRequest(int reqId, const void* postData, u64 size) {
+@@ -1744,6 +1958,8 @@ int PS4_SYSV_ABI sceHttpSendRequest(int reqId, const void* postData, u64 size) {
          }
      }
  
@@ -8511,7 +8511,7 @@ index 4d78800a..b319e6ee 100644
      const bool online = EmulatorSettings.IsConnectedToNetwork();
      LOG_INFO(Lib_Http, "reqId={} dispatched to async worker [{} {} {}://{}:{}{}]", reqId,
               online ? "ONLINE" : "OFFLINE", HttpMethodName(plan.method), plan.scheme, plan.host,
-@@ -1580,6 +1796,19 @@ int PS4_SYSV_ABI sceHttpSendRequest(int reqId, const void* postData, u64 size) {
+@@ -1761,6 +1977,19 @@ int PS4_SYSV_ABI sceHttpSendRequest(int reqId, const void* postData, u64 size) {
              worker_errno = RunRealHttpRequest(plan, local_res, success_event_bits);
          }
  
@@ -9880,7 +9880,7 @@ index 0b5de062..cfe65e44 100644
      std::filesystem::path ebootPath(*gamePath);
      const auto archive_component_exists = [](const std::filesystem::path& p) -> bool {
 diff --git a/tests/CMakeLists.txt b/tests/CMakeLists.txt
-index e5118e3f..9a2f7b22 100644
+index d5275d6e..e05935c9 100644
 --- a/tests/CMakeLists.txt
 +++ b/tests/CMakeLists.txt
 @@ -276,6 +276,7 @@ set(HTTP_TEST_SOURCES
@@ -9892,10 +9892,10 @@ index e5118e3f..9a2f7b22 100644
      # Tests
      network/test_http_uri.cpp
 diff --git a/tests/network/test_http_lifecycle.cpp b/tests/network/test_http_lifecycle.cpp
-index 0f16c2d8..9ff48798 100644
+index 18f247e0..d573cc2b 100644
 --- a/tests/network/test_http_lifecycle.cpp
 +++ b/tests/network/test_http_lifecycle.cpp
-@@ -1810,7 +1810,8 @@ struct HostOverrideTarget {
+@@ -1802,7 +1802,8 @@ struct HostOverrideTarget {
  };
  std::unordered_map<std::string, HostOverrideTarget> ParseHostOverridesJson(
      const std::string& json_text);
@@ -9905,7 +9905,7 @@ index 0f16c2d8..9ff48798 100644
  } // namespace Libraries::Http
  
  namespace {
-@@ -2046,6 +2047,7 @@ TEST(HostOverride, InactivePreservesUnusualPort) {
+@@ -2038,6 +2039,7 @@ TEST(HostOverride, InactivePreservesUnusualPort) {
  // --- ApplyHostOverride: behavior WITH the test JSON file pre-staged ---
  static const char* kTestOverrideJson = R"({
      "api.example.com": "localhost:8080",
@@ -9913,7 +9913,7 @@ index 0f16c2d8..9ff48798 100644
      "*": "mock.local:8443"
  })";
  
-@@ -2063,4 +2065,21 @@ TEST(HostOverride, ActiveExactHostMatchFromJsonFile) {
+@@ -2055,4 +2057,21 @@ TEST(HostOverride, ActiveExactHostMatchFromJsonFile) {
      EXPECT_TRUE(any_change);
  }
  
