@@ -1,5 +1,6 @@
 {
   alsa-lib,
+  appimageTools,
   autoPatchelfHook,
   dbus,
   extractAppImage,
@@ -22,7 +23,6 @@
   libxtst,
   makeDesktopItem,
   stdenv,
-  steam-run-free,
   wayland,
   zlib,
 }:
@@ -114,7 +114,7 @@ stdenv.mkDerivation {
     ${extractAppImage {
       src = simpmusicAppimage;
       extractedDir = "squashfs-root";
-      steamRun = steam-run-free;
+      inherit appimageTools;
     }}
 
     install -Dm644 $out/${icon} \
