@@ -44,6 +44,42 @@ let
     file_apps=${appsJson}
   '');
 
+  # Post-start: confirm the configured encoder actually initialized and surface the selected
+  # encoder + GPU in the journal, so a dead stream has a root cause. Best-effort, exits 0.
+  encoderDiag = pkgs.writeShellScript "sunshine-headless-encoder-diag" ''
+    # Same XDG_CONFIG_HOME the unit exports, so the path tracks a config redirect.
+    log="''${XDG_CONFIG_HOME:-$HOME/.config/sunshine-headless}/sunshine/sunshine.log"
+    # ExecStartPost can beat Sunshine's first log creation on a cold start; give it a moment.
+    for _ in $(seq 1 20); do [ -f "$log" ] && break; sleep 0.1; done
+    [ -f "$log" ] || { echo "sunshine-headless-encoder: no log at $log" >&2; exit 0; }
+    start="$(stat -c %s "$log" 2>/dev/null || echo 0)"
+    # Wait for this boot's H.264 outcome (Found or failed init); HEVC's line can land first and would mislead the warning.
+    fresh=""
+    h264_done=""
+    for _ in $(seq 1 80); do
+      size="$(stat -c %s "$log" 2>/dev/null || echo 0)"
+      [ "$size" -gt "$start" ] || { sleep 0.1; continue; }
+      fresh="$(tail -c +$((start + 1)) "$log" 2>/dev/null || true)"
+      if printf '%s\n' "$fresh" | grep -qE 'Found H\.264 encoder:|Could not open codec \[h264_vulkan\]'; then
+        h264_done=1
+        break
+      fi
+      sleep 0.1
+    done
+    # Late start or H.264 line never within 8s: use the newest block in the file.
+    if [ -z "$h264_done" ]; then
+      fresh="$(tail -n 200 "$log" 2>/dev/null || true)"
+    fi
+    printf '%s\n' "$fresh" | grep -E "config: 'encoder' =|Found (H\.264|HEVC) encoder:|Vulkan encode using GPU:" \
+      | sed -E 's/^\[[^]]*\]: (Info|Warning|Error): //' \
+      | sed 's/^/sunshine-headless-encoder: /'
+    cfg_enc="$(printf '%s\n' "$fresh" | sed -nE "s/^.*config: 'encoder' = ([a-z0-9_]+).*/\1/p" | tail -n1)"
+    if [ "$cfg_enc" = vulkan ] && ! printf '%s\n' "$fresh" | grep -q 'Found H\.264 encoder: .*\[vulkan\]'; then
+      echo "sunshine-headless-encoder: WARNING configured encoder=vulkan but no Vulkan H.264 encoder was found; streaming may fail. Consider encoder=vaapi." >&2
+    fi
+    exit 0
+  '';
+
   # Same port offsets as the primary (relative to 47989), shifted to this base.
   firewall = {
     allowedTCPPorts = [
@@ -107,6 +143,8 @@ let
       ExecStart =
         (lib.optionalString bridgeNeeded "/run/wrappers/bin/sunshine-headless-gid-root ")
         + "${pkgs.sunshine}/bin/sunshine ${sunshineConf}";
+      # Post-start: surface the selected encoder / GPU and warn if vulkan init failed.
+      ExecStartPost = "${encoderDiag}";
       Restart = "always";
       RestartSec = "3s";
       # SIGKILL + clean D-Bus disconnect: the SIGTERM watchdog hangs ~10s and leaks the portal session.
