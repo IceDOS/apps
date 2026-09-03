@@ -88,6 +88,7 @@ let
     ++ (with pkgs; [
       coreutils
       gawk # awk: parse pactl output in the per-stream audio mover
+      acl # getfacl: verify headless pads are uaccess-stripped
       procps
       pulseaudio # pactl: create/destroy the on-demand null-sink, move game streams onto it
       systemd # systemd-run/systemctl: cgroup device-policy scope for the injected Steam
@@ -123,6 +124,12 @@ let
       gamescope_wrapper=(/run/wrappers/bin/sunshine-headless-gamescope)
       gamescope_marker="${gamescopePkg}|''${input_inject}|${if realtime then "1" else "0"}|''${gamescope_wrapper[*]}|''${gscope_wrap[*]:-}|''${input_args[*]:-}"
       steamos_args=(${if steamOS then ''"-steamos3"'' else ""})
+
+      # Only these install a 72-sunshine-headless-*-no-uaccess.rules udev rule, so only
+      # they have uaccess stripping worth verifying; steamOS alone adds none.
+      bridge_needed=0
+      [ "$isolate_virt" = 1 ] && bridge_needed=1
+      [ "$input_inject" = 1 ] && bridge_needed=1
 
       # Match Steam by $HOME so wait/stop never touch a coexisting desktop/second-session Steam.
       sess_home="''${2:-$HOME}"
@@ -196,6 +203,46 @@ let
         done
         return 1
       }
+      # Verify the input bridge actually held: virtual streaming devices must carry the
+      # seat marker, and (when isolation is on) be uaccess-stripped so the human user can't
+      # open them without the shim. Warn once on any leak; never blocks streaming.
+      verify_input_isolation() {
+        [ "$bridge_needed" = 1 ] || return 0
+        local user name node leaked=0 node_dev
+        user="$(id -un)"
+        for node in /sys/class/input/event*; do
+          [ -e "$node/device/name" ] || continue
+          name="$(cat "$node/device/name" 2>/dev/null || true)"
+          case "$name" in
+            *Sunshine* | *passthrough*) ;;
+            *) continue ;;
+          esac
+          # Every virtual device from this daemon carries the seat marker (XDG_SEAT).
+          case "$name" in
+            *"(${headlessSeat})"*) ;;
+            *)
+              # Only meaningful where a uaccess-stripping rule is actually installed.
+              if { [ "$isolate_virt" = 1 ] || [ "$input_inject" = 1 ]; } && [ "''${seat_warned:-0}" != 1 ]; then
+                # Primary daemon's pads legitimately lack the marker: warn once, never latch leaked.
+                echo "sunshine-headless: virtual input device '$name' lacks the headless seat marker (${headlessSeat}); it may collide with the primary daemon and evade uaccess stripping" >&2
+                seat_warned=1
+              fi
+              continue
+              ;;
+          esac
+          # uaccess-strip applies only to the class whose udev rule is installed.
+          case "$name" in
+            *passthrough*) [ "$input_inject" = 1 ] || continue ;;
+            *) [ "$isolate_virt" = 1 ] || continue ;;
+          esac
+          node_dev="/dev/input/''${node##*/}"
+          if getfacl -p -c "$node_dev" 2>/dev/null | grep -q "^user:''${user}:"; then
+            echo "sunshine-headless: uaccess NOT stripped on $node_dev ('$name'); the streaming user can open it without the shim" >&2
+            leaked=1
+          fi
+        done
+        return "$leaked"
+      }
       # Pin Steam-subtree audio to the capture sink (default-following apps escape PULSE_SINK).
       route_session_audio() {
         local target sess ci pid idx sinkid
@@ -245,6 +292,7 @@ let
         printf '%s' "$gamescope_marker" >"$rt/sunshine-headless-gamescope-bin"
 
         gamescope_env="DISPLAY=:1 ENABLE_GAMESCOPE_WSI=1 PATH=${mangoappWrapper}/bin:${gamescopePkg}/bin${lib.optionalString mangoApp " MANGOHUD_CONFIGFILE=$rt/sunshine-mangoapp.conf"}"
+
         # Free the transient unit first: a leftover makes systemd-run refuse the name.
         rm -f "$rt/gamescope-0"
         systemctl --user reset-failed sunshine-headless-gamescope.service 2>/dev/null || true
@@ -448,6 +496,9 @@ let
           # Keep the desktop default off the stream/sunshine sinks (Sunshine re-defaults its own).
           last_default="$(cat "$rt/sunshine-headless-default-sink" 2>/dev/null || true)"
           last_baselayer=""
+          iso_tick=0
+          iso_warned=0
+          seat_warned=0
 
           # Block while the injected Steam lives (poll by $HOME-scoped name, not PID: bootstrap re-execs).
           for _ in $(seq 1 60); do
@@ -461,6 +512,11 @@ let
           while :; do
             if session_steam_alive; then
               gone=0
+              # Throttled input-isolation check; warn once when a virtual device escaped.
+              iso_tick=$(( iso_tick + 1 ))
+              if [ $(( iso_tick % 15 )) -eq 1 ] && [ "''${iso_warned:-0}" != 1 ] && ! verify_input_isolation; then
+                iso_warned=1
+              fi
               # pauseOnDisconnect: freeze the Steam/game tree ~10s after the last client
               # leaves, thaw on reconnect (gamescope keeps running).
               if [ "$pause" = 1 ]; then
