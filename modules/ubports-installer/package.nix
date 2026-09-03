@@ -1,5 +1,6 @@
 {
   alsa-lib,
+  appimageTools,
   at-spi2-atk,
   at-spi2-core,
   atk,
@@ -34,7 +35,6 @@
   nss,
   pango,
   stdenv,
-  steam-run-free,
   udev,
 }:
 
@@ -114,7 +114,7 @@ stdenv.mkDerivation {
     ${extractAppImage {
       src = ubportsAppimage;
       extractedDir = "squashfs-root";
-      steamRun = steam-run-free;
+      inherit appimageTools;
     }}
 
     # Remove bundled helper libs that autoPatchelf can't satisfy and aren't needed
