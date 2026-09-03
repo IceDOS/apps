@@ -45,7 +45,8 @@ let
   # PATH names helpers (proton-launch, me3); PROTON_LAUNCH_LOG keeps the child's stdio on /dev/null.
   sessionEnv =
     "PATH=\"$steam_path\" PROTON_LAUNCH_LOG=\"$rt\"/proton-launch.log "
-    + "GAMESCOPE_WAYLAND_DISPLAY=gamescope-0 STEAM_MULTIPLE_XWAYLANDS=1 QT_QPA_PLATFORM=xcb "
+    + "GAMESCOPE_WAYLAND_DISPLAY=gamescope-0 STEAM_MULTIPLE_XWAYLANDS=1 "
+    + lib.optionalString (!nativeWayland) "QT_QPA_PLATFORM=xcb "
     # GAMESCOPE_XWAYLAND_DISPLAY: with STEAM_MULTIPLE_XWAYLANDS=1 Steam's runtime client
     # (not launcher/gamescope) picks its X display here; only in nativeWayland && steamOS mode.
     + lib.optionalString (nativeWayland && steamOS) "GAMESCOPE_XWAYLAND_DISPLAY=:1 "
