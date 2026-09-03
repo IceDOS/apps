@@ -46,7 +46,6 @@
             attrNames
             concatMap
             hasAttr
-            length
             mkIf
             optional
             optionals
@@ -72,12 +71,32 @@
             name = "reigntweak";
           };
 
+          hasShadps4 = icedosLib.hasModule {
+            inherit config repoUrl;
+            name = "shadps4";
+          };
+
           optionalGamescope = optional hasGamescope pkgs.gamescope;
           optionalProtonLaunch = optional hasProtonLaunch pkgs.proton-launch;
           optionalMe3 = optional hasMe3 pkgs.me3;
           optionalReigntweak = optional hasReigntweak pkgs.reigntweak;
+
+          optionalShadps4 = optionals hasShadps4 (
+            with pkgs;
+            [
+              shadps4
+              shadps4-qtlauncher
+            ]
+          );
+
           steamExtras =
-            extraPackages ++ optionalGamescope ++ optionalProtonLaunch ++ optionalMe3 ++ optionalReigntweak;
+            extraPackages
+            ++ optionalGamescope
+            ++ optionalProtonLaunch
+            ++ optionalMe3
+            ++ optionalReigntweak
+            ++ optionalShadps4;
+
           optionalSunshineHeadlessSteamOS = applications.steam.headless-session.steamOS or false;
           session = hasAttr "session" applications.steam;
 
@@ -116,10 +135,7 @@
                     extraPkgs = _: steamExtras;
                   };
             in
-            if optionalSunshineHeadlessSteamOS && beta then
-              wrapSteamos3 steamBase
-            else
-              steamBase;
+            if optionalSunshineHeadlessSteamOS && beta then wrapSteamos3 steamBase else steamBase;
         in
         {
           home-manager.sharedModules = [
