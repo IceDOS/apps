@@ -3,6 +3,10 @@
   stdenv,
   buildNpmPackage,
   mcpCallTimeout ? 900,
+  # name -> full SKILL.md content, shipped into dist/skills by the install phase.
+  extraBuiltinSkills ? { },
+  # Ship the code-intelligence skill (nix-shell LSP tooling guide) into dist/skills.
+  codeIntelligence ? true,
   fetchFromGitHub,
   autoPatchelfHook,
   bash,
@@ -36,7 +40,33 @@ let
     python311
   ]
   ++ lib.optionals stdenv.hostPlatform.isLinux [ xdg-utils ];
+
+  # Collision-check + write each extra skill's SKILL.md into dist/skills/<name>.
+  # toFile paths are build inputs, so content edits rebuild the package.
+  extraBuiltinSkillsCheck = lib.concatStringsSep "\n" (
+    lib.mapAttrsToList (name: _: ''
+      if [ -e "$packageDir/dist/skills/${name}" ]; then
+        echo "error: extraBuiltinSkills skill '${name}' already exists upstream" >&2
+        exit 1
+      fi
+    '') extraBuiltinSkills
+  );
+
+  extraBuiltinSkillsInstall = lib.concatStringsSep "\n" (
+    lib.mapAttrsToList (name: content: ''
+      mkdir -p "$packageDir/dist/skills/${name}"
+      cp ${builtins.toFile "SKILL.md" content} "$packageDir/dist/skills/${name}/SKILL.md"
+    '') extraBuiltinSkills
+  );
+
+  # Assert the shared skill-name rule; names are spliced into bash paths below.
+  skillName = import ./lib/skill-name.nix { inherit lib; };
+  invalidSkillNames = skillName.invalidSkillNames (builtins.attrNames extraBuiltinSkills);
 in
+assert lib.assertMsg (invalidSkillNames == [ ]) (
+  "extraBuiltinSkills names must match the skill-name rule, got: "
+  + lib.concatStringsSep ", " invalidSkillNames
+);
 buildNpmPackage (finalAttrs: {
   pname = "prime-agent";
   inherit (source) version;
@@ -80,7 +110,9 @@ buildNpmPackage (finalAttrs: {
   # runtime addons ship prebuilts or are Linux-unused (koffi), so skip them.
   npmRebuildFlags = [ "--ignore-scripts" ];
 
-  nativeBuildInputs = [ makeWrapper ]
+  nativeBuildInputs = [
+    makeWrapper
+  ]
   ++ lib.optionals stdenv.hostPlatform.isLinux [ autoPatchelfHook ];
 
   # @mariozechner/clipboard's napi addon links libgcc_s; autoPatchelfHook must
@@ -115,6 +147,19 @@ buildNpmPackage (finalAttrs: {
     for path in README.md CHANGELOG.md docs examples skills; do
       cp -R "packages/coding-agent/$path" "$packageDir/$path"
     done
+
+    # Ship code-intelligence into dist/skills; leaves autoload as sibling skills.
+    ${lib.optionalString codeIntelligence ''
+      if [ -e "$packageDir/dist/skills/code-intelligence" ]; then
+        echo "error: code-intelligence skill already exists upstream" >&2
+        exit 1
+      fi
+      cp -R ${./skills}/code-intelligence "$packageDir/dist/skills/"
+    ''}
+
+    # Ship module-configured extra built-in skills (markdown-only) into dist/skills.
+    ${extraBuiltinSkillsCheck}
+    ${extraBuiltinSkillsInstall}
 
     mkdir -p "$packageDir/packages"
     for workspace in ai agent tui coding-agent; do
