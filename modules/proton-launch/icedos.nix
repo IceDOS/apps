@@ -209,7 +209,7 @@
                   echo -e "> ${purpleString "--tear-free"}: force DXVK mailbox presentation (no tearing without vsync)"
                   echo -e "> ${purpleString "--no-tear-free"}: force DXVK relaxed-fifo presentation (may tear below refresh, but stutters less)"
                   ${conditionalVrrHelp}
-                  echo -e "> ${purpleString "--wayland"}: enable Proton's native Wayland backend"
+                  echo -e "> ${purpleString "--wayland"}: enable Proton's native Wayland backend (SDL defaults to wayland; --sdl-x11 overrides)"
                   ${conditionalSteamWaylandOverlayHelp}
                   echo -e "> ${purpleString "--wow64"}: enable Proton's 64-bit WoW translation"
                   exit 0
@@ -561,6 +561,10 @@
                       }
                     --wayland)
                       PROTON_ENABLE_WAYLAND=1
+
+                      # wine-wayland drops X; SDL apps need the same default
+                      # (explicit --sdl-x11 still wins via the `:-` guard).
+                      SDL_VIDEODRIVER="''${SDL_VIDEODRIVER:-wayland}"
                       shift
                       ;;
                       ${
@@ -569,6 +573,7 @@
                             --wayland-steam-overlay)
                               PROTON_ENABLE_WAYLAND=1
                               WAYLAND_STEAM_OVERLAY=1
+                              SDL_VIDEODRIVER="''${SDL_VIDEODRIVER:-wayland}"
                               shift
                               ;;
                           ''
