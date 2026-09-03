@@ -100,10 +100,7 @@
           environment.systemPackages = [ pkg ];
 
           systemd.services.shadnet-p2p = mkIf enable {
-            description =
-              "shadNet P2P server (Bloodborne co-op: ${
-                if seamless then "seamless" else "normal"
-              })";
+            description = "shadNet P2P server (Bloodborne co-op: ${if seamless then "seamless" else "normal"})";
             wantedBy = [ "multi-user.target" ];
             after = [ "network.target" ];
 
@@ -120,7 +117,13 @@
               ProtectHome = true;
               PrivateTmp = true;
               NoNewPrivileges = true;
-              RestrictAddressFamilies = [ "AF_INET" "AF_INET6" "AF_UNIX" ];
+
+              RestrictAddressFamilies = [
+                "AF_INET"
+                "AF_INET6"
+                "AF_UNIX"
+              ];
+
               ExecStartPre = pkgs.writeShellScript "shadnet-seed" ''
                 [ -e "${stateDir}/shadnet.cfg" ] || install -m 0644 "${seededCfg}" "${stateDir}/shadnet.cfg"
                 for c in worlds.cfg scoreboards.cfg; do
@@ -145,10 +148,7 @@
             {
               systemd.user.services.shadnet-p2p = {
                 Unit = {
-                  Description =
-                    "shadNet P2P server (Bloodborne co-op: ${
-                      if seamless then "seamless" else "normal"
-                    })";
+                  Description = "shadNet P2P server (Bloodborne co-op: ${if seamless then "seamless" else "normal"})";
                   After = [ "network.target" ];
                 };
 
@@ -177,7 +177,12 @@
             }
           ];
 
-          networking.firewall.allowedTCPPorts = mkIf openFirewall [ 31313 31315 31320 ];
+          networking.firewall.allowedTCPPorts = mkIf openFirewall [
+            31313
+            31315
+            31320
+          ];
+
           networking.firewall.allowedUDPPorts = mkIf openFirewall [ 31314 ];
         }
       )

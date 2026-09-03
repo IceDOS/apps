@@ -14,18 +14,18 @@
     assert mergeMeta.baseRev == pre.rev;
     assert mergeMeta.forkRev == fork.rev;
     [
-    (final: super: {
-      shadps4 = super.shadps4.overrideAttrs (old: {
-        # Mark the merged build so `shadps4.version` shows the P2P delta is in.
-        # src is intentionally left as the prerelease source; only the label changes.
-        __intentionallyOverridingVersion = true;
-        version = "${old.version}-shadnet";
-        patches = old.patches ++ [ ./shadnet-merge.patch ];
-        # Same seamless-co-op env as the standalone shadnet build, on the merged binary.
-        postInstall = (old.postInstall or "") + ''
-          wrapProgram $out/bin/shadps4 --set SHADPS4_BLOODBORNE_SEAMLESS_COOP 1
-        '';
-      });
-    })
-  ];
+      (final: super: {
+        shadps4 = super.shadps4.overrideAttrs (old: {
+          # Mark the merged build so `shadps4.version` shows the P2P delta is in.
+          # src is intentionally left as the prerelease source; only the label changes.
+          __intentionallyOverridingVersion = true;
+          version = "${old.version}-shadnet";
+          patches = old.patches ++ [ ./shadnet-merge.patch ];
+          # Same seamless-co-op env as the standalone shadnet build, on the merged binary.
+          postInstall = (old.postInstall or "") + ''
+            wrapProgram $out/bin/shadps4 --set SHADPS4_BLOODBORNE_SEAMLESS_COOP 1
+          '';
+        });
+      })
+    ];
 }

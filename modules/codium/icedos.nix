@@ -114,7 +114,9 @@
                     editor = {
                       inherit formatOnPaste formatOnSave;
 
-                      fontFamily = mkIf (!stylixTarget) "'JetBrainsMono Nerd Font', 'Droid Sans Mono', 'monospace', monospace";
+                      fontFamily = mkIf (
+                        !stylixTarget
+                      ) "'JetBrainsMono Nerd Font', 'Droid Sans Mono', 'monospace', monospace";
 
                       fontLigatures = true;
                       minimap.enabled = false;
