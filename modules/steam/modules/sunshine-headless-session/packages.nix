@@ -31,11 +31,7 @@ let
   # Every patch is gated by its own option (each forces a local rebuild). PR refs: #2271, #2217, #2270.
   # Bespoke native-wayland.patch has no upstream PR; gamescopePkg always adds a Steam-overlay postPatch.
   anyGamescopePatch =
-    preferDiscreteGpu
-    || inputInjection
-    || (nativeWayland && steamOS)
-    || hdr
-    || colorManagement;
+    preferDiscreteGpu || inputInjection || (nativeWayland && steamOS) || hdr || colorManagement;
 
   gamescopePatched = pkgs.gamescope.overrideAttrs (old: {
     patches =

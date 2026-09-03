@@ -287,9 +287,7 @@
 
           # ---- extraBuiltinSkills validation ----
           skillName = import ./lib/skill-name.nix { inherit lib; };
-          invalidSkillNames = skillName.invalidSkillNames (
-            lib.attrNames prime-agent.extraBuiltinSkills
-          );
+          invalidSkillNames = skillName.invalidSkillNames (lib.attrNames prime-agent.extraBuiltinSkills);
 
           takeWhile =
             pred: list:
@@ -1030,7 +1028,8 @@
 
                     # Point models at the per-language code-intelligence skills.
                     (mkIf prime-agent.codeIntelligence {
-                      "${relDataDir}/extensions/code-intelligence-glue.ts".source = ./extensions/code-intelligence-glue.ts;
+                      "${relDataDir}/extensions/code-intelligence-glue.ts".source =
+                        ./extensions/code-intelligence-glue.ts;
                     })
                   ]
                 );

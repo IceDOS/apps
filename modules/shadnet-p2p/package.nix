@@ -46,15 +46,15 @@ clangStdenv.mkDerivation {
   # read-only Nix store that crashes at DB init. Route it to a writable dir,
   # overridable via SHADNET_HOME (which the NixOS service sets).
   postPatch = ''
-    substituteInPlace src/main.cpp \
-      --replace '#include <QLoggingCategory>' '#include <QLoggingCategory>
-#include <QStandardPaths>' \
-      --replace '    // Set working directory to executable location' '    // The Nix store dir is read-only, so write state to a writable dir' \
-      --replace '    QDir::setCurrent(QCoreApplication::applicationDirPath());' '    const QString stateHome = qgetenv("SHADNET_HOME").isEmpty()
-        ? QStandardPaths::writableLocation(QStandardPaths::AppDataLocation)
-        : QString::fromLocal8Bit(qgetenv("SHADNET_HOME"));
-    QDir().mkpath(stateHome);
-    QDir::setCurrent(stateHome);'
+        substituteInPlace src/main.cpp \
+          --replace '#include <QLoggingCategory>' '#include <QLoggingCategory>
+    #include <QStandardPaths>' \
+          --replace '    // Set working directory to executable location' '    // The Nix store dir is read-only, so write state to a writable dir' \
+          --replace '    QDir::setCurrent(QCoreApplication::applicationDirPath());' '    const QString stateHome = qgetenv("SHADNET_HOME").isEmpty()
+            ? QStandardPaths::writableLocation(QStandardPaths::AppDataLocation)
+            : QString::fromLocal8Bit(qgetenv("SHADNET_HOME"));
+        QDir().mkpath(stateHome);
+        QDir::setCurrent(stateHome);'
   '';
 
   cmakeFlags = [
