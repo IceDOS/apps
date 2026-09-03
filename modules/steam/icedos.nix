@@ -26,7 +26,7 @@
     };
 
   outputs.nixosModules =
-    { repoUrl, ... }:
+    { repoUrl, inputs, ... }:
     [
       (
         {
@@ -89,8 +89,26 @@
             ]
           );
 
+          # -steamos3 spawns SteamOS-only helpers; stand-ins from jovian-stubs keep
+          # the runtime log clean of missing steamos-select-branch/polkit errors.
+          steamosShims =
+            let
+              stubs = (pkgs.extend inputs.jovian.overlays.default).jovian-stubs;
+            in
+            # Only the binaries Steam calls; excludes jovian's pkexec/sudo/holo-* stand-ins.
+            optional optionalSunshineHeadlessSteamOS (
+              pkgs.runCommandLocal "steamos-shims" { } ''
+                mkdir -p $out/bin/steamos-polkit-helpers
+                ln -s ${stubs}/bin/steamos-select-branch $out/bin/steamos-select-branch
+                ln -s ${stubs}/bin/steamos-polkit-helpers/steamos-update $out/bin/steamos-polkit-helpers/steamos-update
+                ln -s ${stubs}/bin/steamos-polkit-helpers/jupiter-biosupdate $out/bin/steamos-polkit-helpers/jupiter-biosupdate
+                ln -s ${stubs}/bin/steamos-polkit-helpers/jupiter-dock-updater $out/bin/steamos-polkit-helpers/jupiter-dock-updater
+              ''
+            );
+
           steamExtras =
             extraPackages
+            ++ steamosShims
             ++ optionalGamescope
             ++ optionalProtonLaunch
             ++ optionalMe3
