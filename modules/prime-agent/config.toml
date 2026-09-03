@@ -9,6 +9,14 @@ builtinExtensions = []
 # Inline .ts sources for auto-loaded local extensions (like Claude skills).
 extensions = {}
 
+# Extra built-in skills: name -> full SKILL.md content, shipped into dist/skills so
+# they autoload on start; each needs frontmatter `description` (loader skips without).
+extraBuiltinSkills = {}
+
+# Ship per-language code-intelligence skills + a glue extension telling models to
+# load the matching one: LSP tooling on demand via nix-shell.
+codeIntelligence = true
+
 # "" means $XDG_CONFIG_HOME/prime-agent; $XDG_CONFIG_HOME / $XDG_DATA_HOME / $HOME / ~ expand per user.
 dataDir = ""
 portBase = 8850
@@ -20,6 +28,9 @@ mcpCallTimeout = 900
 # Install the cost-footer extension: live session cost (USD) in the TUI bottom bar,
 # with token totals and the active model; /cost toggles it at runtime.
 costFooter = true
+
+# Install the peon-ping companion extension (session-event bridge to peon.sh).
+peonPing = true
 
 # Per-provider overrides merged into models.json (partial merge).
 providers = {}

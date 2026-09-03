@@ -16,6 +16,7 @@
 
       inherit ((importTOML ./config.toml).icedos.applications.prime-agent)
         costFooter
+        peonPing
         dataDir
         defaultModel
         defaultProvider
@@ -24,6 +25,8 @@
         portBase
         portOverrides
         builtinExtensions
+        codeIntelligence
+        extraBuiltinSkills
         extensions
         includeInIcedosGc
         sessionRetentionDays
@@ -61,6 +64,9 @@
       # Install the cost-footer extension: live session cost (USD) in the TUI bottom bar.
       costFooter = mkBoolOption { default = costFooter; };
 
+      # Install the peon-ping companion extension (session-event bridge to peon.sh).
+      peonPing = mkBoolOption { default = peonPing; };
+
       # Upload full session traces (transcripts, cwd, git repo/commit) to Prime
       # Intellect to train open-source LLMs. Off by default; /traces on toggles it.
       shareTraces = mkBoolOption { default = shareTraces; };
@@ -76,6 +82,14 @@
 
       # Inline .ts sources for auto-loaded local extensions (like Claude skills).
       extensions = mkAttrsOfOption { default = extensions; } types.str;
+
+      # Extra built-in skills: name -> full SKILL.md content, shipped into dist/skills so
+      # they autoload on start; each needs frontmatter `description` (loader skips without).
+      extraBuiltinSkills = mkAttrsOfOption { default = extraBuiltinSkills; } types.str;
+
+      # Ship the code-intelligence skill set + glue extension telling models to
+      # load the matching per-language LSP guide via nix-shell.
+      codeIntelligence = mkBoolOption { default = codeIntelligence; };
 
       # Bound is 65335 so portBase + (sha256(name) mod 200) stays <= 65535.
       portBase = mkIntBetweenOption {
@@ -270,13 +284,67 @@
             done
             find "''${D}/logs" -maxdepth 1 -type f -mtime "+${toString prime-agent.sessionRetentionDays}" -delete 2>/dev/null || true
           '';
+
+          # ---- extraBuiltinSkills validation ----
+          skillName = import ./lib/skill-name.nix { inherit lib; };
+          invalidSkillNames = skillName.invalidSkillNames (
+            lib.attrNames prime-agent.extraBuiltinSkills
+          );
+
+          takeWhile =
+            pred: list:
+            if list == [ ] then
+              [ ]
+            else if pred (lib.head list) then
+              [ (lib.head list) ] ++ takeWhile pred (lib.tail list)
+            else
+              [ ];
+
+          # Frontmatter block (between the first two `---` lines); [] if absent.
+          skillFrontmatter =
+            content:
+            let
+              lines = lib.splitString "\n" content;
+              rest = if lines == [ ] then [ ] else lib.drop 1 lines;
+            in
+            if lines == [ ] || lib.head lines != "---" then [ ] else takeWhile (l: l != "---") rest;
+
+          hasSkillDescription =
+            content: lib.any (l: builtins.match "description[ \t]*:.*" l != null) (skillFrontmatter content);
+
+          descriptionlessSkillNames = lib.attrNames (
+            lib.filterAttrs (_: c: !hasSkillDescription c) prime-agent.extraBuiltinSkills
+          );
         in
         {
+          assertions = [
+            {
+              assertion = invalidSkillNames == [ ];
+              message = ''
+                icedos.applications.prime-agent.extraBuiltinSkills names must be
+                lowercase a-z, 0-9 and hyphens only (no leading/trailing or double
+                hyphens, max 64 chars), matching the loader's directory names:
+                ${builtins.concatStringsSep ", " invalidSkillNames}
+              '';
+            }
+            {
+              assertion = descriptionlessSkillNames == [ ];
+              message = ''
+                icedos.applications.prime-agent.extraBuiltinSkills entries must be
+                full SKILL.md files with frontmatter `description:`; the loader
+                silently skips files without one. Entries missing it:
+                ${builtins.concatStringsSep ", " descriptionlessSkillNames}
+              '';
+            }
+          ];
+
           # Copy of nixpkgs PR #550774 at 0.7.4; drop overlay, package.nix and patch once merged.
           nixpkgs.overlays = [
             (final: _prev: {
               prime-agent = final.callPackage ./package.nix {
                 mcpCallTimeout = prime-agent.mcpCallTimeout;
+                extraBuiltinSkills = prime-agent.extraBuiltinSkills;
+                codeIntelligence = prime-agent.codeIntelligence;
               };
             })
           ];
@@ -948,15 +1016,21 @@
                   ++ extensionLocalHomeFiles
                   ++ [
                     # No shell hooks; extensions auto-load from <agentDir>/extensions/*.ts.
-                    (mkIf peonPingEnabled {
-                      "${relDataDir}/extensions/peon-ping.ts".source = pkgs.replaceVars ./lib/peon-ping.ts {
+                    (mkIf (peonPingEnabled && prime-agent.peonPing) {
+                      "${relDataDir}/extensions/peon-ping.ts".source = pkgs.replaceVars ./extensions/peon-ping.ts {
                         # Installed by peon-ping's hm module; bin/peon carries its own PATH.
                         peonSh = "${config.home.homeDirectory}/.openpeon/peon.sh";
                       };
                     })
+
                     # Live session cost (USD) + token totals in the TUI bottom bar.
                     (mkIf prime-agent.costFooter {
-                      "${relDataDir}/extensions/cost-footer".source = ./lib/cost-footer;
+                      "${relDataDir}/extensions/cost-footer".source = ./extensions/cost-footer;
+                    })
+
+                    # Point models at the per-language code-intelligence skills.
+                    (mkIf prime-agent.codeIntelligence {
+                      "${relDataDir}/extensions/code-intelligence-glue.ts".source = ./extensions/code-intelligence-glue.ts;
                     })
                   ]
                 );
