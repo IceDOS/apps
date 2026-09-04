@@ -82,7 +82,6 @@
         let
           inherit (config.icedos) applications desktop;
           inherit (applications) zed;
-          inherit (desktop) defaultEditor;
 
           inherit (zed)
             autosave
@@ -113,7 +112,9 @@
           themeLightFallback = "One Light";
         in
         {
-          environment.variables.EDITOR = mkIf (defaultEditor == "dev.zed.Zed.desktop") "zeditor -n -w";
+          environment.variables.EDITOR = mkIf (
+            desktop.applications.editor.name == "dev.zed.Zed.desktop"
+          ) "zeditor -n -w";
 
           environment.systemPackages = [
             nil

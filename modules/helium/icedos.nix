@@ -49,7 +49,6 @@
         }:
         let
           inherit (config.icedos) applications desktop;
-          inherit (desktop) defaultBrowser;
           inherit (applications.helium) drmSupportUsingGoogleChrome;
           inherit (pkgs) google-chrome nur;
           inherit (nur.repos.lonerOrz) helium;
@@ -110,7 +109,7 @@
         {
           environment = {
             sessionVariables.DEFAULT_BROWSER = mkIf (
-              defaultBrowser == "helium.desktop"
+              desktop.applications.browser.name == "helium.desktop"
             ) "${package}/bin/helium";
 
             systemPackages = [ package ];
