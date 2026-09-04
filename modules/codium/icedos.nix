@@ -52,14 +52,15 @@
           inherit (config) icedos;
           inherit (icedos) applications desktop;
           inherit (applications) codium;
-          inherit (desktop) defaultEditor;
         in
         {
           icedos.applications.codium.users = icedosLib.users.genDefaults {
             inherit (icedos) users;
           };
 
-          environment.variables.EDITOR = mkIf (defaultEditor == "codium.desktop") "codium -n -w";
+          environment.variables.EDITOR = mkIf (
+            desktop.applications.editor.name == "codium.desktop"
+          ) "codium -n -w";
 
           home-manager.sharedModules = [
             (

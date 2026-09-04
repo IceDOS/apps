@@ -21,7 +21,6 @@
         }:
         let
           inherit (config.icedos) applications desktop;
-          inherit (desktop) defaultBrowser;
           inherit (applications.librewolf) bin;
 
           inherit (lib) mkIf substring;
@@ -31,7 +30,7 @@
         in
         {
           environment.sessionVariables.DEFAULT_BROWSER = mkIf (
-            defaultBrowser == "librewolf.desktop"
+            desktop.applications.browser.name == "librewolf.desktop"
           ) "${package}/bin/librewolf";
 
           home-manager.sharedModules = [
