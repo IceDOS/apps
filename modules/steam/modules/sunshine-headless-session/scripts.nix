@@ -7,6 +7,7 @@
   gamescopePkg,
   steamPkg,
   steamosSessionSelect,
+  xnudge,
 }:
 
 let
@@ -83,6 +84,7 @@ let
       gamescopePkg
       # `steam` must resolve on this build-time PATH (user services don't inherit login PATH).
       steamPkg
+      xnudge
     ]
     ++ lib.optional mangoApp mangoappWrapper
     ++ lib.optional steamOS steamosSessionSelect
@@ -161,6 +163,23 @@ let
           case "$p" in "" | 0 | 1) break ;; esac
         done
         return 1
+      }
+
+      # Steam fronts a game in the baselayer only once gamescope has published it
+      # in GAMESCOPE_FOCUSABLE_APPS.
+      game_in_focusable() {
+        local appid="$1" apps
+        apps="$(DISPLAY=:1 xprop -root GAMESCOPE_FOCUSABLE_APPS 2>/dev/null | sed -n 's/^.*= //p' | tr -d ' ' || true)"
+        case ",$apps," in
+          *",$appid,"*) return 0 ;;
+          *) return 1 ;;
+        esac
+      }
+      # A game window arriving as another one leaves (Elden Ring's EAC launcher) can be
+      # left out of gamescope's focus candidates for good; only a CreateNotify on that
+      # Xwayland shakes it loose -- dirtying focus re-rolls but keeps skipping the window.
+      reroll_gamescope_focus() {
+        DISPLAY=:2 sunshine-headless-xnudge 2>/dev/null || true
       }
 
       ${lib.optionalString (nativeWayland && steamOS) ''
@@ -498,6 +517,7 @@ let
           last_default="$(cat "$rt/sunshine-headless-default-sink" 2>/dev/null || true)"
           last_baselayer=""
           iso_tick=0
+          focus_tick=0
           iso_warned=0
           seat_warned=0
 
@@ -587,14 +607,25 @@ let
                   last_baselayer="$want"
                 fi
               else
+                game_appid=""
                 while read -r w; do
                   wpid="$(DISPLAY=:2 xprop -id "$w" _NET_WM_PID 2>/dev/null | grep -oE '[0-9]+$' || true)"
                   [ -n "$wpid" ] || continue
                   a="$(tr '\0' '\n' <"/proc/$wpid/environ" 2>/dev/null | sed -n 's/^SteamAppId=//p' | head -n1 || true)"
                   case "$a" in "" | 0 | *[!0-9]*) a="$(steam_launch_appid "$wpid" || true)" ;; esac
-                  case "$a" in "" | 0 | *[!0-9]*) a="$wpid" ;; esac
+                  # The pid stand-in is not an appid Steam knows, so it must not
+                  # drive the focusable check below.
+                  real_appid=1
+                  case "$a" in "" | 0 | *[!0-9]*)
+                    a="$wpid"
+                    real_appid=0
+                    ;;
+                  esac
                   if ! DISPLAY=:2 xprop -id "$w" STEAM_GAME 2>/dev/null | grep -q "= $a$"; then
                     DISPLAY=:2 xprop -id "$w" -f STEAM_GAME 32c -set STEAM_GAME "$a" 2>/dev/null || true
+                  fi
+                  if [ "$real_appid" = 1 ]; then
+                    game_appid="$a"
                   fi
                 done < <(DISPLAY=:2 xwininfo -root -children 2>/dev/null | grep -oE '0x[0-9a-f]+')
 
@@ -605,6 +636,7 @@ let
                   wl_appid="$(printf '%s\n' "$wl_ids" | sed -n 1p)"
                   wl_launch="$(printf '%s\n' "$wl_ids" | sed -n 2p)"
                   if [ -n "$wl_appid" ]; then
+                    game_appid="$wl_appid"
                     base="$(DISPLAY=:1 xprop -root GAMESCOPECTRL_BASELAYER_APPID 2>/dev/null | sed -n 's/^.*= //p' | tr -d ' ' || true)"
                     # Seed the game's exported id only when Steam hasn't listed it (multi-app
                     # wrappers launch the real game); else let Steam's own reordering drive focus.
@@ -621,6 +653,17 @@ let
                       fi
                     fi
                   fi''}
+              fi
+              # Missing appid means the stream sits on Steam's black launch screen while the
+              # game runs. Every 5th tick only: a game whose windows gamescope legitimately
+              # rejects (1x1, override-redirect) never lands in that list at all.
+              if [ -n "''${game_appid:-}" ] && ! game_in_focusable "$game_appid"; then
+                focus_tick=$(( focus_tick + 1 ))
+                if [ $(( focus_tick % 5 )) -eq 1 ]; then
+                  reroll_gamescope_focus
+                fi
+              else
+                focus_tick=0
               fi
 
               dname="$(wpctl inspect @DEFAULT_AUDIO_SINK@ 2>/dev/null | grep -oP 'node.name = "\K[^"]+' || true)"

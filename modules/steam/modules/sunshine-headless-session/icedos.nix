@@ -62,7 +62,13 @@
             (import ./scripts.nix {
               inherit pkgs lib cfg;
               inherit headlessSeat;
-              inherit (packages) gamescopePkg steamPkg steamosSessionSelect;
+
+              inherit (packages)
+                gamescopePkg
+                steamPkg
+                steamosSessionSelect
+                xnudge
+                ;
             })
             sessionApp
             ;
