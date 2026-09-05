@@ -86,7 +86,13 @@ compute_hash() {
       overlays = (import ./$overlay).nixpkgs.overlays;
     }).shadps4.src" 2>&1 || true)
 
-  echo "$out" | grep -oP 'got:\s+\K\S+' | tail -1
+  # || true: under pipefail a grep miss would kill the caller with set -e before
+  # it can report anything. Empty hash -> dump the full nix output so the real
+  # error (e.g. a fetch failure, not just a hash mismatch) is visible in CI.
+  local hash
+  hash=$(echo "$out" | grep -oP 'got:\s+\K\S+' | tail -1 || true)
+  [ -n "$hash" ] || echo "$out" >&2
+  echo "$hash"
 }
 
 # Update the shadnet fork pin (shadp2p = shadPS4 fork with the P2P client).

@@ -118,7 +118,7 @@ index 7ace5e4f..fd2043b8 100644
 +
 +externals/aacdec/fdk-aac.
 diff --git a/CMakeLists.txt b/CMakeLists.txt
-index e39bf631..dbd7faba 100644
+index 177889a3..1af40b42 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
 @@ -956,6 +956,8 @@ set(CORE src/core/aerolib/stubs.cpp
