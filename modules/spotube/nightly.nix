@@ -42,8 +42,8 @@
             fontconfig
             freetype
             libGL
+            libX11
             libxkbcommon
-            xorg.libX11
             xorg.libXext
             xorg.libXi
             xorg.libXrender
