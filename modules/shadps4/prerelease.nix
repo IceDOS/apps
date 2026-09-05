@@ -29,7 +29,9 @@
 
             # Passing postCheckout is what picks fetchgit over fetchzip; drop it and src
             # becomes a tarball with an empty externals/, no COMMIT, and a stale hash.
-            postCheckout = old.src.postCheckout + ''
+            # nixpkgs' hook still names the old dear_imgui submodule; upstream renamed
+            # it to externals/imgui, so rewrite the token to track the current pin.
+            postCheckout = lib.replaceString "dear_imgui" "imgui" old.src.postCheckout + ''
               git -C "$out/externals" submodule update --init --recursive \
                 cpp-httplib \
                 protobuf \
