@@ -115,6 +115,12 @@
           description = "Base URL for the provider API.";
         };
 
+        api = lib.mkOption {
+          type = lib.types.nullOr lib.types.str;
+          default = null;
+          description = "API protocol for the provider (e.g. openai-completions).";
+        };
+
         headers = lib.mkOption {
           type = lib.types.attrsOf lib.types.str;
           default = { };
@@ -825,7 +831,7 @@
                   name: p:
                   let
                     attrs = lib.filterAttrs (_: v: v != null) {
-                      inherit (p) apiKey baseUrl headers;
+                      inherit (p) api apiKey baseUrl headers;
                     };
                     overrides = lib.mapAttrs (_: o: lib.filterAttrs (_: v: v != null) o) (p.modelOverrides or { });
                     models = map (m: lib.filterAttrs (_: v: v != null) m) (p.models or [ ]);
@@ -1087,6 +1093,7 @@
           ];
         }
       )
+
     ];
 
   meta.name = "prime-agent";
