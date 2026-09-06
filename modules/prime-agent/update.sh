@@ -37,24 +37,29 @@ main() {
   # Upstream tags `vX.Y.Z`; the derivation's `version` carries no prefix.
   local version="${tag#v}"
 
-  # Prime-agent has npm lockfile + zeromq build + patches; need a full clone hash.
-  info "  Computing source hash (clones the repo, this may take a while)..."
-  local hash
-  hash=$(prefetch_git "https://github.com/$REPO" "refs/tags/$tag" || echo "")
-  require_nonempty prime-agent "$version" "$tag" "$hash"
-  info "  Hash: $hash"
-
-  # Compute npmDepsHash from the fixed lockfile.
-  info "  Computing npmDepsHash..."
   # global on purpose: the EXIT trap fires after main() returns,
   # where a `local` would already be out of scope (set -u)
   tmpdir=$(mktemp -d)
   trap 'rm -rf "$tmpdir"' EXIT
 
   git clone --depth 1 --branch "$tag" "https://github.com/$REPO.git" "$tmpdir/repo" 2>/dev/null
+  # package.nix runs npm-lockfile-fix in fetchFromGitHub's postFetch, so the source
+  # hash must cover the fixed tree: raw nix-prefetch-git hashes differ after the fix.
   npm-lockfile-fix "$tmpdir/repo/package-lock.json"
+  rm -rf "$tmpdir/repo/.git"
+
+  info "  Computing source hash (tree after npm-lockfile-fix)..."
+  local hash
+  hash=$(nix hash path "$tmpdir/repo" || echo "")
+  require_nonempty prime-agent "$version" "$tag" "$hash"
+  info "  Hash: $hash"
+
+  # Compute npmDepsHash from the same fixed lockfile.
+  # buildNpmPackage defaults to NPM_FETCHER_VERSION=2 in modern nixpkgs;
+  # prefetch-npm-deps defaults to v1, so export the version explicitly.
+  info "  Computing npmDepsHash..."
   local npmDepsHash
-  npmDepsHash=$(prefetch-npm-deps "$tmpdir/repo/package-lock.json" 2>/dev/null || echo "")
+  npmDepsHash=$(NPM_FETCHER_VERSION=2 prefetch-npm-deps "$tmpdir/repo/package-lock.json" 2>/dev/null || echo "")
   require_nonempty prime-agent-npm "$version" "$tag" "$npmDepsHash"
   info "  npmDepsHash: $npmDepsHash"
 
