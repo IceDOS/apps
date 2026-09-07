@@ -31,9 +31,16 @@
 
             # postCheckout picks fetchgit over fetchzip; without it src is a tarball
             # with an empty externals/ and a stale hash.
-            # nixpkgs' hook still names the old dear_imgui submodule; upstream renamed
-            # it to externals/imgui, so rewrite the token to track the current pin.
-            postCheckout = lib.replaceString "dear_imgui" "imgui" old.src.postCheckout + ''
+            # imgui is dear_imgui until the fork rebases past upstream's rename.
+            postCheckout = ''
+              if grep -qE '^[[:space:]]*path[[:space:]]*=[[:space:]]*externals/imgui[[:space:]]*$' "$out/.gitmodules"; then
+                imgui=imgui
+              else
+                imgui=dear_imgui
+              fi
+            ''
+            + lib.replaceString "dear_imgui" "\"$imgui\"" old.src.postCheckout
+            + ''
               git -C "$out/externals" submodule update --init --recursive \
                 cpp-httplib \
                 protobuf \
