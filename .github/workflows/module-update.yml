@@ -4,9 +4,8 @@ name: Module Update
 # one PR per module (never a direct push to main), and dispatches cache-server's
 # nix-build in external mode. cache-server builds every config against the PR head
 # and rebase-merges the PR natively on success; on failure the PR stays open with
-# one status comment. An open PR is re-dispatched on every cycle even without a
-# new pin: a green rebuild is cheap (cache-hit skip) and completes a merge that a
-# moved main had deferred.
+# one status comment. An open PR is re-dispatched each cycle so a failed build
+# retries, or closed once main already carries the latest pin.
 
 on:
   workflow_call:
@@ -190,9 +189,14 @@ jobs:
               core.setOutput('number', String(pr.number));
               core.setOutput('head', process.env.HEAD);
             } else if (pr) {
-              // No new pin: re-dispatch the open PR so a failed/deferred build retries.
-              core.setOutput('number', String(pr.number));
-              core.setOutput('head', pr.head.sha);
+              // main already has the latest pin, so this PR is superseded; re-dispatching
+              // would re-gate a downgrade forever. Failed builds retry via changed=true.
+              await github.rest.issues.createComment({
+                owner, repo, issue_number: pr.number,
+                body: 'Superseded: `main` already carries the latest upstream pin. Closing; the next pin change reopens this branch.',
+              });
+              await github.rest.pulls.update({ owner, repo, pull_number: pr.number, state: 'closed' });
+              core.info(`${branch}: closed superseded PR #${pr.number}`);
             }
 
       - name: Dispatch cache-server external build
