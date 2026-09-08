@@ -7,6 +7,7 @@
       inherit ((importTOML ./config.toml).icedos.applications.shadnet-p2p)
         enable
         seamless
+        seamlessAnySummonType
         host
         stateDir
         openFirewall
@@ -18,17 +19,20 @@
         ;
     in
     {
-      # Run the server as a managed systemd unit. False = just install the binary.
+      # Run the server as a managed systemd unit. False installs the binary only.
       enable = mkBoolOption { default = enable; };
 
-      # Bloodborne seamless co-op, off by default. Normal co-op works with a stock
-      # shadPS4 client; seamless additionally needs the matching seamless client fork.
+      # Bloodborne seamless co-op. Normal co-op works with a stock shadPS4 client;
+      # seamless needs the matching seamless client fork.
       seamless = mkBoolOption { default = seamless; };
 
-      # IP to bind (0.0.0.0 = LAN reachable).
+      # Seamless-only: match signs outside the searcher's SummonTypeList.
+      seamlessAnySummonType = mkBoolOption { default = seamlessAnySummonType; };
+
+      # IP to bind. 0.0.0.0 makes the server reachable on the LAN.
       host = mkStrOption { default = host; };
 
-      # Writable state dir for db/shadnet.cfg/worlds.cfg/scoreboards.cfg (SHADNET_HOME).
+      # Writable state dir (SHADNET_HOME) for the database, config and score files.
       stateDir = mkStrOption { default = stateDir; };
 
       # Open the server's TCP/UDP/HTTP ports in the firewall.
@@ -51,17 +55,19 @@
 
         let
           inherit (lib) mkIf;
-          # StateDirectory only manages paths under /var/lib; anything else would
-          # desync it from SHADNET_HOME under ProtectSystem=strict.
-          stateDirOk = lib.hasPrefix "/var/lib/" stateDir;
           inherit (config.icedos.applications.shadnet-p2p)
             enable
             seamless
+            seamlessAnySummonType
             host
             stateDir
             openFirewall
             userService
             ;
+
+          # StateDirectory gets baseNameOf stateDir, so a deeper path would create a
+          # different directory than SHADNET_HOME and ReadWritePaths point at.
+          stateDirOk = stateDir == "/var/lib/" + builtins.baseNameOf stateDir;
 
           pkg = pkgs.shadnet-p2p;
 
@@ -70,6 +76,7 @@
             [General]
             Host=${host}
             BloodborneSeamlessCoop=${if seamless then "true" else "false"}
+            BloodborneSeamlessAnySummonType=${if seamlessAnySummonType then "true" else "false"}
             Matching2Enabled=true
             UnsecuredPort=31313
             MatchingUdpPort=31314
@@ -81,13 +88,18 @@
         {
           assertions = [
             {
-              # Both units bind the same ports; enabling both just breaks them.
+              # Both units bind the same ports, so enabling both breaks them.
               assertion = !(enable && userService);
               message = "icedos.applications.shadnet-p2p: enable and userService are mutually exclusive (same ports).";
             }
             {
               assertion = !enable || stateDirOk;
               message = "icedos.applications.shadnet-p2p: stateDir must live under /var/lib/ for the systemd StateDirectory to cover it.";
+            }
+            {
+              # The broker requires seamless co-op too, so the flag alone does nothing.
+              assertion = !(enable || userService) || !seamlessAnySummonType || seamless;
+              message = "icedos.applications.shadnet-p2p: seamlessAnySummonType needs seamless = true.";
             }
           ];
 
@@ -108,8 +120,7 @@
 
             serviceConfig = {
               Type = "simple";
-              # Seed state on first start only, then let the server own the files.
-              # LAN-reachable network service: run unprivileged + sandboxed.
+              # LAN-reachable network service, so run it unprivileged and sandboxed.
               DynamicUser = true;
               StateDirectory = builtins.baseNameOf stateDir;
               ReadWritePaths = [ stateDir ];
@@ -131,9 +142,10 @@
                 done
               '';
               ExecStart = "${pkg}/bin/shadnet";
-              # Qt drops qInfo logs when stderr is not a TTY (e.g. journald).
               Environment = [
                 "SHADNET_HOME=${stateDir}"
+                # Without this Qt sends journald unformatted messages, losing the
+                # timestamp and category prefix.
                 "QT_FORCE_STDERR_LOGGING=1"
               ];
               Restart = "on-failure";
@@ -141,9 +153,8 @@
             };
           };
 
-          # Per-user service via home-manager: same seed-once behavior, but the
-          # state lives in ~/.local/share/shadnet (the server's own AppData
-          # fallback), so manual terminal runs and the user unit share one config.
+          # Seeding works the same way here. State lives in ~/.local/share/shadnet,
+          # the AppDataLocation fallback our postPatch adds, so terminal runs agree.
           home-manager.sharedModules = mkIf userService [
             {
               systemd.user.services.shadnet-p2p = {
@@ -163,8 +174,8 @@
                     done
                   '';
                   ExecStart = "${pkg}/bin/shadnet";
-                  # No SHADNET_HOME needed: the binary's AppData fallback already
-                  # resolves to ~/.local/share/shadnet for the running user.
+                  # SHADNET_HOME is not needed because the AppDataLocation
+                  # fallback already points at this directory.
                   Environment = [ "QT_FORCE_STDERR_LOGGING=1" ];
                   Restart = "on-failure";
                   RestartSec = "3";

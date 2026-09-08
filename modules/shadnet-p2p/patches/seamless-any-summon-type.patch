@@ -1,0 +1,185 @@
+diff --git a/src/bloodborne_summon_broker.cpp b/src/bloodborne_summon_broker.cpp
+index a6c13cb..c59f27b 100644
+--- a/src/bloodborne_summon_broker.cpp
++++ b/src/bloodborne_summon_broker.cpp
+@@ -73,7 +73,8 @@ std::optional<qint64> HostPlacementMap(const QByteArray& placement) {
+     return static_cast<qint64>(packedMap);
+ }
+ 
+-bool MatchesSearch(const QJsonObject& request, const QJsonObject& sign, bool anywhereSummons) {
++bool MatchesSearch(const QJsonObject& request, const QJsonObject& sign, bool anywhereSummons,
++                   bool anySummonType) {
+     const qint64 requester = Integer(request, QStringLiteral("UserId"), -1);
+     const QString requesterSession = request.value(QStringLiteral("SessionId")).toString();
+     if (Integer(sign, QStringLiteral("UserId"), -1) == requester ||
+@@ -97,7 +98,7 @@ bool MatchesSearch(const QJsonObject& request, const QJsonObject& sign, bool any
+             summonTypes.insert(static_cast<int>(Integer(filter, QStringLiteral("SummonType"))));
+         }
+     }
+-    if (!summonTypes.isEmpty() &&
++    if (!anySummonType && !summonTypes.isEmpty() &&
+         !summonTypes.contains(static_cast<int>(Integer(sign, QStringLiteral("SummonType"))))) {
+         return false;
+     }
+@@ -353,13 +354,15 @@ SummonBroker::SummonBroker() : SummonBroker(Options{}) {}
+ 
+ SummonBroker::SummonBroker(qint64 ttlMs)
+     : m_ttlMs(std::max<qint64>(1, ttlMs)), m_seamlessTtlMs(15 * 60 * 1000), m_seamlessCoop(false),
+-      m_seamlessAnywhereSummons(false) {}
++      m_seamlessAnywhereSummons(false), m_seamlessAnySummonType(false) {}
+ 
+ SummonBroker::SummonBroker(Options options)
+     : m_ttlMs(std::max<qint64>(1, options.ttlMs)),
+       m_seamlessTtlMs(std::max<qint64>(m_ttlMs, options.seamlessTtlMs)),
+       m_seamlessCoop(options.seamlessCoop),
+-      m_seamlessAnywhereSummons(options.seamlessAnywhereSummons || options.seamlessCoop) {}
++      m_seamlessAnywhereSummons(options.seamlessAnywhereSummons || options.seamlessCoop),
++      // Seamless co-op must be on too, unlike anywhere summons, which seamless turns on.
++      m_seamlessAnySummonType(options.seamlessAnySummonType && options.seamlessCoop) {}
+ 
+ SummonBroker::AdvertiseResult SummonBroker::Advertise(const QJsonObject& body,
+                                                       const QByteArray& rawBody, qint64 nowMs) {
+@@ -418,7 +421,7 @@ QList<QByteArray> SummonBroker::Search(const QJsonObject& request, qint64 nowMs,
+     const std::optional<qint64> hostMap = HostPlacementMap(hostPlacement);
+     for (auto it = m_records.begin(); it != m_records.end(); ++it) {
+         if (it->state == State::Advertised &&
+-            MatchesSearch(request, it->advertisement, anywhereSummons)) {
++            MatchesSearch(request, it->advertisement, anywhereSummons, m_seamlessAnySummonType)) {
+             if (anywhereSummons && hostMap.has_value() && requester >= 0 &&
+                 Integer(it->advertisement, QStringLiteral("AreaId"), -1) != *hostMap) {
+                 it->state = State::Preparing;
+@@ -432,7 +435,8 @@ QList<QByteArray> SummonBroker::Search(const QJsonObject& request, qint64 nowMs,
+                                                        request, anywhereSummons)});
+         } else if (m_seamlessCoop && IsSeamlessActiveState(it->state) && requester >= 0 &&
+                    Integer(it->claim, QStringLiteral("UserId"), -2) == requester &&
+-                   MatchesSearch(request, it->advertisement, anywhereSummons)) {
++                   MatchesSearch(request, it->advertisement, anywhereSummons,
++                                 m_seamlessAnySummonType)) {
+             candidates.push_back({it->updatedAtMs, PrepareAdvertisementForSearch(
+                                                        it->rawAdvertisement, it->advertisement,
+                                                        request, anywhereSummons)});
+@@ -578,6 +582,10 @@ bool SummonBroker::IsSeamlessAnywhereSummonsEnabled() const {
+     return m_seamlessAnywhereSummons;
+ }
+ 
++bool SummonBroker::IsSeamlessAnySummonTypeEnabled() const {
++    return m_seamlessAnySummonType;
++}
++
+ void SummonBroker::PurgeExpiredLocked(qint64 nowMs) {
+     for (auto it = m_records.begin(); it != m_records.end();) {
+         const qint64 ttl =
+diff --git a/src/bloodborne_summon_broker.h b/src/bloodborne_summon_broker.h
+index 3d6fc0e..d56fe5e 100644
+--- a/src/bloodborne_summon_broker.h
++++ b/src/bloodborne_summon_broker.h
+@@ -23,6 +23,7 @@ public:
+         qint64 seamlessTtlMs = 15 * 60 * 1000;
+         bool seamlessCoop = false;
+         bool seamlessAnywhereSummons = false;
++        bool seamlessAnySummonType = false;
+     };
+ 
+     struct AdvertiseResult {
+@@ -58,6 +59,7 @@ public:
+     int Size(qint64 nowMs);
+     bool IsSeamlessCoopEnabled() const;
+     bool IsSeamlessAnywhereSummonsEnabled() const;
++    bool IsSeamlessAnySummonTypeEnabled() const;
+ 
+ private:
+     struct Record {
+@@ -77,6 +79,7 @@ private:
+     qint64 m_seamlessTtlMs;
+     bool m_seamlessCoop;
+     bool m_seamlessAnywhereSummons;
++    bool m_seamlessAnySummonType;
+     QMutex m_mutex;
+     QHash<QString, Record> m_records;
+ };
+diff --git a/src/config.cpp b/src/config.cpp
+index d62c6ca..aa8d616 100644
+--- a/src/config.cpp
++++ b/src/config.cpp
+@@ -52,6 +52,7 @@ void ConfigManager::Parse(const QString& path) {
+     m_statsEnabled = boolean("StatsEnabled", true);
+     m_matching2Enabled = boolean("Matching2Enabled", true);
+     m_bloodborneSeamlessCoop = boolean("BloodborneSeamlessCoop", false);
++    m_bloodborneSeamlessAnySummonType = boolean("BloodborneSeamlessAnySummonType", false);
+     m_statsPort = str("StatsPort", "31320");
+     m_statsPath = str("StatsPath", "stats");
+     m_statsCacheLife = str("StatsCacheLife", "30").toInt();
+diff --git a/src/config.h b/src/config.h
+index f5d238f..ac7d57c 100644
+--- a/src/config.h
++++ b/src/config.h
+@@ -54,6 +54,10 @@ public:
+         QReadLocker lk(&m_lock);
+         return m_bloodborneSeamlessCoop;
+     }
++    bool IsBloodborneSeamlessAnySummonTypeEnabled() const {
++        QReadLocker lk(&m_lock);
++        return m_bloodborneSeamlessAnySummonType;
++    }
+ 
+     bool IsEmailValidated() const {
+         QReadLocker lk(&m_lock);
+@@ -109,6 +113,7 @@ private:
+     bool m_statsEnabled = true;
+     bool m_matching2Enabled = true;
+     bool m_bloodborneSeamlessCoop = false;
++    bool m_bloodborneSeamlessAnySummonType = false;
+     QString m_statsPort = "31320";
+     QString m_statsPath = "stats";
+     int m_statsCacheLife = 30; // seconds the stats JSON is cached before recompute
+diff --git a/src/webapi_routes_bloodborne.cpp b/src/webapi_routes_bloodborne.cpp
+index 4648ed9..5e1d68b 100644
+--- a/src/webapi_routes_bloodborne.cpp
++++ b/src/webapi_routes_bloodborne.cpp
+@@ -102,15 +102,18 @@ void TraceSummonRequest(const char* route, const QHttpServerRequest& request) {
+ 
+ } // namespace
+ 
+-void RegisterBloodborneRoutes(QHttpServer& http, bool seamlessCoop) {
++void RegisterBloodborneRoutes(QHttpServer& http, bool seamlessCoop, bool seamlessAnySummonType) {
+     seamlessCoop = seamlessCoop || EnvEnabled("SHADNET_BLOODBORNE_SEAMLESS_COOP");
+     Bloodborne::SummonBroker::Options options;
+     options.seamlessCoop = seamlessCoop;
++    options.seamlessAnySummonType = seamlessAnySummonType;
+     auto broker = std::make_shared<Bloodborne::SummonBroker>(options);
+ 
+     qInfo() << "Bloodborne summon routes registered; seamless co-op"
+             << (broker->IsSeamlessCoopEnabled() ? "enabled" : "disabled") << "anywhere summons"
+-            << (broker->IsSeamlessAnywhereSummonsEnabled() ? "enabled" : "disabled");
++            << (broker->IsSeamlessAnywhereSummonsEnabled() ? "enabled" : "disabled")
++            << "any summon type"
++            << (broker->IsSeamlessAnySummonTypeEnabled() ? "enabled" : "disabled");
+ 
+     http.route("/summon_messenger/create", QHttpServerRequest::Method::Post,
+                [broker](const QHttpServerRequest& request) -> QHttpServerResponse {
+diff --git a/src/webapi_routes_bloodborne.h b/src/webapi_routes_bloodborne.h
+index f63cdb0..68e9b71 100644
+--- a/src/webapi_routes_bloodborne.h
++++ b/src/webapi_routes_bloodborne.h
+@@ -6,6 +6,6 @@ class QHttpServer;
+ 
+ namespace WebApiRoutes {
+ 
+-void RegisterBloodborneRoutes(QHttpServer& http, bool seamlessCoop);
++void RegisterBloodborneRoutes(QHttpServer& http, bool seamlessCoop, bool seamlessAnySummonType);
+ 
+ } // namespace WebApiRoutes
+diff --git a/src/webapi_server.cpp b/src/webapi_server.cpp
+index 347a786..4afca6b 100644
+--- a/src/webapi_server.cpp
++++ b/src/webapi_server.cpp
+@@ -66,7 +66,8 @@ void WebApiServer::RegisterRoutes() {
+     WebApiRoutes::RegisterProfileRoutes(*m_http, *m_db, *m_shared);
+     WebApiRoutes::RegisterPresenceRoutes(*m_http, *m_db, *m_shared);
+     WebApiRoutes::RegisterSessionRoutes(*m_http, *m_db, *m_shared);
+-    WebApiRoutes::RegisterBloodborneRoutes(*m_http, m_config->IsBloodborneSeamlessCoopEnabled());
++    WebApiRoutes::RegisterBloodborneRoutes(*m_http, m_config->IsBloodborneSeamlessCoopEnabled(),
++                                           m_config->IsBloodborneSeamlessAnySummonTypeEnabled());
+ 
+     m_http->setMissingHandler(
+         this, [](const QHttpServerRequest& req, QHttpServerResponder& responder) {
