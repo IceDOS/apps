@@ -9,6 +9,7 @@
         mkAttrsOfOption
         mkBoolOption
         mkIntBetweenOption
+        mkNumberOption
         mkStrListOption
         mkStrOption
         mkSubmoduleAttrsOption
@@ -17,6 +18,12 @@
       inherit ((importTOML ./config.toml).icedos.applications.prime-agent)
         costFooter
         peonPing
+        powerMeter
+        powerCard
+        powerRateKwh
+        powerIdleWatts
+        powerCurrency
+        powerProviders
         dataDir
         defaultModel
         defaultProvider
@@ -66,6 +73,23 @@
 
       # Install the peon-ping companion extension (session-event bridge to peon.sh).
       peonPing = mkBoolOption { default = peonPing; };
+
+      # Meter GPU electricity for locally-served models inside the cost footer.
+      powerMeter = mkBoolOption { default = powerMeter; };
+
+      # DRM card to read ("card1"); empty autodetects the first GPU with a sensor.
+      powerCard = mkStrOption { default = powerCard; };
+
+      # Price per kWh, in the currency powerCurrency names.
+      powerRateKwh = mkNumberOption { default = powerRateKwh; };
+
+      # Idle draw subtracted from each sample, so the meter reports marginal cost.
+      powerIdleWatts = mkNumberOption { default = powerIdleWatts; };
+
+      powerCurrency = mkStrOption { default = powerCurrency; };
+
+      # Providers served by the local GPU; everything else is left unmetered.
+      powerProviders = mkStrListOption { default = powerProviders; };
 
       # Upload full session traces (transcripts, cwd, git repo/commit) to Prime
       # Intellect to train open-source LLMs. Off by default; /traces on toggles it.
@@ -154,6 +178,12 @@
                   default = null;
                   description = "Whether the model supports reasoning.";
                 };
+
+                thinkingLevelMap = lib.mkOption {
+                  type = lib.types.nullOr (lib.types.attrsOf (lib.types.nullOr lib.types.str));
+                  default = null;
+                  description = "Maps prime-agent thinking levels to the reasoning_effort the model accepts. Keys must be one of off, minimal, low, medium, high, xhigh or max; prime-agent's schema is non-strict, so a misspelled level is accepted here and then silently ignored at runtime. A level absent from the map is sent through unmapped, so a model that rejects it errors; null hides the level entirely, and xhigh/max are only offered when present as keys.";
+                };
               };
             }
           );
@@ -196,6 +226,12 @@
                   type = lib.types.nullOr lib.types.int;
                   default = null;
                   description = "Max output tokens per response.";
+                };
+
+                thinkingLevelMap = lib.mkOption {
+                  type = lib.types.nullOr (lib.types.attrsOf (lib.types.nullOr lib.types.str));
+                  default = null;
+                  description = "Maps prime-agent thinking levels to the reasoning_effort the model accepts. Keys must be one of off, minimal, low, medium, high, xhigh or max; prime-agent's schema is non-strict, so a misspelled level is accepted here and then silently ignored at runtime. A level absent from the map is sent through unmapped, so a model that rejects it errors; null hides the level entirely, and xhigh/max are only offered when present as keys.";
                 };
 
                 input = lib.mkOption {
@@ -323,6 +359,23 @@
         {
           assertions = [
             {
+              # powerProviders is filled by whichever module serves models
+              # locally; with none the meter loads and measures nothing.
+              # Asserted at NixOS level: reading it from inside
+              # home-manager.sharedModules makes HM depend on a value another
+              # module defines alongside its own sharedModules entry, and the
+              # fixpoint never settles.
+              assertion =
+                !config.icedos.applications.prime-agent.powerMeter
+                || config.icedos.applications.prime-agent.powerProviders != [ ];
+              message = ''
+                icedos.applications.prime-agent.powerMeter is on but
+                powerProviders is empty, so nothing would be metered. Load a
+                module that serves models locally (llamacpp adds itself) or name
+                the provider explicitly.
+              '';
+            }
+            {
               assertion = invalidSkillNames == [ ];
               message = ''
                 icedos.applications.prime-agent.extraBuiltinSkills names must be
@@ -426,6 +479,37 @@
                     else
                       stripped
                   );
+                # power.ts carries build-time constants, so the directory is
+                # assembled rather than symlinked straight from the source tree.
+                # powerMeter = false neuters the meter by naming no providers.
+                # The markers sit inside TypeScript string literals so the
+                # template still parses on its own; jsStr escapes a value for
+                # that context, which escapeShellArg (which protects the builder,
+                # not the literal) does not do — a bare `"` would otherwise emit
+                # a syntax error that only surfaces when the extension loads.
+                jsStr =
+                  v: lib.escapeShellArg (lib.replaceStrings [ "\\" "\"" "\n" "\r" ] [ "\\\\" "\\\"" "\\n" "\\r" ] v);
+                costFooterSrc = pkgs.runCommand "prime-agent-cost-footer" { } ''
+                  cp -r ${./extensions/cost-footer} $out
+                  chmod -R +w $out
+                  substituteInPlace $out/power.ts \
+                    --replace-fail "@powerCard@" ${jsStr prime-agent.powerCard} \
+                    --replace-fail "@powerRate@" ${jsStr (builtins.toJSON prime-agent.powerRateKwh)} \
+                    --replace-fail "@powerIdle@" ${jsStr (builtins.toJSON prime-agent.powerIdleWatts)} \
+                    --replace-fail "@powerCurrency@" ${jsStr prime-agent.powerCurrency} \
+                    --replace-fail "@powerProviders@" ${
+                      jsStr (
+                        lib.concatStringsSep "," (if prime-agent.powerMeter then prime-agent.powerProviders else [ ])
+                      )
+                    }
+
+                  # substituteInPlace only fails on a marker it was told about, so
+                  # a newly added one would ship as a literal and break the load.
+                  if ${pkgs.gnugrep}/bin/grep -rqE '@[a-zA-Z_][0-9A-Za-z_-]*@' $out; then
+                    echo "unsubstituted placeholder left in cost-footer" >&2
+                    exit 1
+                  fi
+                '';
                 # home.file keys are $HOME-relative; only in-home dataDirs work (asserted below).
                 relDataDir = lib.removePrefix (config.home.homeDirectory + "/") dataDir;
                 # ---- shared MCP registry ----
@@ -831,7 +915,12 @@
                   name: p:
                   let
                     attrs = lib.filterAttrs (_: v: v != null) {
-                      inherit (p) api apiKey baseUrl headers;
+                      inherit (p)
+                        api
+                        apiKey
+                        baseUrl
+                        headers
+                        ;
                     };
                     overrides = lib.mapAttrs (_: o: lib.filterAttrs (_: v: v != null) o) (p.modelOverrides or { });
                     models = map (m: lib.filterAttrs (_: v: v != null) m) (p.models or [ ]);
@@ -986,6 +1075,25 @@
                     '';
                   }
                   {
+                    assertion = prime-agent.powerIdleWatts >= 0 && prime-agent.powerRateKwh >= 0;
+                    message = ''
+                      icedos.applications.prime-agent.powerIdleWatts and
+                      powerRateKwh must not be negative: a negative idle floor is
+                      added to every sample rather than subtracted, and a negative
+                      rate reports negative cost.
+                    '';
+                  }
+                  {
+                    # The meter renders inside the cost footer, so it has
+                    # nowhere to appear without it.
+                    assertion = prime-agent.costFooter || !prime-agent.powerMeter;
+                    message = ''
+                      icedos.applications.prime-agent.powerMeter needs
+                      costFooter = true: the GPU electricity meter is rendered
+                      as part of the cost footer.
+                    '';
+                  }
+                  {
                     # Both load a "cost-footer" extension and would double-render.
                     assertion = !prime-agent.costFooter || !(prime-agent.extensions ? "cost-footer");
                     message = ''
@@ -1029,7 +1137,7 @@
 
                     # Live session cost (USD) + token totals in the TUI bottom bar.
                     (mkIf prime-agent.costFooter {
-                      "${relDataDir}/extensions/cost-footer".source = ./extensions/cost-footer;
+                      "${relDataDir}/extensions/cost-footer".source = costFooterSrc;
                     })
 
                     # Point models at the per-language code-intelligence skills.
