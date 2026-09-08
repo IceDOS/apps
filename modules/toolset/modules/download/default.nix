@@ -26,4 +26,8 @@ in
       completion.files = true;
     }
   ];
+
+  icedos.system.tips.list = [
+    "icedos download <url> fetches files, torrents and magnet links at full speed."
+  ];
 }

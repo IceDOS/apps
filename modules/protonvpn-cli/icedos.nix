@@ -234,6 +234,14 @@
             proton-vpn-cli
             zenity
           ];
+
+          icedos.system.tips.list =
+            lib.optionals settings.killSwitch [
+              "The VPN kill switch is on, so nothing leaks if the tunnel drops."
+            ]
+            ++ lib.optionals desktop-entry.enable [
+              "ProtonVPN controller entry is in your app menu."
+            ];
         }
       )
     ];

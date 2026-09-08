@@ -177,6 +177,10 @@
               ];
             }
           ];
+
+          icedos.system.tips.list = [
+            "icedos adb paste <text> types text straight into your phone."
+          ];
         }
       )
     ];

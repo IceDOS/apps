@@ -45,6 +45,10 @@ in
               }
             )
           ];
+
+          icedos.system.tips.list = [
+            "Celluloid plays your videos and can sharpen them with the built-in FSR filter."
+          ];
         }
       )
     ];

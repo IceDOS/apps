@@ -23,6 +23,10 @@
             [
               reigntweak
             ];
+
+          icedos.system.tips.list = [
+            "reigntweak unlocks the framerate and ultrawide support in Elden Ring Nightreign."
+          ];
         }
       )
     ];
