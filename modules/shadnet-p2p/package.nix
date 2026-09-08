@@ -11,9 +11,8 @@ let
   # nix-prefetch-git rather than the release tarball, which carries no submodule content.
   source = builtins.fromJSON (builtins.readFile ./source.json);
 
-  # shadnet's externals hard-forces protobuf_FORCE_FETCH_DEPENDENCIES, so protobuf
-  # FetchContent's abseil at configure time. Feed it a pinned local source so the
-  # Nix build stays offline; same pin/hash nixpkgs shadps4 uses.
+  # shadnet forces protobuf_FORCE_FETCH_DEPENDENCIES, so protobuf fetches abseil at
+  # configure time. Pin it locally for an offline build. nixpkgs' shadps4 pins the same.
   abseilCppSrc = fetchFromGitHub {
     owner = "abseil";
     repo = "abseil-cpp";
@@ -32,6 +31,15 @@ clangStdenv.mkDerivation {
     fetchSubmodules = true;
   };
 
+  # Adds the BloodborneSeamlessAnySummonType key (see config.toml).
+  patches = [ ./patches/seamless-any-summon-type.patch ];
+
+  # -F0: no fuzz, so a hunk whose context text changed fails instead of applying wrong.
+  patchFlags = [
+    "-p1"
+    "-F0"
+  ];
+
   nativeBuildInputs = [
     cmake
     qt6.wrapQtAppsHook
@@ -42,10 +50,9 @@ clangStdenv.mkDerivation {
     qt6.qthttpserver
   ];
 
-  # The server chdirs to its own executable dir and writes db/cfg there; in the
-  # read-only Nix store that crashes at DB init. Route it to a writable dir,
-  # overridable via SHADNET_HOME (which the NixOS service sets).
   postPatch = ''
+        # The server chdirs to its executable dir and writes db/shadnet.db there, so
+        # it fails to start in the read-only store. Send it to a writable dir.
         substituteInPlace src/main.cpp \
           --replace '#include <QLoggingCategory>' '#include <QLoggingCategory>
     #include <QStandardPaths>' \
@@ -55,25 +62,16 @@ clangStdenv.mkDerivation {
             : QString::fromLocal8Bit(qgetenv("SHADNET_HOME"));
         QDir().mkpath(stateHome);
         QDir::setCurrent(stateHome);'
+
+    # shadnet-sample registers accounts on a self-hosted server, so ship it too. The
+    # root project omits it, and a standalone build would rebuild protobuf.
+    printf '\nadd_subdirectory(clientsample)\n' >> CMakeLists.txt # No trailing newline.
+    printf 'install(TARGETS shadnet-sample RUNTIME DESTINATION bin)\n' >> CMakeLists.txt
   '';
 
   cmakeFlags = [
     (lib.cmakeFeature "FETCHCONTENT_SOURCE_DIR_ABSL" "${abseilCppSrc}")
   ];
-
-  # Also build and ship the clientsample CLI (shadnet-sample): it is the only
-  # supported way to register accounts on a self-hosted server (open or keyed
-  # registration), so server owners need it on the machine that runs shadnet.
-  postInstall = ''
-    # The cmake configure hook leaves us inside build/, so use the absolute
-    # source root (fetchFromGitHub always unpacks to $NIX_BUILD_TOP/source).
-    cmake -S "$NIX_BUILD_TOP/source/clientsample" \
-      -B "$NIX_BUILD_TOP/source/sample-build" -DCMAKE_BUILD_TYPE=Release \
-      -DFETCHCONTENT_SOURCE_DIR_ABSL="${abseilCppSrc}"
-    cmake --build "$NIX_BUILD_TOP/source/sample-build" -j "$NIX_BUILD_CORES"
-    install -Dm755 "$NIX_BUILD_TOP/source/sample-build/shadnet-sample" \
-      "$out/bin/shadnet-sample"
-  '';
 
   meta = {
     description = "Self-hosted Bloodborne co-op (shadNet) P2P server for shadPS4";

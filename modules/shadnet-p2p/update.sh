@@ -48,7 +48,7 @@ main() {
   info "  Current: ${current:-none}"
 
   # fetchSubmodules=true, so the hash must come from a real clone (see bb-launcher).
-  info "  Computing hash (clones the repo + submodules, this takes a while)..."
+  info "  Computing hash (clones the repo and its submodules, this takes a while)..."
   local hash
   hash=$(prefetch_git "https://github.com/$OWNER/$REPO" "$rev" --fetch-submodules || echo "")
   require_nonempty shadnet-p2p "$version" "$rev" "$hash"
