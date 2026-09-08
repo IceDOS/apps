@@ -8,11 +8,66 @@ gpuLayers = 99
 host = "127.0.0.1"
 model = ""
 mmproj = ""
+mmprojOffload = true
 prio = 2
 prioBatch = 3
 port = 8080
+
+# Seconds of idleness after which the server releases the model and sleeps,
+# reloading it on the next request (measured: ~13 GiB freed, ~34 s to wake).
+# The port stays open while asleep. -1 or 0 disables sleeping (llama.cpp
+# itself rejects a literal 0, so it is never passed through).
+#
+# Incompatible with this module's own lifecycle option: /slots is not on
+# llama.cpp's bypass_sleep list, so the lifecycle extension's polling wakes a
+# sleeping server and resets its idle timer.
+sleepIdleSeconds = -1
+
+# Users whose RLIMIT_NICE is raised so a negative `prio` can apply — an
+# allowlist of usernames, or "all" for every icedos-declared normal user.
+# Empty by default: nobody gets a negative nice ceiling, and llama.cpp logs a
+# harmless EPERM warning. Applies at session open, so a change needs a
+# re-login — or, with lingering enabled, a restart of user@$UID.service.
+priorityUsers = []
+
+# Install prime-agent's llamacpp-lifecycle extension (no-op unless the
+# prime-agent module is loaded): it starts this server when a model it serves is
+# about to be used and stops it once /slots reports every slot idle for
+# lifecycleIdleSeconds. Idleness is the server's own answer, so it cannot fire
+# mid-generation.
+lifecycle = false
+
+# Seconds with every slot idle before the server is stopped. 0 never stops it.
+lifecycleIdleSeconds = 300
+
+# The provider name prime-agent knows this server by; must match the key under
+# icedos.applications.prime-agent.providers.
+lifecycleProvider = "llamacpp"
+
+# Command exposing `llamacpp serve` and `llamacpp stop`.
+lifecycleBin = "icedos"
+
+# Registers this server as a prime-agent provider (api/baseUrl/contextWindow are
+# derived from the options above, so they cannot drift from what the server is
+# actually running). Empty id means no model entry is emitted.
+lifecycleModelId = ""
+
+# Display name; falls back to the id.
+lifecycleModelName = ""
+
+# Whether the model emits reasoning content.
+lifecycleModelReasoning = true
+
+# Output cap per response. The context window comes from contextSize.
+lifecycleModelMaxTokens = 16384
+
 reasoningBudgetDivider = 1.25
 reasoningPreserve = true
 service = false
 threads = -1
 ubatchSize = 512
+
+# Maps prime-agent thinking levels to the reasoning_effort this model accepts;
+# a level absent from the map is sent through unmapped. Model-specific, so the
+# module cannot derive it.
+[icedos.applications.llamacpp.lifecycleModelThinkingLevelMap]

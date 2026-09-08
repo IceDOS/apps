@@ -43,9 +43,22 @@ import {
   type RateLimitEvent,
   type SharedState,
 } from "./shared.ts";
+import {
+  CURRENCY,
+  costOf,
+  createPowerMeter,
+  isMetered,
+  isMeteredProvider,
+  meteringEnabled,
+} from "./power.ts";
 
 export default function (pi: ExtensionAPI) {
   let enabled = true;
+  // Electricity for locally-served models. A local model has no per-token
+  // price, so without this its row would just read "free".
+  const power = createPowerMeter(() => {
+    if (lastCtx) refresh(lastCtx);
+  });
   let sampler: ReturnType<typeof setInterval> | null = null;
   let repainter: ReturnType<typeof setTimeout> | null = null;
   let lastCtx: any = null;
@@ -310,24 +323,48 @@ export default function (pi: ExtensionAPI) {
     return parts.join("  ");
   };
 
+  const fmtPower = (n: number) =>
+    n > 0 && n < 0.01 ? `${CURRENCY}${n.toFixed(4)}` : `${CURRENCY}${n.toFixed(2)}`;
+
   const costLine = (
     usage: { input: number; output: number; cost: number },
     model: string,
     free: boolean,
-  ) =>
-    [
-      sgr("36", "◆"),
-      free ? dim("free") : sgr("1", fmtCost(usage.cost)),
-      `↑${fmtTokens(usage.input)}`,
-      `↓${fmtTokens(usage.output)}`,
-      dim(model),
-    ].join(" ");
+    metered: boolean,
+  ) => {
+    // Electricity is a property of the machine, not of a session: one card and
+    // one sensor cannot attribute a shared draw to whoever caused it. So the
+    // meter reports the live draw and machine-wide rolling costs, and never
+    // pretends to a per-session total.
+    const p = metered ? power.snapshot() : null;
+    // A metered model has no per-token price to state — the rolling costs below
+    // are the answer — so it leads with the bolt instead of "free".
+    const parts = p
+      ? [sgr("33", "⚡")]
+      : [sgr("36", "◆"), free ? dim("free") : sgr("1", fmtCost(usage.cost))];
+    parts.push(`↑${fmtTokens(usage.input)}`, `↓${fmtTokens(usage.output)}`);
+    if (p) {
+      if (p.sampling) parts.push(`${p.watts.toFixed(0)}W`);
+      if (p.tps > 0) parts.push(`${p.tps.toFixed(1)} tok/s`);
+      if (p.windows.length) {
+        parts.push(dim("·"));
+        for (const [label, joules] of p.windows) {
+          parts.push(`${dim(label)} ${fmtPower(costOf(joules))}`);
+        }
+      }
+    }
+    parts.push(dim(model));
+    return parts.join(" ");
+  };
 
   // -- refresh: render from local usage + shared-state budget rows -----------
   const refresh = (ctx: any) => {
     if (!ctx.hasUI) return;
     lastCtx = ctx;
     if (!enabled) {
+      // Release the claim too: leaving it held would keep accruing joules for a
+      // meter the user has switched off.
+      power.drain();
       ctx.ui.setWidget("cost", undefined);
       if (currentKey) {
         removeHeartbeat(currentKey);
@@ -348,7 +385,15 @@ export default function (pi: ExtensionAPI) {
     const model = ctx.model?.provider
       ? `${ctx.model.provider}/${ctx.model.id}`
       : ctx.model?.id || "no-model";
-    const lines = [costLine({ input, output, cost }, model, isFreeModel(ctx.model))];
+    const metered = meteringEnabled() && isMetered(ctx);
+    const lines = [
+      costLine(
+        { input, output, cost },
+        model,
+        isFreeModel(ctx.model),
+        metered,
+      ),
+    ];
 
     const m = ctx.model;
     const mode = modeOf(m);
@@ -386,17 +431,19 @@ export default function (pi: ExtensionAPI) {
         }, 3_000);
       }
     }
-    if (!mode && sampler) {
+    // A metered local model has no collector mode, but its rolling windows are
+    // written by whichever window holds the sampling claim — without a timer a
+    // non-holder would show figures frozen at its own last turn.
+    const wantsPoll = mode !== null || metered;
+    if (!wantsPoll && sampler) {
       clearInterval(sampler);
       sampler = null;
     }
     if (!mode) stopWatcher();
-    else if (mode && !sampler) {
+    if (wantsPoll && !sampler) {
       sampler = setInterval(() => {
-        if (currentKey) {
-          writeHeartbeat(currentKey);
-          refresh(lastCtx);
-        }
+        if (currentKey) writeHeartbeat(currentKey);
+        refresh(lastCtx);
       }, SAMPLE_MS);
     }
     ctx.ui.setWidget("cost", lines, { placement: "belowEditor" });
@@ -404,7 +451,44 @@ export default function (pi: ExtensionAPI) {
 
   // -- hooks --
   pi.on("session_start", async (_e, ctx) => refresh(ctx));
-  pi.on("turn_end", async (_e, ctx) => refresh(ctx));
+  pi.on("turn_end", async (_e, ctx) => {
+    // No power.stop() here: turn_end fires once per assistant message, so it
+    // would double-decrement a single request. A claim with no matching
+    // message_end is reclaimed by the idle drain instead.
+    refresh(ctx);
+  });
+  // Metering brackets the whole request. NOT after_provider_response: that
+  // fires when the response headers land, before a token is decoded, so it
+  // would time the prefill and miss the generation entirely.
+  // Registered only when the meter can actually do something: prime-agent parks
+  // its Idempotency-Key reuse for a retry whenever ANY before_provider_request
+  // handler exists (hasHandlers is runner-wide), so an inert handler would make
+  // every provider's auto-retry bill twice.
+  if (meteringEnabled())
+    pi.on("before_provider_request", (event: any, ctx: any) => {
+      if (!enabled || !ctx?.hasUI) return;
+      lastCtx = ctx;
+      if (isMetered(ctx, event?.payload?.model)) {
+        power.start(() => ctx?.isIdle?.() === true);
+      }
+    });
+  pi.on("message_update", (event: any) => {
+    if (isMeteredProvider(event?.message?.provider)) power.noteDelta();
+  });
+  pi.on("message_end", (event: any, ctx: any) => {
+    if (event?.message?.role !== "assistant") return;
+    // tok/s is only meaningful for a model we are timing; a cloud reply would
+    // otherwise report a rate in a widget whose premise is local hardware.
+    if (isMeteredProvider(event?.message?.provider)) {
+      power.noteGeneration(event?.message?.usage?.output);
+      // Only inside this branch: metering was started for a metered request,
+      // so an unrelated cloud reply must not release its claim.
+      power.stop();
+    } else {
+      power.resetGeneration();
+    }
+    refresh(ctx);
+  });
   pi.on("model_select", async (_e, ctx) => refresh(ctx));
   pi.on("session_before_switch", async (_e, ctx) => refresh(ctx));
   // The rate-limit message itself: a 429 for the tracked free model carries
@@ -436,7 +520,12 @@ export default function (pi: ExtensionAPI) {
     }, 500);
   });
 
+  // Also fires with reason "reload"/"new"/"fork", after which this module is
+  // re-evaluated into fresh closures while the old ones' timers keep running —
+  // nothing invalidates them — so the teardown has to be unconditional.
   pi.on("session_shutdown", async () => {
+    power.drain();
+    power.flushPending();
     if (sampler) {
       clearInterval(sampler);
       sampler = null;
