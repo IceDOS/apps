@@ -22,6 +22,10 @@
           ];
 
           programs.nano.enable = false;
+
+          icedos.system.tips.list = [
+            "killall <name> force-closes an app that stopped responding."
+          ];
         }
       )
     ];

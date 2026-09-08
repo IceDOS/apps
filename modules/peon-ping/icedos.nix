@@ -155,6 +155,10 @@
               }
             )
           ];
+
+          icedos.system.tips.list = [
+            "peon-ping plays configured sounds when your AI assistant needs you."
+          ];
         }
       )
     ];

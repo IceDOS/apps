@@ -57,6 +57,14 @@
             (lib.optionals prerelease (import ./prerelease.nix).nixpkgs.overlays)
             ++ (lib.optionals (shadnet && (!prerelease)) (import ./shadnet.nix).nixpkgs.overlays)
             ++ (lib.optionals (shadnet && prerelease) (import ./shadnet-merge.nix).nixpkgs.overlays);
+
+          icedos.system.tips.list =
+            lib.optionals prerelease [
+              "You are on shadPS4 prereleases: fixes arrive early, but things can break."
+            ]
+            ++ lib.optionals shadnet [
+              "Your shadPS4 build has Bloodborne online play built in."
+            ];
         }
       )
     ];

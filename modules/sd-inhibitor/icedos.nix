@@ -372,6 +372,11 @@
               }
             )
           ];
+
+          icedos.system.tips.list = [
+            "Your screen stays awake while something is busy, like a download, a game or a call."
+            "icedos toggle-inhibit keeps the screen on for as long as you ask."
+          ];
         }
       )
     ];
