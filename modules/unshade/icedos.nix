@@ -44,6 +44,13 @@
           icedos.system.gc.hooks.postGc = mkIf unshade.includeInIcedosGc [
             "${getExe pkgs.unshade} --all"
           ];
+
+          icedos.system.tips.list = [
+            "unshade clears out old game shader caches that pile up over time."
+          ]
+          ++ lib.optionals unshade.includeInIcedosGc [
+            "icedos gc sweeps old game shader caches as well."
+          ];
         }
       )
     ];

@@ -139,6 +139,13 @@
               };
             }
           ];
+
+          icedos.system.tips.list = [
+            "btop shows live processor, memory, disk and network use in your terminal."
+          ]
+          ++ lib.optionals sudoDesktopEntry [
+            "The sudo btop++ entry in your app menu lists every process, system ones included."
+          ];
         }
       )
     ];

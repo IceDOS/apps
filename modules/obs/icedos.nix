@@ -39,6 +39,10 @@
               enableVirtualCamera = virtualCamera;
               plugins = mapper pkgs plugins;
             };
+
+          icedos.system.tips.list = lib.optionals config.icedos.applications.obs.virtualCamera [
+            "OBS can pose as a webcam, so any app can use your scenes."
+          ];
         }
       )
     ];

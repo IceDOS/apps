@@ -20,6 +20,10 @@
             group = "root";
             permissions = "u+rx,g+rx,o+rx";
           };
+
+          icedos.system.tips.list = [
+            "sekirofpsunlock lifts Sekiro's 60 FPS cap."
+          ];
         }
       )
     ];

@@ -18,6 +18,10 @@
               help = "print information about system state";
             }
           ];
+
+          icedos.system.tips.list = [
+            "icedos health checks your system and reports anything that looks wrong."
+          ];
         }
       )
     ];

@@ -62,6 +62,10 @@
               completion.files = true;
             }
           ];
+
+          icedos.system.tips.list = [
+            "icedos wg-config <file> installs a WireGuard VPN config for you."
+          ];
         }
       )
     ];

@@ -84,6 +84,13 @@
                   };
                 }
               ];
+
+          icedos.system.tips.list = [
+            "ollama run <model> chats with an AI model that runs on your own machine."
+          ]
+          ++ lib.optionals (loadModels != [ ]) [
+            "The AI models you listed in config.toml download themselves on rebuild."
+          ];
         }
       )
     ];

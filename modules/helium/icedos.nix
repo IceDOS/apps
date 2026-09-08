@@ -178,6 +178,14 @@
               );
             }
           ];
+
+          icedos.system.tips.list =
+            lib.optionals config.icedos.applications.helium.drmSupportUsingGoogleChrome [
+              "Netflix and other paid video play in Helium, thanks to the Chrome DRM support."
+            ]
+            ++ lib.optionals (profiles != [ ]) [
+              "Each Helium profile you added has its own app menu entry and its own sites."
+            ];
         }
       )
     ];

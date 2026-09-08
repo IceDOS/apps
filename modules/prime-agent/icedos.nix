@@ -1224,6 +1224,17 @@
               }
             )
           ];
+
+          icedos.system.tips.list =
+            lib.optionals prime-agent.costFooter [
+              "prime-agent shows what the session has cost so far; /cost hides the line."
+            ]
+            ++ lib.optionals prime-agent.powerMeter [
+              "Models running on your own graphics card are priced by the electricity they use."
+            ]
+            ++ lib.optionals prime-agent.includeInIcedosGc [
+              "icedos gc also clears out old prime-agent sessions and logs."
+            ];
         }
       )
 

@@ -284,6 +284,10 @@
             [
               { xdg.configFile = listToAttrs (map mkHomeFile allProfiles); }
             ];
+
+          icedos.system.tips.list = [
+            "me3 loads your game mods per profile and leaves the game's own files alone."
+          ];
         }
       )
     ];

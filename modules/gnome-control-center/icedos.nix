@@ -26,6 +26,10 @@
               dconf.settings."org/gnome/control-center".last-panel = "online-accounts";
             }
           ];
+
+          icedos.system.tips.list = [
+            "GNOME Settings is in your app menu for online accounts and system options."
+          ];
         }
       )
     ];

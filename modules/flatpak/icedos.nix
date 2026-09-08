@@ -74,6 +74,13 @@
               };
             }
           ];
+
+          icedos.system.tips.list = [
+            "List flathub apps under [icedos.applications.flatpak] packages = [...] and they install on the next rebuild."
+          ]
+          ++ lib.optionals (packages != [ ]) [
+            "Your flatpak apps update themselves during icedos rebuild --update."
+          ];
         }
       )
     ];

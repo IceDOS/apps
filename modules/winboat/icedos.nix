@@ -98,6 +98,13 @@
             '';
 
           virtualisation.libvirtd.enable = true;
+
+          icedos.system.tips.list = [
+            "icedos clear-winboat wipes WinBoat's files for a clean start."
+          ]
+          ++ lib.optionals autostart [
+            "WinBoat's Windows machine starts up with your computer."
+          ];
         }
       )
     ];

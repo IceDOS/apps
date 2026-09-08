@@ -111,6 +111,11 @@
               }
             )
           ];
+
+          icedos.system.tips.list = [
+            "MangoHud shows framerate, temperatures and usage on top of your games."
+            "Move the MangoHud overlay with position under [icedos.applications.mangohud]."
+          ];
         }
       )
     ];
