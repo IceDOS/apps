@@ -18,6 +18,10 @@
           environment.systemPackages = with pkgs; [
             nx-optimizer
           ];
+
+          icedos.system.tips.list = [
+            "NX Optimizer adds smoother framerates and camera control to Switch games like Zelda."
+          ];
         }
       )
     ];

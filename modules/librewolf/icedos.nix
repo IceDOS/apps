@@ -71,6 +71,10 @@
               stylix.targets.librewolf.profileNames = [ "default" ];
             })
           ];
+
+          icedos.system.tips.list = [
+            "LibreWolf is Firefox with the tracking and telemetry taken out."
+          ];
         }
       )
     ];

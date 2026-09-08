@@ -49,6 +49,14 @@
               settings
               ;
           };
+
+          icedos.system.tips.list =
+            lib.optionals openFirewall [
+              "Sunshine is reachable from the other devices on your network."
+            ]
+            ++ lib.optionals autoStart [
+              "Sunshine starts with your session, so streaming is ready whenever you are."
+            ];
         }
       )
     ];

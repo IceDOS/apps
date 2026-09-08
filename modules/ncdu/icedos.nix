@@ -20,6 +20,10 @@
               completion.files = true;
             }
           ];
+
+          icedos.system.tips.list = [
+            "icedos du shows which folders are eating your disk space."
+          ];
         }
       )
     ];

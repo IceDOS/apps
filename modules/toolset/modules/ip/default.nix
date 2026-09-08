@@ -25,4 +25,8 @@ in
       help = "print current ip info";
     }
   ];
+
+  icedos.system.tips.list = [
+    "icedos ip shows your local and public IP addresses."
+  ];
 }

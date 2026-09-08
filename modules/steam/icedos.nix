@@ -198,6 +198,19 @@
               "L+ ${home}/.local/share/Steam/steamapps/compatdata/0 - - - - /dev/null"
             ]
           ) (attrNames users);
+
+          icedos.system.tips.list = [
+            "Add libraries a game, launcher or app needs with extraPackages under [icedos.applications.steam]."
+          ]
+          ++ lib.optionals downloadsWorkaround [
+            "The Steam download fix is on, so downloads should utilize your full bandwidth."
+          ]
+          ++ lib.optionals cpuUsageWorkaround [
+            "The Steam processor fix is on, so the client stops hogging your CPU."
+          ]
+          ++ lib.optionals beta [
+            "Steam runs on the beta channel; turn beta off in config.toml if something breaks."
+          ];
         }
       )
     ];

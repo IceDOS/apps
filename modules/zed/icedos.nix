@@ -281,6 +281,16 @@
               }
             )
           ];
+
+          icedos.system.tips.list = [
+            "Zed is a fast code editor; set its theme, font and format-on-save in config.toml."
+          ]
+          ++ lib.optionals zed.vim [
+            "Vim keys are turned on in Zed."
+          ]
+          ++ lib.optionals zed.copySelectionLocation.enable [
+            "In Zed, ${zed.copySelectionLocation.keybind} copies the file and line you selected."
+          ];
         }
       )
     ];

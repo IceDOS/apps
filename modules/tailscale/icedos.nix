@@ -29,6 +29,10 @@
         {
           environment.systemPackages = with pkgs; [ tailscale ] ++ optional enableTrayscale trayscale;
           services.tailscale.enable = true;
+
+          icedos.system.tips.list = lib.optionals enableTrayscale [
+            "Trayscale sits in your system tray to connect and disconnect Tailscale."
+          ];
         }
       )
     ];

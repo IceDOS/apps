@@ -17,6 +17,10 @@
           ];
 
           programs.nix-ld.enable = true;
+
+          icedos.system.tips.list = [
+            "nix-alien runs downloaded Linux programs that were never built for NixOS."
+          ];
         }
       )
     ];

@@ -195,6 +195,10 @@
           ];
 
           networking.firewall.allowedUDPPorts = mkIf openFirewall [ 31314 ];
+
+          icedos.system.tips.list = lib.optionals openFirewall [
+            "Your shadnet server is reachable from other machines on your network."
+          ];
         }
       )
     ];

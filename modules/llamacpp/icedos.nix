@@ -907,6 +907,14 @@
               };
             }
           ];
+
+          icedos.system.tips.list = [
+            "icedos llamacpp serve runs an AI model on your own machine."
+            "icedos llamacpp stop shuts the model down and frees your graphics memory."
+          ]
+          ++ optionals service [
+            "Your local AI model server starts on its own at boot."
+          ];
         }
       )
     ];

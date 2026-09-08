@@ -208,6 +208,10 @@
               }
             )
           ];
+
+          icedos.system.tips.list = [
+            "VSCodium is VS Code without the tracking; set its font, theme and autosave in config.toml."
+          ];
         }
       )
     ];

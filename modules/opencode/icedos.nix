@@ -206,6 +206,10 @@
               )
             )
           ];
+
+          icedos.system.tips.list = lib.optionals includeInIcedosGc [
+            "icedos gc also clears out old opencode sessions and logs."
+          ];
         }
       )
     ];
