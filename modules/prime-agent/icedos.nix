@@ -905,9 +905,14 @@
                   };
 
                 # ---- models.json ----
-                # zen 429s unless identified as an opencode client.
+                # zen 429s unless identified as an opencode client. It also wants a session
+                # header, which is per-run, so zen-session.ts registers both at load.
                 opencodeVersion = config.programs.opencode.package.version or pkgs.opencode.version;
                 providerDefaults.opencode.headers."User-Agent" = "opencode/${opencodeVersion}";
+
+                zenSessionSrc = pkgs.replaceVars ./extensions/zen-session.ts {
+                  inherit opencodeVersion;
+                };
 
                 # modelOverrides stays as-is for partial merge; models[] merges in
                 # custom models (adds unknown ids, replaces known ones).
@@ -1104,6 +1109,21 @@
                     '';
                   }
                   {
+                    # registerProvider replaces the whole stored request config, so
+                    # zen-session.ts drops any apiKey or headers models.json set for opencode.
+                    assertion =
+                      let
+                        oc = prime-agent.providers.opencode or { };
+                      in
+                      (oc.apiKey or null) == null && (oc.headers or { }) == { };
+                    message = ''
+                      icedos.applications.prime-agent.providers.opencode sets apiKey or
+                      headers, which the zen-session extension drops when it refreshes the
+                      session header. Keep the key in prime-agent's auth store, and set
+                      extra opencode headers from an extension instead.
+                    '';
+                  }
+                  {
                     assertion = lib.all (n: builtins.match "[A-Za-z0-9._-]+" n != null) (
                       lib.attrNames prime-agent.extensions
                     );
@@ -1145,6 +1165,11 @@
                       "${relDataDir}/extensions/code-intelligence-glue.ts".source =
                         ./extensions/code-intelligence-glue.ts;
                     })
+
+                    # Mints a fresh zen session id per pi session; models.json cannot.
+                    {
+                      "${relDataDir}/extensions/zen-session.ts".source = zenSessionSrc;
+                    }
                   ]
                 );
 
