@@ -86,7 +86,7 @@ buildNpmPackage (finalAttrs: {
   };
 
   patches = [
-    # MCP tool-call timeout defaults to 60s — too short for heavy reviews.
+    # MCP tool-call timeout defaults to 60s, too short for heavy reviews.
     # Make it configurable via PRIME_AGENT_MCP_CALL_TIMEOUT (seconds).
     ./patches/mcp-call-timeout-env.patch
 

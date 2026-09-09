@@ -1,13 +1,5 @@
-// GPU electricity metering for locally-served models, rendered as part of the
-// cost footer so there is one answer to "what did this cost" whether the tokens
-// were billed by a provider or paid for at the wall.
-//
-// While a request to a metered provider is in flight the card's hwmon sensor is
-// sampled and the draw *above its idle floor* is integrated: the card idles
-// whether or not you use it, so only the marginal watts are yours.
-//
-// The powerCard / powerRate / powerIdle / powerCurrency / powerProviders values
-// are substituted at build time.
+// GPU electricity metering for locally-served models, shown in the cost
+// footer; build-time constants powerCard..powerProviders get substituted.
 
 import {
   closeSync,
@@ -56,18 +48,13 @@ const stateFile = () => join(costDir(), "power", "energy.json");
 const lockPath = () => join(costDir(), "power", "energy.lock");
 const claimPath = () => join(costDir(), "power", "sampler.claim");
 
-// Every session — the main one and each subagent — gets its own instance of
-// this module (the loader runs jiti with moduleCache disabled), so several
-// samplers can be alive at once. They would each integrate the same physical
-// card, counting the same joules N times. One claim holds the right to sample;
-// everyone else still renders from the shared file.
+// Every session (main plus each subagent) gets its own module instance, so
+// several samplers must not all integrate the same card; one claim arbitrates.
 const CLAIM_STALE_MS = 5_000;
 const CLAIM_REFRESH_MS = 2_000;
 
-// The daemon builds subagent runtimes in the *same* OS process and re-loads the
-// extensions for each, so a pid identifies the process but not the instance —
-// every instance would think it owned a pid-keyed claim. The token pairs the pid
-// (for liveness) with a value unique to this module evaluation.
+// Subagent runtimes share one OS process, so a pid cannot identify the
+// instance. The token pairs the pid (for liveness) with a per-evaluation value.
 const tokenPid = (t: string): number | null => {
   const pid = Number(t.split(":")[0]);
   return Number.isInteger(pid) && pid > 0 ? pid : null;
@@ -93,9 +80,8 @@ const ownerAlive = (token: string): boolean => {
   }
 };
 
-// link() is atomic and fails with EEXIST if the target appeared meanwhile, so
-// two processes racing to replace a dead owner's claim cannot both win — an
-// unlink+create pair could, and did, hand ownership to both.
+// link() is atomic and fails with EEXIST on a race, so two processes replacing
+// a dead owner's claim cannot both win; an unlink+create pair could.
 const linkClaim = (self: string): boolean => {
   const tmp = `${claimPath()}.${self.replace(/[^A-Za-z0-9]/g, "")}.tmp`;
   try {
@@ -108,7 +94,6 @@ const linkClaim = (self: string): boolean => {
     try {
       unlinkSync(tmp);
     } catch {
-      // ignore
     }
   }
 };
@@ -126,11 +111,9 @@ const sweepTmp = () => {
       try {
         if (Date.now() - statSync(path).mtimeMs > CLAIM_STALE_MS) unlinkSync(path);
       } catch {
-        // ignore
       }
     }
   } catch {
-    // ignore
   }
 };
 
@@ -144,18 +127,15 @@ const takeClaim = (self: string): boolean => {
   }
   sweepTmp();
   if (linkClaim(self)) return true;
-  // Taking a claim from a dead owner is read-check-unlink-link, which is not
-  // atomic as a unit: without the lock two processes each observe the same dead
-  // owner and both end up believing they won. Measured at ~1 in 3 contended
-  // steals before this was serialised.
+  // read-check-unlink-link is not atomic as a unit: without the lock, two
+  // processes can both observe the same dead owner and both believe they won.
   return (
     withLock(() => {
       try {
         const token = claimOwner();
         if (token === self) return true;
-        // A live pid is not enough on its own: pids recycle, and the owner
-        // heartbeats every CLAIM_REFRESH_MS, so a cold file means nobody is
-        // really sampling regardless of what the recorded pid is doing now.
+        // A live pid is not enough: pids recycle and the owner heartbeats, so a cold
+        // file means nobody is really sampling regardless of the recorded pid.
         if (Date.now() - statSync(path).mtimeMs < CLAIM_STALE_MS) {
           if (token === null || ownerAlive(token)) return false;
         }
@@ -183,7 +163,6 @@ const dropClaim = (self: string) => {
   try {
     if (isOurs(self)) unlinkSync(claimPath());
   } catch {
-    // ignore
   }
 };
 
@@ -197,7 +176,6 @@ const sensorUnder = (card: string): string | null => {
       if (existsSync(p)) return p;
     }
   } catch {
-    // no hwmon for this card
   }
   return null;
 };
@@ -218,7 +196,6 @@ export const resolveSensor = (): string | null => {
       }
     }
   } catch {
-    // /sys unavailable
   }
   return sensor;
 };
@@ -233,7 +210,6 @@ const readWatts = (): number | null => {
   }
 };
 
-// -- persisted energy -------------------------------------------------------
 // Cached against the file's mtime so repeated renders are free, while an
 // external write by another window is still picked up.
 let cache: State | null = null;
@@ -278,7 +254,6 @@ const readState = (): State | null => {
           if (f.endsWith(".corrupt")) unlinkSync(join(dirname(stateFile()), f));
         }
       } catch {
-        // ignore
       }
       renameSync(stateFile(), `${stateFile()}.${Date.now()}.corrupt`);
       cache = { buckets: {}, total: 0 };
@@ -304,20 +279,18 @@ const withLock = <T>(fn: () => T): T | null => {
     fd = openSync(lock, "wx");
   } catch (e: any) {
     if (e?.code !== "EEXIST") return null;
-    // Held by someone live: nothing to break, and no breaker to create. This
-    // check comes first so a contended-but-healthy lock never touches the
-    // breaker at all.
+    // Held by someone live: nothing to break. Checked first so a contended-but-
+    // healthy lock never touches the breaker.
     try {
       if (Date.now() - statSync(lock).mtimeMs < LOCK_STALE_MS) return null;
     } catch {
       return null;
     }
-    // Breaking a stale lock is itself a race: two processes both see it as
-    // stale, and the second unlinks the first's brand-new lock. link() decides
-    // who is allowed to break it.
+    // Breaking a stale lock is itself a race; link() decides which process may
+    // replace the dead lock with its own.
     const breaker = `${lock}.break`;
-    // A breaker outliving its creator would otherwise wedge every future break
-    // — and with it all persistence and all claim reclamation — permanently.
+    // A breaker outliving its creator would wedge every future break, and with
+    // it all persistence and all claim reclamation, permanently.
     try {
       if (Date.now() - statSync(breaker).mtimeMs > LOCK_STALE_MS) unlinkSync(breaker);
     } catch {
@@ -335,7 +308,6 @@ const withLock = <T>(fn: () => T): T | null => {
       try {
         unlinkSync(breakTmp);
       } catch {
-        // ignore
       }
     }
     if (!breaking) return null;
@@ -351,7 +323,6 @@ const withLock = <T>(fn: () => T): T | null => {
       try {
         unlinkSync(breaker);
       } catch {
-        // ignore
       }
     }
   }
@@ -362,7 +333,6 @@ const withLock = <T>(fn: () => T): T | null => {
     try {
       unlinkSync(lock);
     } catch {
-      // ignore
     }
   }
 };
@@ -408,9 +378,8 @@ const windowJoules = (s: State, ms: number): number => {
 // -- public surface ---------------------------------------------------------
 export const costOf = (joules: number) => (joules / 3.6e6) * RATE_PER_KWH;
 
-// Exact, and O(#providers) rather than a scan: getAll() lists built-ins before
-// custom models, so an id shared with a cloud built-in (gpt-oss-120b, glm-4.7)
-// would otherwise resolve to the wrong provider and silently disable metering.
+// Exact, O(#providers): getAll() lists built-ins before custom models, so a
+// shared id would otherwise resolve to the wrong provider and disable metering.
 export const isMetered = (ctx: any, id?: unknown): boolean => {
   if (typeof id === "string" && id) {
     try {
@@ -428,13 +397,11 @@ export const isMeteredProvider = (provider?: unknown) =>
 export type PowerSnapshot = {
   watts: number;
   sampling: boolean;
-  tps: number;
   windows: [string, number][];
 };
 
-// True when metering is configured at all. Without this the footer would take
-// the electricity branch on a machine that merely has an AMD card, and a cloud
-// model would lose its price.
+// True when metering is configured at all: without it the footer would take
+// the electricity branch on a machine that merely has an AMD card.
 export const meteringEnabled = () => PROVIDERS.length > 0 && resolveSensor() !== null;
 
 export function createPowerMeter(onRepaint: () => void) {
@@ -446,18 +413,15 @@ export function createPowerMeter(onRepaint: () => void) {
   let startedAt = 0;
   let wattsNow = 0;
   let pendingJoules = 0;
-  // A single counter: the runtime does not emit both ends of a subagent request
-  // from the same session, so keying claims per session leaves them unbalanced
-  // forever. Over-counting is bounded by the idle drain and MAX_REQUEST_MS.
+  // One counter, not per-session: the runtime never emits both ends of a
+  // subagent request from one session, so per-session keys stay unbalanced.
   let inFlight = 0;
   let idleSamples = 0;
   // What the footer last showed, so a repaint only happens when a visible cell
-  // would differ — refresh() walks the entire session branch.
+  // would differ; refresh() walks the entire session branch.
   let shownWatts = -1;
   let owned = false;
   let lastClaimRefresh = 0;
-  let genStartedAt = 0;
-  let lastTps = 0;
 
   const sample = () => {
     if (!owned) return;
@@ -510,8 +474,8 @@ export function createPowerMeter(onRepaint: () => void) {
         shownWatts = rounded;
         onRepaint();
       }
-      // Catches a request whose completion never reaches us — a side question
-      // fires before_provider_request but its message events go elsewhere.
+      // Catches a request whose completion never reaches us: a side question fires
+      // before_provider_request but its message events go elsewhere.
       if (isIdle()) {
         if (++idleSamples >= 2) return drain();
       } else {
@@ -544,33 +508,14 @@ export function createPowerMeter(onRepaint: () => void) {
       settle();
     },
     drain,
-    // The first streamed delta is the closest thing to "first token" the
-    // extension API exposes; everything before it is prefill.
-    noteDelta() {
-      if (genStartedAt === 0) genStartedAt = Date.now();
-    },
-    noteGeneration(outputTokens: unknown) {
-      const elapsed = genStartedAt ? (Date.now() - genStartedAt) / 1000 : 0;
-      genStartedAt = 0;
-      // Under 100 ms the whole message arrived in one delta, where the division
-      // says more about scheduling than about the model.
-      if (typeof outputTokens === "number" && outputTokens > 0 && elapsed >= 0.1) {
-        lastTps = outputTokens / elapsed;
-      }
-    },
-    resetGeneration() {
-      genStartedAt = 0;
-    },
     flushPending() {
       if (pendingJoules > 0 && flushEnergy(pendingJoules)) pendingJoules = 0;
     },
-    snapshot(): PowerSnapshot | null {
-      if (!meteringEnabled()) return null;
+    snapshot(): PowerSnapshot {
       const s = readState();
       return {
         watts: wattsNow,
         sampling: sampler !== null && owned,
-        tps: lastTps,
         // Persisted only: adding this instance's unflushed joules would make
         // two windows disagree about a machine-wide number.
         windows: s

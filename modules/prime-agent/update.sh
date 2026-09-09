@@ -54,9 +54,8 @@ main() {
   require_nonempty prime-agent "$version" "$tag" "$hash"
   info "  Hash: $hash"
 
-  # Compute npmDepsHash from the same fixed lockfile.
-  # buildNpmPackage defaults to NPM_FETCHER_VERSION=2 in modern nixpkgs;
-  # prefetch-npm-deps defaults to v1, so export the version explicitly.
+  # npmDepsHash from the same fixed lockfile: buildNpmPackage defaults to
+  # NPM_FETCHER_VERSION=2 while prefetch-npm-deps defaults to v1, so set it.
   info "  Computing npmDepsHash..."
   local npmDepsHash
   npmDepsHash=$(NPM_FETCHER_VERSION=2 prefetch-npm-deps "$tmpdir/repo/package-lock.json" 2>/dev/null || echo "")
