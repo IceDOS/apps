@@ -51,7 +51,7 @@ let
         ./lib/headless-hdr-colorimetry.patch
       ];
 
-    # HDR: paint PQ (outputEncodingEOTF) and pin the SDR->HDR mapping (k_ScreenshotColorMgmtHDR).
+    # HDR: paint PQ (outputEncodingEOTF) and pin the SDR to HDR mapping (k_ScreenshotColorMgmtHDR).
     postPatch =
       (old.postPatch or "")
       + lib.optionalString hdr ''

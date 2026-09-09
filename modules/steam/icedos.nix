@@ -16,6 +16,7 @@
         cpuUsageWorkaround
         downloadsWorkaround
         extraPackages
+        hardwareSupport
         ;
     in
     {
@@ -23,6 +24,7 @@
       cpuUsageWorkaround = mkBoolOption { default = cpuUsageWorkaround; };
       downloadsWorkaround = mkBoolOption { default = downloadsWorkaround; };
       extraPackages = mkStrListOption { default = extraPackages; };
+      hardwareSupport = mkBoolOption { default = hardwareSupport; };
     };
 
   outputs.nixosModules =
@@ -46,12 +48,18 @@
             attrNames
             concatMap
             hasAttr
+            mkForce
             mkIf
             optional
             optionals
             ;
 
-          inherit (applications.steam) beta cpuUsageWorkaround downloadsWorkaround;
+          inherit (applications.steam)
+            beta
+            cpuUsageWorkaround
+            downloadsWorkaround
+            hardwareSupport
+            ;
 
           extraPackages = mapper pkgs applications.steam.extraPackages;
           hasGamescope = config.programs.gamescope.enable;
@@ -124,11 +132,11 @@
             name = "steamdeck";
           };
 
-          # raw = definer; resolved = consumer (reads programs.steam.package).
+          # Modules that define programs.steam use `raw`; consumers use `resolved`.
           steamPkg = (import ./lib/resolved-steam.nix) { inherit config pkgs; };
 
-          # When steamOS + beta are both on, wrap desktop Steam with -steamos3
-          # so the beta channel stays as steamdeck_publicbeta (no desktop/headless de-sync).
+          # -steamos3 Steam is a separate client with its own stable/beta channels, and it
+          # shares this HOME with the headless session, so desktop Steam must run it too.
           wrapSteamos3 =
             pkg:
             pkgs.symlinkJoin {
@@ -153,7 +161,7 @@
                     extraPkgs = _: steamExtras;
                   };
             in
-            if optionalSunshineHeadlessSteamOS && beta then wrapSteamos3 steamBase else steamBase;
+            if optionalSunshineHeadlessSteamOS then wrapSteamos3 steamBase else steamBase;
         in
         {
           home-manager.sharedModules = [
@@ -175,7 +183,11 @@
             }
           ];
 
-          # DEFINED here → must use `raw` (not `resolved`, which reads this option).
+          # Nothing pulls steam-devices-udev-rules in on the home.packages path, and without
+          # them pads get no uaccess. programs.steam pulls them in itself, so opting out forces.
+          hardware.steam-hardware.enable = if hardwareSupport then true else mkForce false;
+
+          # Defined here, so use `raw`; `resolved` reads this option and would recurse.
           programs.steam = {
             enable = steamdeck || session;
             extraPackages = steamExtras;
@@ -210,6 +222,9 @@
           ]
           ++ lib.optionals beta [
             "Steam runs on the beta channel; turn beta off in config.toml if something breaks."
+          ]
+          ++ lib.optionals (!hardwareSupport) [
+            "Steam controller udev rules are off, so pads needing uaccess or uinput may not work."
           ];
         }
       )

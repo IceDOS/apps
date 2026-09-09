@@ -3,3 +3,4 @@ beta = false
 cpuUsageWorkaround = false
 downloadsWorkaround = false
 extraPackages = []
+hardwareSupport = true
