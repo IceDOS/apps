@@ -1,9 +1,5 @@
-// One background collector per (provider, model). This process owns all
-// cross-window usage building — quota fetch, burn-rate history, free-request
-// counting — and writes a shared state file every footer reads, so all windows
-// show identical numbers. It exits once no window refreshes a heartbeat.
-// Spawned by the window extension as a detached `node collector.ts <p> <m>
-// <key> <mode>`; node 24 runs .ts natively, so no build step is involved.
+// One background collector per (provider, model) builds all cross-window
+// usage (quota, burn history, free counts); it exits when no window wakes it.
 
 import { existsSync, readFileSync, readdirSync, statSync, unlinkSync } from "node:fs";
 import { homedir } from "node:os";
@@ -98,9 +94,7 @@ const recordSample = () => {
 };
 
 // -- free "opencode" request quota (mode === "free") --
-// The provider bucket is per (IP x model x opencode-UA-class) over a ~5h rolling
-// window, so a VPN/server change resets it: the count restarts at the change and
-// a 429 countdown only applies while the IP that hit it is still the egress IP.
+// Bucket per (IP x model x opencode-UA-class) over ~5h; an IP change resets it.
 let freeCache = 0;
 let freeFetchedAt = 0;
 let freeInFlight = false;
@@ -164,7 +158,6 @@ const freeRequests = (): number => {
           )
             count++;
         } catch {
-          // skip malformed line
         }
       }
     }
@@ -191,7 +184,6 @@ const clearRateLimit = () => {
   try {
     unlinkSync(rateLimitFile(pool));
   } catch {
-    // already gone
   }
 };
 const freeLimitState = (): { limited: boolean; resetAt: number | null } => {
@@ -252,7 +244,6 @@ const pruneStale = () => {
     try {
       if (Date.now() - statSync(p).mtimeMs > IDLE_TTL_MS) unlinkSync(p);
     } catch {
-      // already gone
     }
   }
 };
@@ -264,7 +255,6 @@ const anyLiveWindow = (): boolean => {
     try {
       if (now - statSync(join(dir, f)).mtimeMs < IDLE_TTL_MS) return true;
     } catch {
-      // skip unreadable
     }
   }
   return false;
@@ -279,7 +269,6 @@ async function main(): Promise<void> {
       if (readFileSync(statePidFile(key), "utf8") === String(process.pid))
         unlinkSync(statePidFile(key));
     } catch {
-      // already gone
     }
   };
   process.on("exit", cleanup);
