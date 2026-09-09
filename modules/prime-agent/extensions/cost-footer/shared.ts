@@ -1,6 +1,5 @@
 // Shared cost-footer data model + file-backed state. One collector per
-// (provider, model) builds all cross-window usage data and publishes the state
-// here; every open window reads the same files, so the footers stay in sync.
+// (provider, model) publishes files every open window reads, keeping sync.
 
 import {
   closeSync,
@@ -22,15 +21,11 @@ export const OGO_WINDOWS: [string, string][] = [
   ["weekly", "wk"],
   ["monthly", "mo"],
 ];
-// opencode Zen free models ("opencode" provider): measured 2026-08-31 — the cap
-// is per (IP x model x opencode-UA-class) over a 5h rolling window; non-opencode
-// User-Agents get near-zero allowance. The count below is a local activity
-// meter, not the authoritative bucket.
+// opencode Zen free models ("opencode" provider): measured 2026-08-31, cap
+// per (IP x model x opencode-UA-class) over 5h; the count is local, not authoritative.
 export const FREE_WINDOW_MS = 5 * 3600 * 1000;
-// Burned 2026-08-31: each list below shares ONE ~1000 req / 5h rolling bucket
-// per (IP x opencode-UA-class) — the group-A burn rate-limited all five with
-// the identical Retry-After, and the two nemotrons 429'd together at a combined
-// 991 requests. laguna stands alone with a tiny pool and no Retry-After.
+// Burned 2026-08-31: each list below shares ONE ~1000 req / 5h bucket per
+// (IP x opencode-UA-class); the group-A burn rate-limited all five together.
 export const FREE_MODEL_POOLS: Record<string, string[]> = {
   shared: [
     "big-pickle",
@@ -129,9 +124,8 @@ export const readState = (key: string): SharedState | null => {
   }
 };
 
-// tmp + fsync + rename: readers never observe a half-written state file. The
-// tmp name is per-writer: a window and the collector may write the same pid
-// file concurrently, and a shared tmp name would make one rename fail.
+// tmp + fsync + rename: readers never see a half-written state file. The tmp
+// name is per-writer, so concurrent writers cannot collide on one rename.
 export const writeAtomic = (path: string, data: string) => {
   mkdirSync(dirname(path), { recursive: true });
   const tmp = `${path}.${process.pid}.${Math.random().toString(36).slice(2, 8)}.tmp`;

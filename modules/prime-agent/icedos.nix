@@ -19,6 +19,7 @@
         costFooter
         peonPing
         powerMeter
+        tpsMeter
         powerCard
         powerRateKwh
         powerIdleWatts
@@ -76,6 +77,9 @@
 
       # Meter GPU electricity for locally-served models inside the cost footer.
       powerMeter = mkBoolOption { default = powerMeter; };
+
+      # Show live generation rate (tok/s) in the cost footer.
+      tpsMeter = mkBoolOption { default = tpsMeter; };
 
       # DRM card to read ("card1"); empty autodetects the first GPU with a sensor.
       powerCard = mkStrOption { default = powerCard; };
@@ -192,9 +196,8 @@
           description = "Per-model overrides keyed by model id.";
         };
 
-        # Custom model definitions emitted into models.json "models". A model whose
-        # id the bundled catalog lacks is ADDED (inheriting the provider's built-in
-        # api/baseUrl); an id that already exists replaces the bundled definition.
+        # Custom model definitions emitted into models.json "models": an unknown id
+        # is ADDED (inheriting the built-in api/baseUrl); a known id replaces it.
         models = lib.mkOption {
           type = lib.types.listOf (
             lib.types.submodule {
@@ -359,12 +362,8 @@
         {
           assertions = [
             {
-              # powerProviders is filled by whichever module serves models
-              # locally; with none the meter loads and measures nothing.
-              # Asserted at NixOS level: reading it from inside
-              # home-manager.sharedModules makes HM depend on a value another
-              # module defines alongside its own sharedModules entry, and the
-              # fixpoint never settles.
+              # Filled by whichever module serves models locally; without one the meter loads nothing.
+              # Read at NixOS level: sharedModules reads would cross-depend on another entry and stall.
               assertion =
                 !config.icedos.applications.prime-agent.powerMeter
                 || config.icedos.applications.prime-agent.powerProviders != [ ];
@@ -479,14 +478,8 @@
                     else
                       stripped
                   );
-                # power.ts carries build-time constants, so the directory is
-                # assembled rather than symlinked straight from the source tree.
-                # powerMeter = false neuters the meter by naming no providers.
-                # The markers sit inside TypeScript string literals so the
-                # template still parses on its own; jsStr escapes a value for
-                # that context, which escapeShellArg (which protects the builder,
-                # not the literal) does not do — a bare `"` would otherwise emit
-                # a syntax error that only surfaces when the extension loads.
+                # power.ts carries build-time constants, so the dir is copied, not symlinked.
+                # The markers sit inside TS string literals; jsStr escapes values for that context, which escapeShellArg (protecting the builder, not the literal) does not.
                 jsStr =
                   v: lib.escapeShellArg (lib.replaceStrings [ "\\" "\"" "\n" "\r" ] [ "\\\\" "\\\"" "\\n" "\\r" ] v);
                 costFooterSrc = pkgs.runCommand "prime-agent-cost-footer" { } ''
@@ -502,6 +495,9 @@
                         lib.concatStringsSep "," (if prime-agent.powerMeter then prime-agent.powerProviders else [ ])
                       )
                     }
+
+                  substituteInPlace $out/index.ts \
+                    --replace-fail "@tpsMeter@" ${if prime-agent.tpsMeter then "true" else "false"}
 
                   # substituteInPlace only fails on a marker it was told about, so
                   # a newly added one would ship as a literal and break the load.
@@ -904,8 +900,7 @@
                     };
                   };
 
-                # ---- models.json ----
-                # zen 429s unless identified as an opencode client. It also wants a session
+                # opencode 429s unless identified as a client; zen also wants a session
                 # header, which is per-run, so zen-session.ts registers both at load.
                 opencodeVersion = config.programs.opencode.package.version or pkgs.opencode.version;
                 providerDefaults.opencode.headers."User-Agent" = "opencode/${opencodeVersion}";
@@ -956,9 +951,8 @@
                   # fail every later activation and stay broken. Treat unreadable state as absent.
                   json_ok() { [ -s "$1" ] && "$JQ" -e . "$1" >/dev/null 2>&1; }
 
-                  # `> tmp && mv` alone is not crash-safe under delayed allocation (xfs, ext4):
-                  # an unclean shutdown leaves a 0-byte file. fsync the tmp before the rename.
-                  # Mode is set explicitly: the tmp inherits the umask, and mv carries it over.
+                  # `> tmp && mv` is not crash-safe under delayed allocation (xfs, ext4):
+                  # a crash leaves a 0-byte file, so fsync first; chmod is explicit, mv keeps the umask.
                   commit_json() { chmod "$3" "$1" && "$SYNC" -d "$1" && mv "$1" "$2"; }
 
                   mkdir -p "${dataDir}"
@@ -1099,6 +1093,15 @@
                     '';
                   }
                   {
+                    # The tok/s rate renders inside the cost footer.
+                    assertion = prime-agent.costFooter || !prime-agent.tpsMeter;
+                    message = ''
+                      icedos.applications.prime-agent.tpsMeter needs
+                      costFooter = true: the tok/s rate is rendered as part of
+                      the cost footer.
+                    '';
+                  }
+                  {
                     # Both load a "cost-footer" extension and would double-render.
                     assertion = !prime-agent.costFooter || !(prime-agent.extensions ? "cost-footer");
                     message = ''
@@ -1231,6 +1234,9 @@
             ]
             ++ lib.optionals prime-agent.powerMeter [
               "Models running on your own graphics card are priced by the electricity they use."
+            ]
+            ++ lib.optionals prime-agent.tpsMeter [
+              "The cost footer shows live generation tok/s; tpsMeter = false hides it."
             ]
             ++ lib.optionals prime-agent.includeInIcedosGc [
               "icedos gc also clears out old prime-agent sessions and logs."

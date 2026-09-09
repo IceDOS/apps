@@ -32,10 +32,12 @@ costFooter = true
 # Install the peon-ping companion extension (session-event bridge to peon.sh).
 peonPing = true
 
-# Meter GPU electricity for locally-served models. The cost footer then shows
-# measured electricity for those models instead of "free", since a local model
-# has no per-token price. Requires costFooter = true.
+# Meter GPU electricity for locally-served models; the footer shows measured
+# electricity instead of "free". Requires costFooter = true.
 powerMeter = false
+
+# Show live generation rate (tok/s) in the cost footer.
+tpsMeter = true
 
 # DRM card to read (e.g. "card1"); empty autodetects the first GPU exposing an
 # average-power sensor. Only amdgpu-style hwmon power1_average is supported.
@@ -45,16 +47,13 @@ powerCard = ""
 powerRateKwh = 0.14
 
 # The card's idle draw, subtracted from every sample so the meter reports the
-# marginal cost of inference — the card idles whether or not you use it. Zero
-# by default because it is per-card; read it off an idle sensor and set it.
+# marginal cost of inference. Zero by default; read an idle sensor and set it.
 powerIdleWatts = 0
 
 powerCurrency = "€"
 
-# Providers served by the local GPU. Anything else runs on someone else's
-# power and is left unmetered. Empty by default: a module that serves models
-# locally adds itself (llamacpp does), so this only needs setting for a
-# provider no module declares.
+# Providers served by the local GPU; anything else is left unmetered. Empty by
+# default: a module that serves models locally (llamacpp) adds itself.
 powerProviders = []
 
 # Per-provider overrides merged into models.json (partial merge).

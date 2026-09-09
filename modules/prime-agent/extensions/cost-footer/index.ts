@@ -1,7 +1,5 @@
 // Cost + opencode-go plan usage as a setWidget. A background collector per
-// (provider, model) builds all cross-window usage data; this window extension
-// only ensures the collector is running, publishes a heartbeat, and renders the
-// shared state file — so two open windows show identical numbers.
+// (provider, model) builds the shared state every window renders.
 
 import {
   closeSync,
@@ -51,6 +49,10 @@ import {
   isMeteredProvider,
   meteringEnabled,
 } from "./power.ts";
+import { createTpsMeter } from "./tps.ts";
+
+// Build-time flag from prime-agent.tpsMeter: false drops the tok/s cell.
+const tpsMeter = @tpsMeter@;
 
 export default function (pi: ExtensionAPI) {
   let enabled = true;
@@ -59,17 +61,20 @@ export default function (pi: ExtensionAPI) {
   const power = createPowerMeter(() => {
     if (lastCtx) refresh(lastCtx);
   });
+  // Generation rate from this window's own streamed deltas; not a power
+  // measurement, so it lives outside the electricity meter entirely.
+  const tps = tpsMeter ? createTpsMeter() : null;
   let sampler: ReturnType<typeof setInterval> | null = null;
   let repainter: ReturnType<typeof setTimeout> | null = null;
   let lastCtx: any = null;
+  let lastTpsPaint = 0;
+  let lastTpsValue = 0;
   let currentKey: string | null = null;
-  // Reset time observed directly by this window's own 429, shown before the
-  // collector's next publish catches up. Keyed by pool: a 429 on any group-A
-  // model applies to the shared bucket.
+  // Reset time from this window's own 429, shown until the collector's next
+  // publish. Keyed by pool: a 429 on any group-A model applies to the shared bucket.
   let localReset: { pool: string; resetAt: number } | null = null;
-  // Watch the state dir: the collector's atomic publish triggers an immediate
-  // repaint in every window, so all footers converge on the same snapshot
-  // within milliseconds instead of on independently-phased 30s polls.
+  // Watch the state dir: the collector's atomic publish repaints every window
+  // immediately, so footers converge instead of on independently-phased 30s polls.
   let stateWatcher: FSWatcher | null = null;
   let lastWatchRefresh = 0;
 
@@ -181,10 +186,8 @@ export default function (pi: ExtensionAPI) {
           { detached: true, stdio: ["ignore", logFd, logFd], env: process.env },
         );
         child.unref();
-        // Publish the pid immediately (before the collector's own startup) so a
-        // sibling window can't double-spawn; the collector overwrites it anyway.
-        // Only on success: a failed spawn must leave the key looking dead so the
-        // next tick retries instead of trusting our own pid for 3 minutes.
+        // Publish the pid before the collector's own startup so a sibling window
+        // can't double-spawn; the collector overwrites it anyway.
         if (child.pid) writeAtomic(statePidFile(key), String(child.pid));
       } finally {
         closeSync(logFd);
@@ -200,7 +203,6 @@ export default function (pi: ExtensionAPI) {
     try {
       mkdirSync(lockBase(), { recursive: true });
     } catch {
-      // ignore
     }
     const lock = lockFile(key);
     try {
@@ -214,7 +216,6 @@ export default function (pi: ExtensionAPI) {
         try {
           unlinkSync(lock);
         } catch {
-          // ignore
         }
       }
     } catch (e: any) {
@@ -226,7 +227,6 @@ export default function (pi: ExtensionAPI) {
             ensureCollector(provider, modelId, mode); // retry once
           }
         } catch {
-          // ignore
         }
       }
     }
@@ -238,14 +238,12 @@ export default function (pi: ExtensionAPI) {
       mkdirSync(dirname(heartbeatFile(key)), { recursive: true });
       writeFileSync(heartbeatFile(key), String(Date.now()));
     } catch {
-      // ignore
     }
   };
   const removeHeartbeat = (key: string) => {
     try {
       unlinkSync(heartbeatFile(key));
     } catch {
-      // ignore
     }
   };
 
@@ -303,8 +301,7 @@ export default function (pi: ExtensionAPI) {
       ].join("  ");
     });
   // Free row: local per-IP count against the measured cap, plus the reset time
-  // taken from the actual 429's Retry-After. No countdown after an IP change
-  // (fresh bucket) unless the limit hits again on the new IP.
+  // from the 429's Retry-After. No countdown after an IP change (fresh bucket).
   const freeRow = (f: FreeState): string => {
     const cap = FREE_POOL_CAPS[f.pool] ?? FREE_CAP_DEFAULT;
     const pct = Math.min(100, Math.round((f.cache / cap) * 100));
@@ -332,26 +329,29 @@ export default function (pi: ExtensionAPI) {
     free: boolean,
     metered: boolean,
   ) => {
-    // Electricity is a property of the machine, not of a session: one card and
-    // one sensor cannot attribute a shared draw to whoever caused it. So the
-    // meter reports the live draw and machine-wide rolling costs, and never
-    // pretends to a per-session total.
+    // Electricity is a property of the machine, not of a session: one sensor
+    // cannot attribute a shared draw, so the meter reports live draw only.
     const p = metered ? power.snapshot() : null;
-    // A metered model has no per-token price to state — the rolling costs below
-    // are the answer — so it leads with the bolt instead of "free".
+    // A metered model has no per-token price to state; the rolling costs below
+    // are the answer, so it leads with the bolt instead of "free".
     const parts = p
       ? [sgr("33", "⚡")]
       : [sgr("36", "◆"), free ? dim("free") : sgr("1", fmtCost(usage.cost))];
     parts.push(`↑${fmtTokens(usage.input)}`, `↓${fmtTokens(usage.output)}`);
+    // tok/s is a rate from this window's own generation timer, so it renders
+    // for every provider, metered or not.
+    const tpsCell = tps && tps.tps > 0 ? `${tps.tps.toFixed(1)} tok/s` : null;
     if (p) {
       if (p.sampling) parts.push(`${p.watts.toFixed(0)}W`);
-      if (p.tps > 0) parts.push(`${p.tps.toFixed(1)} tok/s`);
+      if (tpsCell) parts.push(tpsCell);
       if (p.windows.length) {
         parts.push(dim("·"));
         for (const [label, joules] of p.windows) {
           parts.push(`${dim(label)} ${fmtPower(costOf(joules))}`);
         }
       }
+    } else if (tpsCell) {
+      parts.push(tpsCell);
     }
     parts.push(dim(model));
     return parts.join(" ");
@@ -431,9 +431,8 @@ export default function (pi: ExtensionAPI) {
         }, 3_000);
       }
     }
-    // A metered local model has no collector mode, but its rolling windows are
-    // written by whichever window holds the sampling claim — without a timer a
-    // non-holder would show figures frozen at its own last turn.
+    // A metered local model has no collector mode; its rolling windows are
+    // written by whichever window holds the sampling claim.
     const wantsPoll = mode !== null || metered;
     if (!wantsPoll && sampler) {
       clearInterval(sampler);
@@ -452,18 +451,15 @@ export default function (pi: ExtensionAPI) {
   // -- hooks --
   pi.on("session_start", async (_e, ctx) => refresh(ctx));
   pi.on("turn_end", async (_e, ctx) => {
-    // No power.stop() here: turn_end fires once per assistant message, so it
-    // would double-decrement a single request. A claim with no matching
-    // message_end is reclaimed by the idle drain instead.
+    // No power.stop() here: turn_end would double-decrement a single request.
+    // A claim with no matching message_end is reclaimed by the idle drain.
     refresh(ctx);
   });
-  // Metering brackets the whole request. NOT after_provider_response: that
-  // fires when the response headers land, before a token is decoded, so it
-  // would time the prefill and miss the generation entirely.
-  // Registered only when the meter can actually do something: prime-agent parks
-  // its Idempotency-Key reuse for a retry whenever ANY before_provider_request
-  // handler exists (hasHandlers is runner-wide), so an inert handler would make
-  // every provider's auto-retry bill twice.
+  // Metering brackets the whole request, not after_provider_response: headers
+  // land before a token, so that hook would time only the prefill.
+
+  // Registered only when the meter can sample: any handler parks the runner's
+  // Idempotency-Key reuse, so an inert one would bill every retry twice.
   if (meteringEnabled())
     pi.on("before_provider_request", (event: any, ctx: any) => {
       if (!enabled || !ctx?.hasUI) return;
@@ -472,28 +468,32 @@ export default function (pi: ExtensionAPI) {
         power.start(() => ctx?.isIdle?.() === true);
       }
     });
-  pi.on("message_update", (event: any) => {
-    if (isMeteredProvider(event?.message?.provider)) power.noteDelta();
+  pi.on("message_update", (event: any, ctx: any) => {
+    // First streamed delta starts the generation timer for any provider.
+    const ev = event?.assistantMessageEvent;
+    if (!tps || !ev || typeof ev.delta !== "string") return;
+    tps.noteDelta(ev.partial?.usage?.output);
+    // Repaint at most 1 Hz while streaming so the live tok/s cell moves.
+    const now = Date.now();
+    if (ctx?.hasUI && now - lastTpsPaint >= 1000 && tps.tps !== lastTpsValue) {
+      lastTpsPaint = now;
+      lastTpsValue = tps.tps;
+      refresh(ctx);
+    }
   });
   pi.on("message_end", (event: any, ctx: any) => {
     if (event?.message?.role !== "assistant") return;
-    // tok/s is only meaningful for a model we are timing; a cloud reply would
-    // otherwise report a rate in a widget whose premise is local hardware.
-    if (isMeteredProvider(event?.message?.provider)) {
-      power.noteGeneration(event?.message?.usage?.output);
-      // Only inside this branch: metering was started for a metered request,
-      // so an unrelated cloud reply must not release its claim.
-      power.stop();
-    } else {
-      power.resetGeneration();
-    }
+    tps?.noteGeneration(event?.message?.usage?.output);
+    // Metering was started for a metered request, so only a metered reply may
+    // release its claim; an unrelated cloud reply must not stop the sampler.
+    if (isMeteredProvider(event?.message?.provider)) power.stop();
     refresh(ctx);
+    lastTpsValue = tps?.tps ?? 0;
   });
   pi.on("model_select", async (_e, ctx) => refresh(ctx));
   pi.on("session_before_switch", async (_e, ctx) => refresh(ctx));
-  // The rate-limit message itself: a 429 for the tracked free model carries
-  // Retry-After (seconds until the per-IP bucket reopens). Record it so the
-  // collector publishes the real reset time instead of an estimate.
+  // The 429 message carries Retry-After (seconds until the per-IP bucket
+  // reopens); record it so the collector publishes the real reset time.
   pi.on("after_provider_response", (event: any, ctx: any) => {
     if (event?.status !== 429 || !currentKey || !lastCtx) return;
     const m = lastCtx.model;
@@ -510,7 +510,6 @@ export default function (pi: ExtensionAPI) {
       const ev: RateLimitEvent = { at, retryAfter };
       writeAtomic(rateLimitFile(pool), JSON.stringify(ev));
     } catch {
-      // ignore
     }
     if (retryAfter != null) localReset = { pool, resetAt: at + retryAfter * 1000 };
     if (repainter) clearTimeout(repainter);
@@ -520,9 +519,8 @@ export default function (pi: ExtensionAPI) {
     }, 500);
   });
 
-  // Also fires with reason "reload"/"new"/"fork", after which this module is
-  // re-evaluated into fresh closures while the old ones' timers keep running —
-  // nothing invalidates them — so the teardown has to be unconditional.
+  // Also fires on "reload"/"new"/"fork": the old closures' timers keep running
+  // with nothing to invalidate them, so the teardown must be unconditional.
   pi.on("session_shutdown", async () => {
     power.drain();
     power.flushPending();
