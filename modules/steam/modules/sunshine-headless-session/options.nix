@@ -91,7 +91,7 @@ in
   secondarySteamSession = mkBoolOption { default = secondarySteamSession; };
   secondarySteamSessionPath = mkStrOption { default = secondarySteamSessionPath; };
 
-  # Gamescope render size (upscaled to width/height). 0 -> render at output res.
+  # Gamescope render size, upscaled to width/height. 0 renders at the output resolution.
   renderWidth = mkIntBetweenOption {
     path = "icedos.applications.steam.headless-session.renderWidth";
     source = ./config.toml;

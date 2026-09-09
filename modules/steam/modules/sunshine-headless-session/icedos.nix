@@ -156,14 +156,12 @@
               ''
             );
 
-          # gamescope CAP_SYS_NICE wrapper (cap-only, setuid=false, always): lets gamescope
-          # SetNice(-20) + --rt. Registered regardless of the input bridge — the gid shim's
-          # setgid exec clears ambient caps, so the cap must enter via the wrapper it EXECs
-          # (chain: shim -> this wrapper -> gamescope). Mirrors the kwin_wayland cap wrapper.
+          # The gid shim's setgid exec clears ambient caps, so CAP_SYS_NICE has to come from
+          # a wrapper the shim execs. Always registered; gamescope needs it for SetNice and --rt.
           security.wrappers = mkMerge [
             (mkIf bridgeNeeded {
-              # Mode A (setgid `input`): Steam/gamescope. Daemon must NOT use it
-              # (gid-`input` fails the portal's /proc/<pid>/root check -> 503).
+              # Mode A (setgid `input`) is for Steam and gamescope only; the daemon running
+              # as gid `input` fails the portal's /proc/<pid>/root check and gets a 503.
               sunshine-headless-gid = {
                 setgid = true;
                 owner = "root";
@@ -303,7 +301,7 @@
               Restart = "always";
               RestartSec = "2s";
 
-              # No namespacing/seccomp: user namespace trips is_sandboxed() -> 503.
+              # No namespacing or seccomp: a user namespace trips is_sandboxed() and gets a 503.
               UMask = "0027";
             };
           };
@@ -331,9 +329,8 @@
             };
           };
 
-          # Recycler: tears the session down after sessionIdleTimeout without a stream,
-          # and regrows the minimal probe gamescope after gamescopeRegrowTimeout with no
-          # gamescope at all. Hardened like idle.service; it systemd-runs gamescope too.
+          # Tears the session down after sessionIdleTimeout, regrows the probe gamescope after
+          # gamescopeRegrowTimeout. Hardened like idle.service; it systemd-runs gamescope too.
           systemd.user.services.sunshine-headless-recycle = {
             description = "Sunshine headless session recycler (idle teardown + probe gamescope regrow)";
             serviceConfig = {

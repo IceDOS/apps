@@ -148,7 +148,7 @@ let
       session_steam_alive() {
         [ -n "$(session_steam_pids)" ]
       }
-      # Resolve a window's appid via PID->parent walk to the reaper (SteamAppId lies).
+      # Resolve a window's appid by walking parent PIDs up to the reaper (SteamAppId lies).
       steam_launch_appid() {
         local p="$1" i cmd aid
         for i in $(seq 1 24); do
@@ -175,9 +175,8 @@ let
           *) return 1 ;;
         esac
       }
-      # A game window arriving as another one leaves (Elden Ring's EAC launcher) can be
-      # left out of gamescope's focus candidates for good; only a CreateNotify on that
-      # Xwayland shakes it loose -- dirtying focus re-rolls but keeps skipping the window.
+      # Dirtying focus re-rolls but keeps skipping a window gamescope dropped from its focus
+      # candidates (Elden Ring's EAC launcher); only a CreateNotify on that Xwayland frees it.
       reroll_gamescope_focus() {
         DISPLAY=:2 sunshine-headless-xnudge 2>/dev/null || true
       }
@@ -223,9 +222,8 @@ let
         done
         return 1
       }
-      # Verify the input bridge actually held: virtual streaming devices must carry the
-      # seat marker, and (when isolation is on) be uaccess-stripped so the human user can't
-      # open them without the shim. Warn once on any leak; never blocks streaming.
+      # Virtual streaming devices must carry the seat marker and, with isolation on, be
+      # uaccess-stripped so nobody opens them without the shim. Warns once, never blocks.
       verify_input_isolation() {
         [ "$bridge_needed" = 1 ] || return 0
         local user name node leaked=0 node_dev
@@ -559,8 +557,8 @@ let
               # Recompute the scope's DeviceAllow each tick, pushing only on change.
               if [ "$isolate_phys" = 1 ]; then
                 allow=()
-                # inputtino uses uhid (pads) and uinput (kbd/mouse), so match any virtual
-                # parent -- plus the pads' hidraw nodes, which Steam Input reads.
+                # inputtino uses uhid (pads) and uinput (keyboard/mouse), so match any virtual
+                # parent, plus the pads' hidraw nodes that Steam Input reads.
                 for dd in /sys/class/input/event* /sys/class/input/js* /sys/class/hidraw/hidraw*; do
                   [ -e "$dd" ] || continue
                   case "$(readlink -f "$dd/device" 2>/dev/null)" in
@@ -654,9 +652,8 @@ let
                     fi
                   fi''}
               fi
-              # Missing appid means the stream sits on Steam's black launch screen while the
-              # game runs. Every 5th tick only: a game whose windows gamescope legitimately
-              # rejects (1x1, override-redirect) never lands in that list at all.
+              # A missing appid leaves the stream on Steam's black launch screen while it runs.
+              # Every 5th tick only, since windows gamescope rightly rejects never reach the list.
               if [ -n "''${game_appid:-}" ] && ! game_in_focusable "$game_appid"; then
                 focus_tick=$(( focus_tick + 1 ))
                 if [ $(( focus_tick % 5 )) -eq 1 ]; then
@@ -739,9 +736,8 @@ let
           start_gamescope "1" "1" "1" "0"
           ;;
         recycle)
-          # 30s timer: tear the session down after sessionIdleTimeout without a stream,
-          # and regrow the minimal probe gamescope after gamescopeRegrowTimeout with
-          # no gamescope at all (teardown, crash, or manual stop).
+          # 30s timer: tear the session down after sessionIdleTimeout without a stream, and
+          # regrow the probe gamescope after gamescopeRegrowTimeout with no gamescope at all.
           hb="$rt/sunshine-headless-stream-hb"
           gone="$rt/sunshine-headless-gamescope-gone"
           if streaming_active; then
