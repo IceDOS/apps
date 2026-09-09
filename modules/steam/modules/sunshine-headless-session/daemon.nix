@@ -138,8 +138,8 @@ let
           exit 1
         '')
       ];
-      # ROOT shim: daemon needs `input` but must keep caller gids (gid-`input` fails
-      # the portal's /proc/<pid>/root check -> 503).
+      # Root shim: the daemon needs `input` but must keep caller gids, because running as
+      # gid `input` fails the portal's /proc/<pid>/root check and gets a 503.
       ExecStart =
         (lib.optionalString bridgeNeeded "/run/wrappers/bin/sunshine-headless-gid-root ")
         + "${pkgs.sunshine}/bin/sunshine ${sunshineConf}";

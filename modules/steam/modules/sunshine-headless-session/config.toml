@@ -11,7 +11,7 @@ normalSteamSession = true # Inject the default Steam app (normal HOME/account/li
 secondarySteamSession = false # Inject a second Steam app under secondarySteamSessionPath (separate account/library)
 secondarySteamSessionPath = "" # HOME for the second session; REQUIRED when secondarySteamSession = true
 sdrContentNits = 203 # Nits SDR content is shown at on the HDR output (203 = BT.2408 reference white)
-sdrGamutWideness = 0 # SDR->wide-gamut stretch on the HDR output: 0 = accurate, 1 = full BT2020 (vivid)
+sdrGamutWideness = 0 # SDR to wide-gamut stretch on the HDR output: 0 = accurate, 1 = full BT2020 (vivid)
 upscaleFilter = "" # gamescope upscaler (-F): fsr | nis | linear | nearest | pixel
 fsrSharpness = 20 # FSR/NIS sharpness: 0 = max sharp .. 20 = min sharp (gamescope default 2)
 renderWidth = 0 # gamescope internal render width, upscaled to output; 0 = output resolution
