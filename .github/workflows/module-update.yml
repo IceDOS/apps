@@ -178,10 +178,17 @@ jobs:
                 // Reopen a closed-but-unmerged PR; a merged one can never reopen.
                 const closed = prs.find(p => p.state === 'closed' && !p.merged_at);
                 if (closed) {
-                  await github.rest.pulls.update({ owner, repo, pull_number: closed.number, state: 'open', title, body });
-                  pr = (await github.rest.pulls.get({ owner, repo, pull_number: closed.number })).data;
-                  core.info(`update/${branch}: reopened PR #${pr.number}`);
-                } else {
+                  try {
+                    await github.rest.pulls.update({ owner, repo, pull_number: closed.number, state: 'open', title, body });
+                    pr = (await github.rest.pulls.get({ owner, repo, pull_number: closed.number })).data;
+                    core.info(`update/${branch}: reopened PR #${pr.number}`);
+                  } catch (err) {
+                    // A force-push after the close makes that PR permanently unreopenable.
+                    if (err.status !== 422) throw err;
+                    core.info(`update/${branch}: PR #${closed.number} cannot reopen, opening a new one`);
+                  }
+                }
+                if (!pr) {
                   pr = (await github.rest.pulls.create({ owner, repo, head: headRef, base: 'main', title, body })).data;
                   core.info(`update/${branch}: opened PR #${pr.number}`);
                 }
