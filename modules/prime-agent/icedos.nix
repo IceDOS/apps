@@ -358,6 +358,25 @@
           descriptionlessSkillNames = lib.attrNames (
             lib.filterAttrs (_: c: !hasSkillDescription c) prime-agent.extraBuiltinSkills
           );
+
+          # dataDir as a path the wrapper expands at runtime. The home-manager copy is
+          # resolved per user at eval time; this one has to survive an empty environment,
+          # so the XDG vars carry their spec defaults.
+          shellDataDir =
+            let
+              raw = if prime-agent.dataDir == "" then "$XDG_CONFIG_HOME/prime-agent" else prime-agent.dataDir;
+              subst =
+                builtins.replaceStrings
+                  [ "$XDG_CONFIG_HOME" "$XDG_DATA_HOME" ]
+                  [ "\${XDG_CONFIG_HOME:-$HOME/.config}" "\${XDG_DATA_HOME:-$HOME/.local/share}" ]
+                  raw;
+            in
+            if subst == "~" then
+              "$HOME"
+            else if lib.hasPrefix "~/" subst then
+              "$HOME" + lib.removePrefix "~" subst
+            else
+              subst;
         in
         {
           assertions = [
@@ -399,6 +418,7 @@
             (final: _prev: {
               prime-agent = final.callPackage ./package.nix {
                 mcpCallTimeout = prime-agent.mcpCallTimeout;
+                defaultAgentDir = shellDataDir;
                 extraBuiltinSkills = prime-agent.extraBuiltinSkills;
                 codeIntelligence = prime-agent.codeIntelligence;
               };
