@@ -17,6 +17,10 @@ extraBuiltinSkills = {}
 # load the matching one: LSP tooling on demand via nix-shell.
 codeIntelligence = true
 
+# Ship the code-review skill: two-pass diff/PR review that fans reviewer children
+# out per dimension, then scores every finding and drops those below 80.
+codeReview = true
+
 # "" means $XDG_CONFIG_HOME/prime-agent; $XDG_CONFIG_HOME / $XDG_DATA_HOME / $HOME / ~ expand per user.
 dataDir = ""
 portBase = 8850
@@ -24,6 +28,11 @@ portOverrides = {}
 
 # MCP tool-call timeout in seconds (60–3600). Heavy reviews may need more.
 mcpCallTimeout = 900
+
+# Recursion depth ceiling for rlm() subagents, exported as RLM_MAX_DEPTH. A
+# /rlm-max-depth set globally in the TUI outranks this. 2 is the floor for the
+# code-review skill: root spawns the orchestrator, the orchestrator spawns reviewers.
+rlmMaxDepth = 2
 
 # Install the cost-footer extension: live session cost (USD) in the TUI bottom bar,
 # with token totals and the active model; /cost toggles it at runtime.
