@@ -30,10 +30,12 @@
         defaultProvider
         keybind
         mcpCallTimeout
+        rlmMaxDepth
         portBase
         portOverrides
         builtinExtensions
         codeIntelligence
+        codeReview
         extraBuiltinSkills
         extensions
         includeInIcedosGc
@@ -68,6 +70,14 @@
         source = ./config.toml;
         default = mcpCallTimeout;
       } 60 3600;
+
+      # Exported as RLM_MAX_DEPTH; a global /rlm-max-depth outranks it, so a TUI
+      # choice survives rebuilds. Upper bound guards typos: children fan out per level.
+      rlmMaxDepth = mkIntBetweenOption {
+        path = "icedos.applications.prime-agent.rlmMaxDepth";
+        source = ./config.toml;
+        default = rlmMaxDepth;
+      } 0 32;
 
       # Install the cost-footer extension: live session cost (USD) in the TUI bottom bar.
       costFooter = mkBoolOption { default = costFooter; };
@@ -118,6 +128,10 @@
       # Ship the code-intelligence skill set + glue extension telling models to
       # load the matching per-language LSP guide via nix-shell.
       codeIntelligence = mkBoolOption { default = codeIntelligence; };
+
+      # Ship the code-review skill: reviewer children per dimension, then a scoring
+      # pass that drops every finding below 80 confidence.
+      codeReview = mkBoolOption { default = codeReview; };
 
       # Bound is 65335 so portBase + (sha256(name) mod 200) stays <= 65535.
       portBase = mkIntBetweenOption {
@@ -421,6 +435,7 @@
                 defaultAgentDir = shellDataDir;
                 extraBuiltinSkills = prime-agent.extraBuiltinSkills;
                 codeIntelligence = prime-agent.codeIntelligence;
+                codeReview = prime-agent.codeReview;
               };
             })
           ];
@@ -1014,6 +1029,7 @@
                 primeEnv = {
                   PRIME_AGENT_CODING_AGENT_DIR = dataDir;
                   PRIME_AGENT_KERNEL_VENV = "${dataDir}/kernel-venv";
+                  RLM_MAX_DEPTH = toString prime-agent.rlmMaxDepth;
                 };
 
                 # Mirror requested built-in examples into the auto-load dir.
