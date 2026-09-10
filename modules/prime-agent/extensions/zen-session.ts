@@ -11,6 +11,10 @@ import type {
 // headers live here instead. @opencodeVersion@ is substituted at build time.
 const USER_AGENT = "opencode/@opencodeVersion@";
 
+// Both zen backends reject an unidentified request; zen/go reports itself as
+// "Console Go" and needs the same headers as zen/v1.
+const PROVIDERS = ["opencode", "opencode-go"];
+
 export default function zenSession(pi: ExtensionAPI) {
   let current = "";
 
@@ -19,12 +23,14 @@ export default function zenSession(pi: ExtensionAPI) {
   function useSessionId(sessionId: string): void {
     if (!sessionId || sessionId === current) return;
     current = sessionId;
-    pi.registerProvider("opencode", {
-      headers: {
-        "User-Agent": USER_AGENT,
-        "x-opencode-session": sessionId,
-      },
-    });
+    for (const provider of PROVIDERS) {
+      pi.registerProvider(provider, {
+        headers: {
+          "User-Agent": USER_AGENT,
+          "x-opencode-session": sessionId,
+        },
+      });
+    }
   }
 
   // Queued until the runner binds, so this covers a request made before the
