@@ -28,6 +28,7 @@
         languages
         lsp
         theme
+        terminalInitCommand
         vim
         ;
     in
@@ -66,6 +67,8 @@
           mode = mkStrOption { default = mode; };
         };
 
+      terminalInitCommand = mkStrOption { default = terminalInitCommand; };
+
       vim = mkBoolOption { default = vim; };
     };
 
@@ -94,6 +97,7 @@
             theme
             languages
             lsp
+            terminalInitCommand
             vim
             ;
 
@@ -209,6 +213,7 @@
                       font_size = overrideUnmanaged font.size 0 config.stylix.fonts.sizes.terminal fontSizeFallback;
                     };
 
+                    agent.terminal_init_command = terminalInitCommand;
                     vim_mode = vim;
 
                     buffer_font_family = overrideManaged font.name "" fontNameFallback;
