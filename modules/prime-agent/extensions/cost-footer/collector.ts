@@ -2,7 +2,6 @@
 // usage (quota, burn history, free counts); it exits when no window wakes it.
 
 import { existsSync, readFileSync, readdirSync, statSync, unlinkSync } from "node:fs";
-import { homedir } from "node:os";
 import { join } from "node:path";
 import {
   FREE_WINDOW_MS,
@@ -13,6 +12,7 @@ import {
   SAMPLE_MS,
   USAGE_TTL_MS,
   FREE_POOL_MODELS,
+  agentDir,
   freePoolOf,
   ipStateFile,
   rateLimitFile,
@@ -43,13 +43,12 @@ let usageFetchedAt = 0;
 let usageInFlight = false;
 const usageHist: Record<string, Sample[]> = {};
 
+// prime-agent's own store only. opencode keeps a separate auth.json that drifts
+// from this one, and reading it reports the quota of whatever key opencode holds.
 const planApiKey = (): string | null => {
   if (process.env.OPENCODE_API_KEY) return process.env.OPENCODE_API_KEY;
   try {
-    const auth = JSON.parse(
-      readFileSync(`${homedir()}/.local/share/opencode/auth.json`, "utf-8"),
-    );
-    return auth[provider]?.key ?? null;
+    return JSON.parse(readFileSync(join(agentDir(), "auth.json"), "utf-8"))[provider]?.key ?? null;
   } catch {
     return null;
   }
