@@ -938,7 +938,9 @@
                 # opencode 429s unless identified as a client; zen also wants a session
                 # header, which is per-run, so zen-session.ts registers both at load.
                 opencodeVersion = config.programs.opencode.package.version or pkgs.opencode.version;
+                # zen/v1 and zen/go/v1 are separate providers upstream; both 429 unidentified.
                 providerDefaults.opencode.headers."User-Agent" = "opencode/${opencodeVersion}";
+                providerDefaults.opencode-go.headers."User-Agent" = "opencode/${opencodeVersion}";
 
                 zenSessionSrc = pkgs.replaceVars ./extensions/zen-session.ts {
                   inherit opencodeVersion;
