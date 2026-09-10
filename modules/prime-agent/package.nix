@@ -11,6 +11,8 @@
   extraBuiltinSkills ? { },
   # Ship the code-intelligence skill (nix-shell LSP tooling guide) into dist/skills.
   codeIntelligence ? true,
+  # Ship the code-review skill (two-pass fan-out review) into dist/skills.
+  codeReview ? true,
   fetchFromGitHub,
   autoPatchelfHook,
   bash,
@@ -166,6 +168,14 @@ buildNpmPackage (finalAttrs: {
         exit 1
       fi
       cp -R ${./skills}/code-intelligence "$packageDir/dist/skills/"
+    ''}
+
+    ${lib.optionalString codeReview ''
+      if [ -e "$packageDir/dist/skills/code-review" ]; then
+        echo "error: code-review skill already exists upstream" >&2
+        exit 1
+      fi
+      cp -R ${./skills}/code-review "$packageDir/dist/skills/"
     ''}
 
     # Ship module-configured extra built-in skills (markdown-only) into dist/skills.
