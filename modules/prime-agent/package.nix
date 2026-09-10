@@ -3,6 +3,10 @@
   stdenv,
   buildNpmPackage,
   mcpCallTimeout ? 900,
+  # Shell-expandable default for PRIME_AGENT_CODING_AGENT_DIR, applied in the wrapper
+  # so launches that never see the session variables still find the configured dir.
+  # "" keeps upstream's ~/.prime/agent.
+  defaultAgentDir ? "",
   # name -> full SKILL.md content, shipped into dist/skills by the install phase.
   extraBuiltinSkills ? { },
   # Ship the code-intelligence skill (nix-shell LSP tooling guide) into dist/skills.
@@ -57,6 +61,13 @@ let
       mkdir -p "$packageDir/dist/skills/${name}"
       cp ${builtins.toFile "SKILL.md" content} "$packageDir/dist/skills/${name}/SKILL.md"
     '') extraBuiltinSkills
+  );
+
+  # One line carrying its own trailing backslash. A multi-line block here ends in a
+  # newline, and an empty continued line terminates the makeWrapper command early.
+  agentDirFlags = lib.optionalString (defaultAgentDir != "") (
+    "--run 'export PRIME_AGENT_CODING_AGENT_DIR=\"\${PRIME_AGENT_CODING_AGENT_DIR:-${defaultAgentDir}}\"' "
+    + "--run 'export PRIME_AGENT_KERNEL_VENV=\"\${PRIME_AGENT_KERNEL_VENV:-$PRIME_AGENT_CODING_AGENT_DIR/kernel-venv}\"' "
   );
 
   # Assert the shared skill-name rule; names are spliced into bash paths below.
@@ -179,6 +190,7 @@ buildNpmPackage (finalAttrs: {
       --set UV_PYTHON_PREFERENCE system \
       --set UV_PYTHON_DOWNLOADS manual \
       --set-default PRIME_AGENT_MCP_CALL_TIMEOUT ${toString mcpCallTimeout} \
+      ${agentDirFlags}\
       --prefix PATH : ${lib.makeBinPath runtimePath} \
       ${lib.optionalString stdenv.hostPlatform.isLinux "--prefix LD_LIBRARY_PATH : ${
         lib.makeLibraryPath [ stdenv.cc.cc.lib ]
