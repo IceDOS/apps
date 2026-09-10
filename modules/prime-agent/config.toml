@@ -3,6 +3,11 @@ defaultProvider = ""
 defaultModel = ""
 skillDirs = []
 
+# Spawn this agent in a new Zed agent-panel terminal (agent.terminal_init_command
+# = "prime-agent", ctrl-n in the agent panel) instead of using ACP. Only applies
+# when the zed module is loaded.
+zedAgentPanelTerminal = true
+
 # Built-in prime-agent example extensions to load (names under examples/extensions/).
 builtinExtensions = []
 
@@ -67,9 +72,6 @@ powerProviders = []
 
 # Per-provider overrides merged into models.json (partial merge).
 providers = {}
-
-# Zed keybind to spawn prime-agent (Ctrl-Alt-P default).
-keybind = "ctrl-alt-p"
 
 # Whether `icedos gc` prunes stale prime-agent session data.
 includeInIcedosGc = false
