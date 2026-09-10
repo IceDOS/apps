@@ -28,7 +28,6 @@
         dataDir
         defaultModel
         defaultProvider
-        keybind
         mcpCallTimeout
         rlmMaxDepth
         portBase
@@ -44,14 +43,12 @@
         skillDirs
         shareTraces
         telemetry
+        zedAgentPanelTerminal
         ;
     in
     {
       defaultProvider = mkStrOption { default = defaultProvider; };
       defaultModel = mkStrOption { default = defaultModel; };
-
-      # Zed keybind to spawn prime-agent (Ctrl-Alt-P default).
-      keybind = mkStrOption { default = keybind; };
 
       dataDir = mkStrOption { default = dataDir; };
 
@@ -114,6 +111,10 @@
       telemetry = mkBoolOption { default = telemetry; };
 
       skillDirs = mkStrListOption { default = skillDirs; };
+
+      # Spawn this agent in a new Zed agent-panel terminal (agent.terminal_init_command
+      # = "prime-agent", ctrl-n in the agent panel) instead of using ACP.
+      zedAgentPanelTerminal = mkBoolOption { default = zedAgentPanelTerminal; };
 
       # Built-in example extensions to load (names under examples/extensions/).
       builtinExtensions = mkStrListOption { default = builtinExtensions; };
@@ -292,7 +293,7 @@
     };
 
   outputs.nixosModules =
-    { ... }:
+    { repoUrl, ... }:
     [
       (
         {
@@ -320,8 +321,15 @@
 
           inherit (config.icedos.applications) prime-agent;
           primeAgentUsers = prime-agent.users;
+
           # peon-ping is a standalone module and may not be loaded at all.
           peonPingEnabled = (config.icedos.applications.peon-ping.users or { }) != { };
+
+          # zed is a standalone module; only wire the panel terminal when loaded.
+          hasZed = icedosLib.hasModule {
+            inherit config repoUrl;
+            name = "zed";
+          };
 
           # Prune stale prime-agent session data during `icedos gc`.
           primeAgentGcHook = ''
@@ -459,6 +467,12 @@
               help = "prime-agent AI assistant (interactive session)";
             }
           ];
+
+          # Spawn this agent in a new Zed agent-panel terminal (Ctrl+N) instead of
+          # using ACP; the zed module owns the agent.terminal_init_command wiring.
+          icedos.applications.zed.terminalInitCommand = mkIf (
+            hasZed && prime-agent.zedAgentPanelTerminal
+          ) "prime-agent";
 
           home-manager.sharedModules = [
             (
@@ -1220,48 +1234,6 @@
                   "writeBoundary"
                 ] seedScript;
 
-                # Zed has no right-panel reveal target, so spawn into the terminal dock.
-                programs.zed-editor.userTasks = lib.mkIf (config.programs.zed-editor.enable or false) [
-                  {
-                    label = "prime-agent";
-                    command = "icedos";
-                    args = [
-                      "prime-agent"
-                    ];
-                    use_new_terminal = true;
-                    allow_concurrent_runs = true;
-                    reveal = "always";
-                    reveal_target = "dock";
-                    hide = "never";
-                  }
-                ];
-
-                # Merges with the user's own keymap.json by context.
-                programs.zed-editor.userKeymaps = lib.mkIf (config.programs.zed-editor.enable or false) [
-                  {
-                    context = "Workspace";
-                    bindings = {
-                      ${prime-agent.keybind} = [
-                        "task::Spawn"
-                        {
-                          task_name = "prime-agent";
-                        }
-                      ];
-                    };
-                  }
-                  {
-                    # Zed's terminal lacks the kitty keyboard protocol; send the
-                    # CSI-u shift+enter both prime-agent and Claude Code parse.
-                    context = "Terminal";
-                    bindings = {
-                      shift-enter = [
-                        "terminal::SendText"
-                        # Nix has no \u escapes; parse the JSON escape to a real ESC.
-                        (builtins.fromJSON "\"\\u001b[13;2u\"")
-                      ];
-                    };
-                  }
-                ];
               }
             )
           ];
