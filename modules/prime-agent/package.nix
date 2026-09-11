@@ -13,6 +13,8 @@
   codeIntelligence ? true,
   # Ship the code-review skill (two-pass fan-out review) into dist/skills.
   codeReview ? true,
+  # Install a Terminal=true desktop entry launching the TUI in the default terminal.
+  desktopEntry ? true,
   fetchFromGitHub,
   autoPatchelfHook,
   bash,
@@ -20,6 +22,8 @@
   fd,
   git,
   gnutar,
+  installDesktopEntry,
+  makeDesktopItem,
   makeWrapper,
   nodejs,
   npm-lockfile-fix,
@@ -71,6 +75,25 @@ let
     "--run 'export PRIME_AGENT_CODING_AGENT_DIR=\"\${PRIME_AGENT_CODING_AGENT_DIR:-${defaultAgentDir}}\"' "
     + "--run 'export PRIME_AGENT_KERNEL_VENV=\"\${PRIME_AGENT_KERNEL_VENV:-$PRIME_AGENT_CODING_AGENT_DIR/kernel-venv}\"' "
   );
+
+  # Terminal=true: the desktop environment launches the user's default terminal,
+  # which is how the interactive TUI is meant to run.
+  desktopItem = makeDesktopItem {
+    name = "prime-agent";
+    desktopName = "Prime Agent";
+    comment = "AI coding assistant with a Python REPL tool";
+    icon = "/@out@/share/icons/hicolor/scalable/apps/${icon}";
+    exec = "/@out@/bin/prime-agent";
+    terminal = true;
+    type = "Application";
+    categories = [
+      "Development"
+      "Utility"
+    ];
+  };
+
+  icon = "prime-agent.svg";
+  desktopFile = "prime-agent.desktop";
 
   # Assert the shared skill-name rule; names are spliced into bash paths below.
   skillName = import ./lib/skill-name.nix { inherit lib; };
@@ -205,6 +228,12 @@ buildNpmPackage (finalAttrs: {
       ${lib.optionalString stdenv.hostPlatform.isLinux "--prefix LD_LIBRARY_PATH : ${
         lib.makeLibraryPath [ stdenv.cc.cc.lib ]
       }"}
+
+    ${lib.optionalString desktopEntry ''
+      ${installDesktopEntry { inherit desktopItem desktopFile; }}
+      install -Dm644 assets/brand/prime-butterfly.svg \
+        "$out/share/icons/hicolor/scalable/apps/${icon}"
+    ''}
 
     runHook postInstall
   '';
