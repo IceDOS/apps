@@ -26,6 +26,7 @@
         powerCurrency
         powerProviders
         dataDir
+        desktopEntry
         defaultModel
         defaultProvider
         mcpCallTimeout
@@ -49,6 +50,10 @@
     {
       defaultProvider = mkStrOption { default = defaultProvider; };
       defaultModel = mkStrOption { default = defaultModel; };
+
+      # Install a desktop entry launching the TUI in the user's default
+      # terminal (Terminal=true; the desktop environment picks the terminal).
+      desktopEntry = mkBoolOption { default = desktopEntry; };
 
       dataDir = mkStrOption { default = dataDir; };
 
@@ -439,7 +444,9 @@
           nixpkgs.overlays = [
             (final: _prev: {
               prime-agent = final.callPackage ./package.nix {
+                inherit (icedosLib.packaging) installDesktopEntry;
                 mcpCallTimeout = prime-agent.mcpCallTimeout;
+                desktopEntry = prime-agent.desktopEntry;
                 defaultAgentDir = shellDataDir;
                 extraBuiltinSkills = prime-agent.extraBuiltinSkills;
                 codeIntelligence = prime-agent.codeIntelligence;
@@ -1239,7 +1246,10 @@
           ];
 
           icedos.system.tips.list =
-            lib.optionals prime-agent.costFooter [
+            lib.optionals prime-agent.desktopEntry [
+              "prime-agent is in the app launcher; it opens in your default terminal."
+            ]
+            ++ lib.optionals prime-agent.costFooter [
               "prime-agent shows what the session has cost so far; /cost hides the line."
             ]
             ++ lib.optionals prime-agent.powerMeter [
