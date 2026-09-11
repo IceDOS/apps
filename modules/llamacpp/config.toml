@@ -3,6 +3,7 @@ cacheTypeK = ""
 cacheTypeV = ""
 contextSize = 4096
 flashAttn = false
+vkDisableHostVisibleVidmem = false
 batchSize = 2048
 gpuLayers = 99
 host = "127.0.0.1"
