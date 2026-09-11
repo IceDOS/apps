@@ -21,6 +21,7 @@
         contextSize
         flashAttn
         gpuLayers
+        vkDisableHostVisibleVidmem
         host
         mmproj
         mmprojOffload
@@ -63,6 +64,10 @@
         default = contextSize;
       } 1 4194304;
       flashAttn = mkBoolOption { default = flashAttn; };
+      # Vulkan-only: bars llama.cpp from routing tensors through host-visible
+      # device memory (the small ReBAR window). On BAR-limited cards like Navi21
+      # that path collapses token generation ~3x.
+      vkDisableHostVisibleVidmem = mkBoolOption { default = vkDisableHostVisibleVidmem; };
       # -1 is llama.cpp's own default ("auto") and -2 means "all"; both are
       # sentinels rather than counts.
       gpuLayers = mkIntBetweenOption {
@@ -205,6 +210,7 @@
             flashAttn
             gpuLayers
             host
+            vkDisableHostVisibleVidmem
             mmproj
             mmprojOffload
             model
@@ -278,6 +284,7 @@
           '';
 
           llamaServer = pkgs.writeShellScript "llamacpp-serve" ''
+            ${lib.optionalString vkDisableHostVisibleVidmem "export GGML_VK_DISABLE_HOST_VISIBLE_VIDMEM=1"}
             RUNTIME="''${XDG_RUNTIME_DIR:?XDG_RUNTIME_DIR unset}"
             ${pkgs.coreutils}/bin/mkdir -p "$RUNTIME/icedos"
 
