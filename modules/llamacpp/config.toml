@@ -62,6 +62,11 @@ lifecycleModelReasoning = true
 # Output cap per response. The context window comes from contextSize.
 lifecycleModelMaxTokens = 16384
 
+# Speculative decoding, as llama.cpp's comma-separated --spec-type list: the
+# ngram-* types draft from repeated text and need no draft model or VRAM, the
+# draft-* types need --spec-draft-model. Empty keeps llama.cpp's own default.
+specType = "" # e.g. "ngram-simple"
+
 reasoningBudgetDivider = 1.25
 reasoningPreserve = true
 service = false

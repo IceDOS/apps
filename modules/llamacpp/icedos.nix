@@ -40,6 +40,7 @@
         lifecycleModelMaxTokens
         lifecycleModelThinkingLevelMap
         sleepIdleSeconds
+        specType
         reasoningBudgetDivider
         reasoningPreserve
         service
@@ -55,6 +56,7 @@
       } 1 1048576;
       cacheTypeK = mkStrOption { default = cacheTypeK; };
       cacheTypeV = mkStrOption { default = cacheTypeV; };
+      specType = mkStrOption { default = specType; };
       # Floor of 1, not 0: llama.cpp reads 0 as "use the model's own trained
       # context", which this module cannot honour because it also feeds
       # contextSize to prime-agent's contextWindow.
@@ -228,6 +230,7 @@
             lifecycleModelMaxTokens
             lifecycleModelThinkingLevelMap
             sleepIdleSeconds
+            specType
             reasoningBudgetDivider
             reasoningPreserve
             service
@@ -362,6 +365,7 @@
               } \
               ${lib.optionalString (cacheTypeK != "") "--cache-type-k ${lib.escapeShellArg cacheTypeK}"} \
               ${lib.optionalString (cacheTypeV != "") "--cache-type-v ${lib.escapeShellArg cacheTypeV}"} \
+              ${lib.optionalString (specType != "") "--spec-type ${lib.escapeShellArg specType}"} \
               --flash-attn ${if flashAttn then "on" else "off"} \
               ${lib.optionalString (sleepIdleSeconds > 0) "--sleep-idle-seconds ${toString sleepIdleSeconds}"} \
               ${lib.optionalString reasoningPreserve "--reasoning-preserve"} \
@@ -462,6 +466,12 @@
                           description = "KV cache type for V";
                         }
                         {
+                          name = "spec-type";
+                          type = "string";
+                          default = specType;
+                          description = "Speculative decoding types";
+                        }
+                        {
                           name = "mmproj";
                           type = "string";
                           default = mmproj;
@@ -540,6 +550,7 @@
                     if [[ "$LLAMACPP_UBATCH_SIZE_SET" == "1" ]]; then ARGS+=(--ubatch-size "$LLAMACPP_UBATCH_SIZE"); fi
                     if [[ "$LLAMACPP_CACHE_TYPE_K_SET" == "1" ]]; then ARGS+=(--cache-type-k "$LLAMACPP_CACHE_TYPE_K"); fi
                     if [[ "$LLAMACPP_CACHE_TYPE_V_SET" == "1" ]]; then ARGS+=(--cache-type-v "$LLAMACPP_CACHE_TYPE_V"); fi
+                    if [[ "$LLAMACPP_SPEC_TYPE_SET" == "1" ]]; then ARGS+=(--spec-type "$LLAMACPP_SPEC_TYPE"); fi
                     if [[ "$LLAMACPP_MMPROJ_SET" == "1" ]]; then ARGS+=(--mmproj "$LLAMACPP_MMPROJ" --image-min-tokens 1024); fi
                     if [[ "$LLAMACPP_PRIO_SET" == "1" ]]; then ARGS+=(--prio "$LLAMACPP_PRIO"); fi
                     if [[ "$LLAMACPP_PRIO_BATCH_SET" == "1" ]]; then ARGS+=(--prio-batch "$LLAMACPP_PRIO_BATCH"); fi
@@ -754,6 +765,35 @@
           };
 
           assertions = [
+            {
+              # llama.cpp rejects an unknown type at startup, which the lifecycle
+              # extension only surfaces as a server that never becomes healthy.
+              assertion =
+                specType == ""
+                || lib.all (
+                  x:
+                  builtins.elem x [
+                    "none"
+                    "draft-simple"
+                    "draft-eagle3"
+                    "draft-mtp"
+                    "draft-dflash"
+                    "draft-dspark"
+                    "ngram-simple"
+                    "ngram-map-k"
+                    "ngram-map-k4v"
+                    "ngram-mod"
+                    "ngram-cache"
+                  ]
+                ) (lib.splitString "," specType);
+              message = ''
+                icedos.applications.llamacpp.specType must be a comma-separated
+                list of llama.cpp --spec-type values: none, draft-simple,
+                draft-eagle3, draft-mtp, draft-dflash, draft-dspark,
+                ngram-simple, ngram-map-k, ngram-map-k4v, ngram-mod or
+                ngram-cache.
+              '';
+            }
             {
               # An empty name yields a provider literally called "" in
               # models.json, and powerProviders = [""] which the meter drops —
