@@ -34,6 +34,28 @@
               *:KDE:*) exit 1 ;;
             esac
           '';
+
+          # A GPU reset (amdgpu) cancels walker's Vulkan context while the
+          # process stays alive, so Restart=on-failure never fires.
+          walkerWatchdog = pkgs.writeShellScript "walker-watchdog" ''
+            set -u
+            set -o pipefail
+            last_pid=""
+            ${pkgs.systemd}/bin/journalctl --user -u walker.service -n 0 -f | while IFS= read -r line; do
+              case "$line" in
+                *"VK_ERROR_DEVICE_LOST"*|*"context is lost"*)
+                  # One restart per failing walker process; its error burst shares a PID.
+                  pid=''${line#*walker\[}
+                  pid=''${pid%%]*}
+                  [ "$pid" = "$last_pid" ] && continue
+                  last_pid=$pid
+                  # Let amdgpu finish the reset before walker creates a new context.
+                  ${pkgs.coreutils}/bin/sleep 2
+                  ${pkgs.systemd}/bin/systemctl --user try-restart walker.service
+                  ;;
+              esac
+            done
+          '';
         in
         {
           services.elephant.enable = true;
@@ -62,6 +84,18 @@
             serviceConfig = {
               Type = "oneshot";
               ExecStart = "${pkgs.systemd}/bin/systemctl --user try-restart elephant.service";
+            };
+          };
+
+          systemd.user.services.walker-watchdog = {
+            description = "Restart walker when the GPU device is lost";
+            wantedBy = [ "graphical-session.target" ];
+            partOf = [ "graphical-session.target" ];
+            after = [ "graphical-session.target" ];
+            serviceConfig = {
+              ExecStart = "${walkerWatchdog}";
+              Restart = "on-failure";
+              RestartSec = 5;
             };
           };
 
