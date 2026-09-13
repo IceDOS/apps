@@ -42,7 +42,7 @@ lifecycle = false
 lifecycleIdleSeconds = 300
 
 # The provider name prime-agent knows this server by; must match the key under
-# icedos.applications.prime-agent.providers.
+# icedos.applications.prime-agent.settings.providers.
 lifecycleProvider = "llamacpp"
 
 # Command exposing `llamacpp serve` and `llamacpp stop`.

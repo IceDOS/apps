@@ -1,8 +1,4 @@
 [icedos.applications.prime-agent]
-defaultProvider = ""
-defaultModel = ""
-skillDirs = []
-
 # Install a desktop entry that launches the interactive TUI in the default
 # terminal (Terminal=true, so the desktop environment picks the user's
 # preferred terminal emulator).
@@ -13,76 +9,82 @@ desktopEntry = true
 # when the zed module is loaded.
 zedAgentPanelTerminal = true
 
-# Built-in prime-agent example extensions to load (names under examples/extensions/).
-builtinExtensions = []
-
-# Inline .ts sources for auto-loaded local extensions (like Claude skills).
-extensions = {}
-
-# Extra built-in skills: name -> full SKILL.md content, shipped into dist/skills so
-# they autoload on start; each needs frontmatter `description` (loader skips without).
-extraBuiltinSkills = {}
-
-# Ship per-language code-intelligence skills + a glue extension telling models to
-# load the matching one: LSP tooling on demand via nix-shell.
-codeIntelligence = true
-
-# Ship the code-review skill: two-pass diff/PR review that fans reviewer children
-# out per dimension, then scores every finding and drops those below 80.
-codeReview = true
-
-# "" means $XDG_CONFIG_HOME/prime-agent; $XDG_CONFIG_HOME / $XDG_DATA_HOME / $HOME / ~ expand per user.
-dataDir = ""
-portBase = 8850
-portOverrides = {}
-
-# MCP tool-call timeout in seconds (60–3600). Heavy reviews may need more.
-mcpCallTimeout = 900
-
-# Recursion depth ceiling for rlm() subagents, exported as RLM_MAX_DEPTH. A
-# /rlm-max-depth set globally in the TUI outranks this. 2 is the floor for the
-# code-review skill: root spawns the orchestrator, the orchestrator spawns reviewers.
-rlmMaxDepth = 2
-
-# Install the cost-footer extension: live session cost (USD) in the TUI bottom bar,
-# with token totals and the active model; /cost toggles it at runtime.
-costFooter = true
-
-# Install the peon-ping companion extension (session-event bridge to peon.sh).
-peonPing = true
-
-# Meter GPU electricity for locally-served models; the footer shows measured
-# electricity instead of "free". Requires costFooter = true.
-powerMeter = false
-
-# Show live generation rate (tok/s) in the cost footer.
-tpsMeter = true
-
-# DRM card to read (e.g. "card1"); empty autodetects the first GPU exposing an
-# average-power sensor. Only amdgpu-style hwmon power1_average is supported.
-powerCard = ""
-
-# Price per kWh, in whatever currency powerCurrency names.
-powerRateKwh = 0.14
-
-# The card's idle draw, subtracted from every sample so the meter reports the
-# marginal cost of inference. Zero by default; read an idle sensor and set it.
-powerIdleWatts = 0
-
-powerCurrency = "€"
-
-# Providers served by the local GPU; anything else is left unmetered. Empty by
-# default: a module that serves models locally (llamacpp) adds itself.
-powerProviders = []
-
-# Per-provider overrides merged into models.json (partial merge).
-providers = {}
-
 # Whether `icedos gc` prunes stale prime-agent session data.
 includeInIcedosGc = false
 
 # GC retention: prune sessions/logs older than this many days.
 sessionRetentionDays = 30
+
+# Seeded defaultProvider/defaultModel in settings.json; empty keeps the TUI's choice.
+[icedos.applications.prime-agent.default]
+model = ""
+provider = ""
+
+[icedos.applications.prime-agent.extensions]
+# Built-in prime-agent example extensions to load (names under examples/extensions/).
+builtin = []
+
+# Inline .ts sources for auto-loaded local extensions (like Claude skills).
+inline = {}
+
+# Install the peon-ping companion extension (session-event bridge to peon.sh).
+peonPing = true
+
+[icedos.applications.prime-agent.extensions.context-window-cap]
+enable = false
+# Cap every model's contextWindow at this percentage of its native context
+# (context-cap extension). llamacpp models are excluded; the local server owns
+# context. Models with an explicit contextWindow override in models.json keep it.
+percent = 50
+
+[icedos.applications.prime-agent.extensions.meters]
+# Install the cost-footer extension: live session cost (USD) in the TUI bottom bar,
+# with token totals and the active model; /cost toggles it at runtime.
+cost = true
+
+# Show live generation rate (tok/s) in the cost footer. Requires cost = true.
+tps = true
+
+[icedos.applications.prime-agent.extensions.meters.power]
+# Meter GPU electricity for locally-served models; the footer shows measured
+# electricity instead of "free". Requires meters.cost = true.
+enable = false
+
+# DRM card to read (e.g. "card1"); empty autodetects the first GPU exposing an
+# average-power sensor. Only amdgpu-style hwmon power1_average is supported.
+card = ""
+
+# Price per kWh, in whatever currency `currency` names. Required (> 0) when enabled.
+rateKwh = 0
+
+# The card's idle draw, subtracted from every sample so the meter reports the
+# marginal cost of inference. Zero by default; read an idle sensor and set it.
+idleWatts = 0
+
+# Currency symbol shown next to the cost (e.g. "€"). Required when enabled.
+currency = ""
+
+# Providers served by the local GPU; anything else is left unmetered. Empty by
+# default: a module that serves models locally (llamacpp) adds itself.
+providers = []
+
+[icedos.applications.prime-agent.settings]
+# "" means $XDG_CONFIG_HOME/prime-agent; $XDG_CONFIG_HOME / $XDG_DATA_HOME / $HOME / ~ expand per user.
+dataDir = ""
+
+# MCP tool-call timeout in seconds (60–3600). Heavy reviews may need more.
+mcpCallTimeout = 900
+
+portBase = 8850
+portOverrides = {}
+
+# Per-provider overrides merged into models.json (partial merge).
+providers = {}
+
+# Recursion depth ceiling for rlm() subagents, exported as RLM_MAX_DEPTH. A
+# /rlm-max-depth set globally in the TUI outranks this. 2 is the floor for the
+# code-review skill: root spawns the orchestrator, the orchestrator spawns reviewers.
+rlmMaxDepth = 2
 
 # Send session traces (full transcripts, cwd, git repo/commit) to Prime Intellect to
 # train open-source LLMs. Off by default; /traces on in the TUI toggles it at runtime.
@@ -91,3 +93,20 @@ shareTraces = false
 # Send product analytics (token usage, model/provider categories) to Prime Intellect.
 # Off by default; flips prime-agent's upstream `telemetry.enabled` (default true).
 telemetry = false
+
+[icedos.applications.prime-agent.skills]
+# Extra built-in skills: name -> full SKILL.md content, shipped into dist/skills so
+# they autoload on start; each needs frontmatter `description` (loader skips without).
+extraBuiltin = {}
+
+# Extra skill directories, seeded as `skills` in settings.json.
+dirs = []
+
+[icedos.applications.prime-agent.skills.code]
+# Ship the code-review skill: two-pass diff/PR review that fans reviewer children
+# out per dimension, then scores every finding and drops those below 80.
+review = true
+
+# Ship per-language code-intelligence skills + a glue extension telling models to
+# load the matching one: LSP tooling on demand via nix-shell.
+intelligence = true
