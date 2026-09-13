@@ -16,46 +16,26 @@
         ;
 
       inherit ((importTOML ./config.toml).icedos.applications.prime-agent)
-        costFooter
-        peonPing
-        powerMeter
-        tpsMeter
-        powerCard
-        powerRateKwh
-        powerIdleWatts
-        powerCurrency
-        powerProviders
-        dataDir
         desktopEntry
-        defaultModel
-        defaultProvider
-        mcpCallTimeout
-        rlmMaxDepth
-        portBase
-        portOverrides
-        builtinExtensions
-        codeIntelligence
-        codeReview
-        extraBuiltinSkills
-        extensions
         includeInIcedosGc
         sessionRetentionDays
-        providers
-        skillDirs
-        shareTraces
-        telemetry
         zedAgentPanelTerminal
         ;
+
+      defaults = (importTOML ./config.toml).icedos.applications.prime-agent.default;
+      settings = (importTOML ./config.toml).icedos.applications.prime-agent.settings;
+      skills = (importTOML ./config.toml).icedos.applications.prime-agent.skills;
+      extensions = (importTOML ./config.toml).icedos.applications.prime-agent.extensions;
     in
     {
-      defaultProvider = mkStrOption { default = defaultProvider; };
-      defaultModel = mkStrOption { default = defaultModel; };
+      default = {
+        provider = mkStrOption { default = defaults.provider; };
+        model = mkStrOption { default = defaults.model; };
+      };
 
       # Install a desktop entry launching the TUI in the user's default
       # terminal (Terminal=true; the desktop environment picks the terminal).
       desktopEntry = mkBoolOption { default = desktopEntry; };
-
-      dataDir = mkStrOption { default = dataDir; };
 
       # Whether `icedos gc` prunes stale prime-agent sessions (unshade-style).
       includeInIcedosGc = mkBoolOption { default = includeInIcedosGc; };
@@ -67,233 +47,260 @@
         default = sessionRetentionDays;
       } 1 3650;
 
-      mcpCallTimeout = mkIntBetweenOption {
-        path = "icedos.applications.prime-agent.mcpCallTimeout";
-        source = ./config.toml;
-        default = mcpCallTimeout;
-      } 60 3600;
-
-      # Exported as RLM_MAX_DEPTH; a global /rlm-max-depth outranks it, so a TUI
-      # choice survives rebuilds. Upper bound guards typos: children fan out per level.
-      rlmMaxDepth = mkIntBetweenOption {
-        path = "icedos.applications.prime-agent.rlmMaxDepth";
-        source = ./config.toml;
-        default = rlmMaxDepth;
-      } 0 32;
-
-      # Install the cost-footer extension: live session cost (USD) in the TUI bottom bar.
-      costFooter = mkBoolOption { default = costFooter; };
-
-      # Install the peon-ping companion extension (session-event bridge to peon.sh).
-      peonPing = mkBoolOption { default = peonPing; };
-
-      # Meter GPU electricity for locally-served models inside the cost footer.
-      powerMeter = mkBoolOption { default = powerMeter; };
-
-      # Show live generation rate (tok/s) in the cost footer.
-      tpsMeter = mkBoolOption { default = tpsMeter; };
-
-      # DRM card to read ("card1"); empty autodetects the first GPU with a sensor.
-      powerCard = mkStrOption { default = powerCard; };
-
-      # Price per kWh, in the currency powerCurrency names.
-      powerRateKwh = mkNumberOption { default = powerRateKwh; };
-
-      # Idle draw subtracted from each sample, so the meter reports marginal cost.
-      powerIdleWatts = mkNumberOption { default = powerIdleWatts; };
-
-      powerCurrency = mkStrOption { default = powerCurrency; };
-
-      # Providers served by the local GPU; everything else is left unmetered.
-      powerProviders = mkStrListOption { default = powerProviders; };
-
-      # Upload full session traces (transcripts, cwd, git repo/commit) to Prime
-      # Intellect to train open-source LLMs. Off by default; /traces on toggles it.
-      shareTraces = mkBoolOption { default = shareTraces; };
-
-      # Send product analytics (token usage, model/provider categories) to Prime
-      # Intellect. Off by default (flips upstream's telemetry.enabled = true).
-      telemetry = mkBoolOption { default = telemetry; };
-
-      skillDirs = mkStrListOption { default = skillDirs; };
 
       # Spawn this agent in a new Zed agent-panel terminal (agent.terminal_init_command
       # = "prime-agent", ctrl-n in the agent panel) instead of using ACP.
       zedAgentPanelTerminal = mkBoolOption { default = zedAgentPanelTerminal; };
 
-      # Built-in example extensions to load (names under examples/extensions/).
-      builtinExtensions = mkStrListOption { default = builtinExtensions; };
+      extensions = {
+        # Built-in example extensions to load (names under examples/extensions/).
+        builtin = mkStrListOption { default = extensions.builtin; };
 
-      # Inline .ts sources for auto-loaded local extensions (like Claude skills).
-      extensions = mkAttrsOfOption { default = extensions; } types.str;
+        # Inline .ts sources for auto-loaded local extensions (like Claude skills).
+        inline = mkAttrsOfOption { default = extensions.inline; } types.str;
 
-      # Extra built-in skills: name -> full SKILL.md content, shipped into dist/skills so
-      # they autoload on start; each needs frontmatter `description` (loader skips without).
-      extraBuiltinSkills = mkAttrsOfOption { default = extraBuiltinSkills; } types.str;
+        # Install the peon-ping companion extension (session-event bridge to peon.sh).
+        peonPing = mkBoolOption { default = extensions.peonPing; };
 
-      # Ship the code-intelligence skill set + glue extension telling models to
-      # load the matching per-language LSP guide via nix-shell.
-      codeIntelligence = mkBoolOption { default = codeIntelligence; };
+        context-window-cap = {
+          # Install the context-cap extension.
+          enable = mkBoolOption { default = extensions.context-window-cap.enable; };
 
-      # Ship the code-review skill: reviewer children per dimension, then a scoring
-      # pass that drops every finding below 80 confidence.
-      codeReview = mkBoolOption { default = codeReview; };
-
-      # Bound is 65335 so portBase + (sha256(name) mod 200) stays <= 65535.
-      portBase = mkIntBetweenOption {
-        path = "icedos.applications.prime-agent.portBase";
-        source = ./config.toml;
-        default = portBase;
-      } 0 65335;
-
-      # Pins are system-wide; derived ports fold the username in and cannot collide.
-      portOverrides = mkAttrsOfOption { default = portOverrides; } (lib.types.ints.between 1 65535);
-
-      # Provider overrides merged into models.json (modelOverrides is partial merge).
-      providers = mkSubmoduleAttrsOption { default = providers; } {
-        apiKey = lib.mkOption {
-          type = lib.types.nullOr lib.types.str;
-          default = null;
-          description = "API key for the provider. null = hardcoded default.";
+          # Cap every model's contextWindow at this percent of its native context.
+          # Excludes llamacpp and models with a contextWindow override.
+          percent = mkIntBetweenOption {
+            path = "icedos.applications.prime-agent.extensions.context-window-cap.percent";
+            source = ./config.toml;
+            default = extensions.context-window-cap.percent;
+          } 1 100;
         };
 
-        baseUrl = lib.mkOption {
-          type = lib.types.nullOr lib.types.str;
-          default = null;
-          description = "Base URL for the provider API.";
-        };
+        meters = {
+          # Install the cost-footer extension: live session cost (USD) in the TUI bottom bar.
+          cost = mkBoolOption { default = extensions.meters.cost; };
 
-        api = lib.mkOption {
-          type = lib.types.nullOr lib.types.str;
-          default = null;
-          description = "API protocol for the provider (e.g. openai-completions).";
-        };
+          # Show live generation rate (tok/s) in the cost footer.
+          tps = mkBoolOption { default = extensions.meters.tps; };
 
-        headers = lib.mkOption {
-          type = lib.types.attrsOf lib.types.str;
-          default = { };
-          description = "Extra HTTP headers for provider requests.";
-        };
+          power = {
+            # Meter GPU electricity for locally-served models inside the cost footer.
+            enable = mkBoolOption { default = extensions.meters.power.enable; };
 
-        modelOverrides = lib.mkOption {
-          type = lib.types.attrsOf (
-            lib.types.submodule {
-              options = {
-                contextWindow = lib.mkOption {
-                  type = lib.types.nullOr lib.types.int;
-                  default = null;
-                  description = "Context window size in tokens.";
-                };
+            # DRM card to read ("card1"); empty autodetects the first GPU with a sensor.
+            card = mkStrOption { default = extensions.meters.power.card; };
 
-                maxTokens = lib.mkOption {
-                  type = lib.types.nullOr lib.types.int;
-                  default = null;
-                  description = "Max output tokens per response.";
-                };
+            # Price per kWh, in the currency `currency` names.
+            rateKwh = mkNumberOption { default = extensions.meters.power.rateKwh; };
 
-                name = lib.mkOption {
-                  type = lib.types.nullOr lib.types.str;
-                  default = null;
-                  description = "Model display name.";
-                };
+            # Idle draw subtracted from each sample, so the meter reports marginal cost.
+            idleWatts = mkNumberOption { default = extensions.meters.power.idleWatts; };
 
-                reasoning = lib.mkOption {
-                  type = lib.types.nullOr lib.types.bool;
-                  default = null;
-                  description = "Whether the model supports reasoning.";
-                };
+            currency = mkStrOption { default = extensions.meters.power.currency; };
 
-                thinkingLevelMap = lib.mkOption {
-                  type = lib.types.nullOr (lib.types.attrsOf (lib.types.nullOr lib.types.str));
-                  default = null;
-                  description = "Maps prime-agent thinking levels to the reasoning_effort the model accepts. Keys must be one of off, minimal, low, medium, high, xhigh or max; prime-agent's schema is non-strict, so a misspelled level is accepted here and then silently ignored at runtime. A level absent from the map is sent through unmapped, so a model that rejects it errors; null hides the level entirely, and xhigh/max are only offered when present as keys.";
-                };
-              };
-            }
-          );
-
-          default = { };
-          description = "Per-model overrides keyed by model id.";
-        };
-
-        # Custom model definitions emitted into models.json "models": an unknown id
-        # is ADDED (inheriting the built-in api/baseUrl); a known id replaces it.
-        models = lib.mkOption {
-          type = lib.types.listOf (
-            lib.types.submodule {
-              options = {
-                id = lib.mkOption {
-                  type = lib.types.str;
-                  description = "Model id (also the key used in modelOverrides).";
-                };
-
-                name = lib.mkOption {
-                  type = lib.types.nullOr lib.types.str;
-                  default = null;
-                  description = "Model display name.";
-                };
-
-                reasoning = lib.mkOption {
-                  type = lib.types.nullOr lib.types.bool;
-                  default = null;
-                  description = "Whether the model supports reasoning.";
-                };
-
-                contextWindow = lib.mkOption {
-                  type = lib.types.nullOr lib.types.int;
-                  default = null;
-                  description = "Context window size in tokens.";
-                };
-
-                maxTokens = lib.mkOption {
-                  type = lib.types.nullOr lib.types.int;
-                  default = null;
-                  description = "Max output tokens per response.";
-                };
-
-                thinkingLevelMap = lib.mkOption {
-                  type = lib.types.nullOr (lib.types.attrsOf (lib.types.nullOr lib.types.str));
-                  default = null;
-                  description = "Maps prime-agent thinking levels to the reasoning_effort the model accepts. Keys must be one of off, minimal, low, medium, high, xhigh or max; prime-agent's schema is non-strict, so a misspelled level is accepted here and then silently ignored at runtime. A level absent from the map is sent through unmapped, so a model that rejects it errors; null hides the level entirely, and xhigh/max are only offered when present as keys.";
-                };
-
-                input = lib.mkOption {
-                  type = lib.types.listOf (
-                    lib.types.enum [
-                      "text"
-                      "image"
-                    ]
-                  );
-                  default = [ ];
-                  description = "Input modalities the model accepts.";
-                };
-
-                cost = lib.mkOption {
-                  type = lib.types.nullOr (lib.types.attrsOf lib.types.number);
-                  default = null;
-                  description = "Per-token cost (USD per 1M tokens). prime-agent requires input, output, cacheRead, cacheWrite.";
-                };
-
-                api = lib.mkOption {
-                  type = lib.types.nullOr lib.types.str;
-                  default = null;
-                  description = "API protocol; defaults to the provider's built-in api.";
-                };
-
-                baseUrl = lib.mkOption {
-                  type = lib.types.nullOr lib.types.str;
-                  default = null;
-                  description = "API base URL; defaults to the provider's built-in baseUrl.";
-                };
-              };
-            }
-          );
-
-          default = [ ];
-          description = "Custom model definitions for providers. Adds a model the bundled catalog lacks (e.g. a newly released one) so it appears in the model list without rebuilding the package.";
+            # Providers served by the local GPU; everything else is left unmetered.
+            providers = mkStrListOption { default = extensions.meters.power.providers; };
+          };
         };
       };
 
+      skills = {
+        # Extra built-in skills: name -> full SKILL.md content, shipped into dist/skills so
+        # they autoload on start; each needs frontmatter `description` (loader skips without).
+        extraBuiltin = mkAttrsOfOption { default = skills.extraBuiltin; } types.str;
+
+        dirs = mkStrListOption { default = skills.dirs; };
+
+        code = {
+          # Ship the code-review skill: reviewer children per dimension, then a scoring
+          # pass that drops every finding below 80 confidence.
+          review = mkBoolOption { default = skills.code.review; };
+
+          # Ship the code-intelligence skill set + glue extension telling models to
+          # load the matching per-language LSP guide via nix-shell.
+          intelligence = mkBoolOption { default = skills.code.intelligence; };
+        };
+      };
+
+      settings = {
+        dataDir = mkStrOption { default = settings.dataDir; };
+
+        mcpCallTimeout = mkIntBetweenOption {
+          path = "icedos.applications.prime-agent.settings.mcpCallTimeout";
+          source = ./config.toml;
+          default = settings.mcpCallTimeout;
+        } 60 3600;
+
+        # Bound is 65335 so portBase + (sha256(name) mod 200) stays <= 65535.
+        portBase = mkIntBetweenOption {
+          path = "icedos.applications.prime-agent.settings.portBase";
+          source = ./config.toml;
+          default = settings.portBase;
+        } 0 65335;
+
+        # Pins are system-wide; derived ports fold the username in and cannot collide.
+        portOverrides = mkAttrsOfOption { default = settings.portOverrides; } (lib.types.ints.between 1 65535);
+
+        # Provider overrides merged into models.json (modelOverrides is partial merge).
+        providers = mkSubmoduleAttrsOption { default = settings.providers; } {
+          apiKey = lib.mkOption {
+            type = lib.types.nullOr lib.types.str;
+            default = null;
+            description = "API key for the provider. null = hardcoded default.";
+          };
+
+          baseUrl = lib.mkOption {
+            type = lib.types.nullOr lib.types.str;
+            default = null;
+            description = "Base URL for the provider API.";
+          };
+
+          api = lib.mkOption {
+            type = lib.types.nullOr lib.types.str;
+            default = null;
+            description = "API protocol for the provider (e.g. openai-completions).";
+          };
+
+          headers = lib.mkOption {
+            type = lib.types.attrsOf lib.types.str;
+            default = { };
+            description = "Extra HTTP headers for provider requests.";
+          };
+
+          modelOverrides = lib.mkOption {
+            type = lib.types.attrsOf (
+              lib.types.submodule {
+                options = {
+                  contextWindow = lib.mkOption {
+                    type = lib.types.nullOr lib.types.int;
+                    default = null;
+                    description = "Context window size in tokens.";
+                  };
+
+                  maxTokens = lib.mkOption {
+                    type = lib.types.nullOr lib.types.int;
+                    default = null;
+                    description = "Max output tokens per response.";
+                  };
+
+                  name = lib.mkOption {
+                    type = lib.types.nullOr lib.types.str;
+                    default = null;
+                    description = "Model display name.";
+                  };
+
+                  reasoning = lib.mkOption {
+                    type = lib.types.nullOr lib.types.bool;
+                    default = null;
+                    description = "Whether the model supports reasoning.";
+                  };
+
+                  thinkingLevelMap = lib.mkOption {
+                    type = lib.types.nullOr (lib.types.attrsOf (lib.types.nullOr lib.types.str));
+                    default = null;
+                    description = "Maps prime-agent thinking levels to the reasoning_effort the model accepts. Keys must be one of off, minimal, low, medium, high, xhigh or max; prime-agent's schema is non-strict, so a misspelled level is accepted here and then silently ignored at runtime. A level absent from the map is sent through unmapped, so a model that rejects it errors; null hides the level entirely, and xhigh/max are only offered when present as keys.";
+                  };
+                };
+              }
+            );
+
+            default = { };
+            description = "Per-model overrides keyed by model id.";
+          };
+
+          # Custom model definitions emitted into models.json "models": an unknown id
+          # is ADDED (inheriting the built-in api/baseUrl); a known id replaces it.
+          models = lib.mkOption {
+            type = lib.types.listOf (
+              lib.types.submodule {
+                options = {
+                  id = lib.mkOption {
+                    type = lib.types.str;
+                    description = "Model id (also the key used in modelOverrides).";
+                  };
+
+                  name = lib.mkOption {
+                    type = lib.types.nullOr lib.types.str;
+                    default = null;
+                    description = "Model display name.";
+                  };
+
+                  reasoning = lib.mkOption {
+                    type = lib.types.nullOr lib.types.bool;
+                    default = null;
+                    description = "Whether the model supports reasoning.";
+                  };
+
+                  contextWindow = lib.mkOption {
+                    type = lib.types.nullOr lib.types.int;
+                    default = null;
+                    description = "Context window size in tokens.";
+                  };
+
+                  maxTokens = lib.mkOption {
+                    type = lib.types.nullOr lib.types.int;
+                    default = null;
+                    description = "Max output tokens per response.";
+                  };
+
+                  thinkingLevelMap = lib.mkOption {
+                    type = lib.types.nullOr (lib.types.attrsOf (lib.types.nullOr lib.types.str));
+                    default = null;
+                    description = "Maps prime-agent thinking levels to the reasoning_effort the model accepts. Keys must be one of off, minimal, low, medium, high, xhigh or max; prime-agent's schema is non-strict, so a misspelled level is accepted here and then silently ignored at runtime. A level absent from the map is sent through unmapped, so a model that rejects it errors; null hides the level entirely, and xhigh/max are only offered when present as keys.";
+                  };
+
+                  input = lib.mkOption {
+                    type = lib.types.listOf (
+                      lib.types.enum [
+                        "text"
+                        "image"
+                      ]
+                    );
+                    default = [ ];
+                    description = "Input modalities the model accepts.";
+                  };
+
+                  cost = lib.mkOption {
+                    type = lib.types.nullOr (lib.types.attrsOf lib.types.number);
+                    default = null;
+                    description = "Per-token cost (USD per 1M tokens). prime-agent requires input, output, cacheRead, cacheWrite.";
+                  };
+
+                  api = lib.mkOption {
+                    type = lib.types.nullOr lib.types.str;
+                    default = null;
+                    description = "API protocol; defaults to the provider's built-in api.";
+                  };
+
+                  baseUrl = lib.mkOption {
+                    type = lib.types.nullOr lib.types.str;
+                    default = null;
+                    description = "API base URL; defaults to the provider's built-in baseUrl.";
+                  };
+                };
+              }
+            );
+
+            default = [ ];
+            description = "Custom model definitions for providers. Adds a model the bundled catalog lacks (e.g. a newly released one) so it appears in the model list without rebuilding the package.";
+          };
+        };
+
+        # Exported as RLM_MAX_DEPTH; a global /rlm-max-depth outranks it, so a TUI
+        # choice survives rebuilds. Upper bound guards typos: children fan out per level.
+        rlmMaxDepth = mkIntBetweenOption {
+          path = "icedos.applications.prime-agent.settings.rlmMaxDepth";
+          source = ./config.toml;
+          default = settings.rlmMaxDepth;
+        } 0 32;
+
+        # Upload full session traces (transcripts, cwd, git repo/commit) to Prime
+        # Intellect to train open-source LLMs. Off by default; /traces on toggles it.
+        shareTraces = mkBoolOption { default = settings.shareTraces; };
+
+        # Send product analytics (token usage, model/provider categories) to Prime
+        # Intellect. Off by default (flips upstream's telemetry.enabled = true).
+        telemetry = mkBoolOption { default = settings.telemetry; };
+      };
       users = mkSubmoduleAttrsOption { default = { }; } { };
     };
 
@@ -338,7 +345,7 @@
 
           # Prune stale prime-agent session data during `icedos gc`.
           primeAgentGcHook = ''
-            D='${prime-agent.dataDir}'
+            D='${prime-agent.settings.dataDir}'
             # Matches config.xdg.configHome default ($HOME/.config); env -i strips
             # per-user xdg, so non-default paths go through the dataDir option.
             [ -z "$D" ] && D='$HOME/.config/prime-agent'
@@ -357,9 +364,9 @@
             find "''${D}/logs" -maxdepth 1 -type f -mtime "+${toString prime-agent.sessionRetentionDays}" -delete 2>/dev/null || true
           '';
 
-          # ---- extraBuiltinSkills validation ----
+          # ---- skills.extraBuiltin validation ----
           skillName = import ./lib/skill-name.nix { inherit lib; };
-          invalidSkillNames = skillName.invalidSkillNames (lib.attrNames prime-agent.extraBuiltinSkills);
+          invalidSkillNames = skillName.invalidSkillNames (lib.attrNames prime-agent.skills.extraBuiltin);
 
           takeWhile =
             pred: list:
@@ -383,7 +390,7 @@
             content: lib.any (l: builtins.match "description[ \t]*:.*" l != null) (skillFrontmatter content);
 
           descriptionlessSkillNames = lib.attrNames (
-            lib.filterAttrs (_: c: !hasSkillDescription c) prime-agent.extraBuiltinSkills
+            lib.filterAttrs (_: c: !hasSkillDescription c) prime-agent.skills.extraBuiltin
           );
 
           # dataDir as a path the wrapper expands at runtime. The home-manager copy is
@@ -391,7 +398,7 @@
           # so the XDG vars carry their spec defaults.
           shellDataDir =
             let
-              raw = if prime-agent.dataDir == "" then "$XDG_CONFIG_HOME/prime-agent" else prime-agent.dataDir;
+              raw = if prime-agent.settings.dataDir == "" then "$XDG_CONFIG_HOME/prime-agent" else prime-agent.settings.dataDir;
               subst =
                 builtins.replaceStrings
                   [ "$XDG_CONFIG_HOME" "$XDG_DATA_HOME" ]
@@ -411,11 +418,11 @@
               # Filled by whichever module serves models locally; without one the meter loads nothing.
               # Read at NixOS level: sharedModules reads would cross-depend on another entry and stall.
               assertion =
-                !config.icedos.applications.prime-agent.powerMeter
-                || config.icedos.applications.prime-agent.powerProviders != [ ];
+                !config.icedos.applications.prime-agent.extensions.meters.power.enable
+                || config.icedos.applications.prime-agent.extensions.meters.power.providers != [ ];
               message = ''
-                icedos.applications.prime-agent.powerMeter is on but
-                powerProviders is empty, so nothing would be metered. Load a
+                icedos.applications.prime-agent.extensions.meters.power.enable is on but
+                meters.power.providers is empty, so nothing would be metered. Load a
                 module that serves models locally (llamacpp adds itself) or name
                 the provider explicitly.
               '';
@@ -423,7 +430,7 @@
             {
               assertion = invalidSkillNames == [ ];
               message = ''
-                icedos.applications.prime-agent.extraBuiltinSkills names must be
+                icedos.applications.prime-agent.skills.extraBuiltin names must be
                 lowercase a-z, 0-9 and hyphens only (no leading/trailing or double
                 hyphens, max 64 chars), matching the loader's directory names:
                 ${builtins.concatStringsSep ", " invalidSkillNames}
@@ -432,7 +439,7 @@
             {
               assertion = descriptionlessSkillNames == [ ];
               message = ''
-                icedos.applications.prime-agent.extraBuiltinSkills entries must be
+                icedos.applications.prime-agent.skills.extraBuiltin entries must be
                 full SKILL.md files with frontmatter `description:`; the loader
                 silently skips files without one. Entries missing it:
                 ${builtins.concatStringsSep ", " descriptionlessSkillNames}
@@ -445,12 +452,12 @@
             (final: _prev: {
               prime-agent = final.callPackage ./package.nix {
                 inherit (icedosLib.packaging) installDesktopEntry;
-                mcpCallTimeout = prime-agent.mcpCallTimeout;
+                mcpCallTimeout = prime-agent.settings.mcpCallTimeout;
                 desktopEntry = prime-agent.desktopEntry;
                 defaultAgentDir = shellDataDir;
-                extraBuiltinSkills = prime-agent.extraBuiltinSkills;
-                codeIntelligence = prime-agent.codeIntelligence;
-                codeReview = prime-agent.codeReview;
+                extraBuiltinSkills = prime-agent.skills.extraBuiltin;
+                codeIntelligence = prime-agent.skills.code.intelligence;
+                codeReview = prime-agent.skills.code.review;
               };
             })
           ];
@@ -496,7 +503,7 @@
                 # "" means the default; expanded per user here (prime-agent knows ~, not $VARS).
                 dataDir =
                   let
-                    raw = if prime-agent.dataDir == "" then "$XDG_CONFIG_HOME/prime-agent" else prime-agent.dataDir;
+                    raw = if prime-agent.settings.dataDir == "" then "$XDG_CONFIG_HOME/prime-agent" else prime-agent.settings.dataDir;
 
                     expand =
                       builtins.replaceStrings
@@ -542,18 +549,18 @@
                   cp -r ${./extensions/cost-footer} $out
                   chmod -R +w $out
                   substituteInPlace $out/power.ts \
-                    --replace-fail "@powerCard@" ${jsStr prime-agent.powerCard} \
-                    --replace-fail "@powerRate@" ${jsStr (builtins.toJSON prime-agent.powerRateKwh)} \
-                    --replace-fail "@powerIdle@" ${jsStr (builtins.toJSON prime-agent.powerIdleWatts)} \
-                    --replace-fail "@powerCurrency@" ${jsStr prime-agent.powerCurrency} \
+                    --replace-fail "@powerCard@" ${jsStr prime-agent.extensions.meters.power.card} \
+                    --replace-fail "@powerRate@" ${jsStr (builtins.toJSON prime-agent.extensions.meters.power.rateKwh)} \
+                    --replace-fail "@powerIdle@" ${jsStr (builtins.toJSON prime-agent.extensions.meters.power.idleWatts)} \
+                    --replace-fail "@powerCurrency@" ${jsStr prime-agent.extensions.meters.power.currency} \
                     --replace-fail "@powerProviders@" ${
                       jsStr (
-                        lib.concatStringsSep "," (if prime-agent.powerMeter then prime-agent.powerProviders else [ ])
+                        lib.concatStringsSep "," (if prime-agent.extensions.meters.power.enable then prime-agent.extensions.meters.power.providers else [ ])
                       )
                     }
 
                   substituteInPlace $out/index.ts \
-                    --replace-fail "@tpsMeter@" ${if prime-agent.tpsMeter then "true" else "false"}
+                    --replace-fail "@tpsMeter@" ${if prime-agent.extensions.meters.tps then "true" else "false"}
 
                   # substituteInPlace only fails on a marker it was told about, so
                   # a newly added one would ship as a literal and break the load.
@@ -612,7 +619,7 @@
                 # Username folded in so two users' bridges cannot collide; pins stay system-wide.
                 hashPort =
                   name:
-                  prime-agent.portBase
+                  prime-agent.settings.portBase
                   + mod (hashInt (
                     substring 0 6 (builtins.hashString "sha256" "${config.home.username}:${name}")
                   )) 200;
@@ -624,7 +631,7 @@
                     );
                     # Reserved up front so derived ports bump around pins; double pins fail below.
                     pinnedUsed = lib.listToAttrs (
-                      map (p: lib.nameValuePair (toString p) true) (lib.attrValues prime-agent.portOverrides)
+                      map (p: lib.nameValuePair (toString p) true) (lib.attrValues prime-agent.settings.portOverrides)
                     );
 
                     step =
@@ -633,8 +640,8 @@
                       let
                         find = n: if used.${toString n} or false then find (n + 1) else n;
                         p =
-                          if prime-agent.portOverrides ? ${s.name} then
-                            prime-agent.portOverrides.${s.name}
+                          if prime-agent.settings.portOverrides ? ${s.name} then
+                            prime-agent.settings.portOverrides.${s.name}
                           else
                             find (hashPort s.name);
                       in
@@ -709,21 +716,21 @@
 
                 # Seed-wins merge, so empty values would reset TUI choices; mcpServers always rides along.
                 seedSettings =
-                  (lib.optionalAttrs (prime-agent.defaultProvider != "") {
-                    defaultProvider = prime-agent.defaultProvider;
+                  (lib.optionalAttrs (prime-agent.default.provider != "") {
+                    defaultProvider = prime-agent.default.provider;
                   })
-                  // (lib.optionalAttrs (prime-agent.defaultModel != "") {
-                    defaultModel = prime-agent.defaultModel;
+                  // (lib.optionalAttrs (prime-agent.default.model != "") {
+                    defaultModel = prime-agent.default.model;
                   })
-                  // (lib.optionalAttrs (prime-agent.skillDirs != [ ]) {
-                    skills = prime-agent.skillDirs;
+                  // (lib.optionalAttrs (prime-agent.skills.dirs != [ ]) {
+                    skills = prime-agent.skills.dirs;
                   })
                   // {
                     mcpServers = mcpServers;
                     # Deterministic even at the upstream default (agentTraces off).
-                    agentTraces.enabled = prime-agent.shareTraces;
+                    agentTraces.enabled = prime-agent.settings.shareTraces;
                     # Upstream defaults this to true; expose it so a user can flip it on.
-                    telemetry.enabled = prime-agent.telemetry;
+                    telemetry.enabled = prime-agent.settings.telemetry;
                   };
 
                 # ---- per-server skill files ----
@@ -967,6 +974,12 @@
                   inherit opencodeVersion;
                 };
 
+                # Caps model context windows at extensions.context-window-cap.percent of native;
+                # llamacpp + explicitly-overridden models are left untouched.
+                contextCapSrc = pkgs.replaceVars ./extensions/context-cap.ts {
+                  contextWindowPercent = prime-agent.extensions.context-window-cap.percent;
+                };
+
                 # modelOverrides stays as-is for partial merge; models[] merges in
                 # custom models (adds unknown ids, replaces known ones).
                 userProvidersConverted = lib.mapAttrs (
@@ -986,7 +999,7 @@
                   attrs
                   // lib.optionalAttrs (overrides != { }) { modelOverrides = overrides; }
                   // lib.optionalAttrs (models != [ ]) { models = models; }
-                ) prime-agent.providers;
+                ) prime-agent.settings.providers;
 
                 mergedProviders = lib.recursiveUpdate providerDefaults userProvidersConverted;
 
@@ -1052,7 +1065,7 @@
                 primeEnv = {
                   PRIME_AGENT_CODING_AGENT_DIR = dataDir;
                   PRIME_AGENT_KERNEL_VENV = "${dataDir}/kernel-venv";
-                  RLM_MAX_DEPTH = toString prime-agent.rlmMaxDepth;
+                  RLM_MAX_DEPTH = toString prime-agent.settings.rlmMaxDepth;
                 };
 
                 # Mirror requested built-in examples into the auto-load dir.
@@ -1076,23 +1089,23 @@
 
                 extensionHomeFiles = map (name: {
                   "${(builtinExtSrc name).target}".source = (builtinExtSrc name).src;
-                }) prime-agent.builtinExtensions;
+                }) prime-agent.extensions.builtin;
 
-                missingExtensions = lib.filter (n: builtinExtSrc n == null) prime-agent.builtinExtensions;
+                missingExtensions = lib.filter (n: builtinExtSrc n == null) prime-agent.extensions.builtin;
 
                 extensionLocalHomeFiles = lib.mapAttrsToList (name: src: {
                   "${relDataDir}/extensions/${name}.ts".text = src;
-                }) prime-agent.extensions;
+                }) prime-agent.extensions.inline;
               in
               mkIf (userCfg != null) {
                 assertions = [
                   {
                     assertion = lib.hasPrefix (config.home.homeDirectory + "/") dataDir && relDataDir != "";
                     message = ''
-                      icedos.applications.prime-agent.dataDir must expand to a
+                      icedos.applications.prime-agent.settings.dataDir must expand to a
                       path inside the home directory so the MCP skill files can
                       be installed via home.file (got "${dataDir}" from
-                      "${prime-agent.dataDir}"). Use an in-home path, e.g.
+                      "${prime-agent.settings.dataDir}"). Use an in-home path, e.g.
                       "$XDG_CONFIG_HOME/prime-agent".
                     '';
                   }
@@ -1100,13 +1113,13 @@
                   # user's pin is checked in that user's own sharedModule.
                   {
                     assertion = lib.all (n: !(enabled ? ${n}) || localServers ? ${n}) (
-                      lib.attrNames prime-agent.portOverrides
+                      lib.attrNames prime-agent.settings.portOverrides
                     );
                     message = ''
                       prime-agent portOverrides pins a server that is enabled
                       but not a local (stdio) bridge: ${
                         builtins.concatStringsSep ", " (
-                          lib.filter (n: enabled ? ${n} && !(localServers ? ${n})) (lib.attrNames prime-agent.portOverrides)
+                          lib.filter (n: enabled ? ${n} && !(localServers ? ${n})) (lib.attrNames prime-agent.settings.portOverrides)
                         )
                       }. portOverrides only applies to local MCP servers
                       bridged by mcp-proxy; remote (url) servers have no
@@ -1125,7 +1138,7 @@
                   {
                     assertion = missingExtensions == [ ];
                     message = ''
-                      icedos.applications.prime-agent.builtinExtensions references upstream
+                      icedos.applications.prime-agent.extensions.builtin references upstream
                       prime-agent example extensions that do not exist:
                       ${builtins.concatStringsSep ", " missingExtensions}
                       Each name is a folder/file under
@@ -1133,41 +1146,56 @@
                     '';
                   }
                   {
-                    assertion = prime-agent.powerIdleWatts >= 0 && prime-agent.powerRateKwh >= 0;
+                    assertion = prime-agent.extensions.meters.power.idleWatts >= 0 && prime-agent.extensions.meters.power.rateKwh >= 0;
                     message = ''
-                      icedos.applications.prime-agent.powerIdleWatts and
-                      powerRateKwh must not be negative: a negative idle floor is
+                      icedos.applications.prime-agent.extensions.meters.power.idleWatts and
+                      rateKwh must not be negative: a negative idle floor is
                       added to every sample rather than subtracted, and a negative
                       rate reports negative cost.
                     '';
                   }
                   {
+                    # No sensible default price or currency exists, so the user must set both.
+                    assertion =
+                      !prime-agent.extensions.meters.power.enable
+                      || (
+                        prime-agent.extensions.meters.power.rateKwh > 0
+                        && prime-agent.extensions.meters.power.currency != ""
+                      );
+                    message = ''
+                      icedos.applications.prime-agent.extensions.meters.power is enabled
+                      but rateKwh (${toString prime-agent.extensions.meters.power.rateKwh}) or
+                      currency ("${prime-agent.extensions.meters.power.currency}") is unset.
+                      Set rateKwh to your price per kWh (> 0) and currency to its symbol.
+                    '';
+                  }
+                  {
                     # The meter renders inside the cost footer, so it has
                     # nowhere to appear without it.
-                    assertion = prime-agent.costFooter || !prime-agent.powerMeter;
+                    assertion = prime-agent.extensions.meters.cost || !prime-agent.extensions.meters.power.enable;
                     message = ''
-                      icedos.applications.prime-agent.powerMeter needs
-                      costFooter = true: the GPU electricity meter is rendered
+                      icedos.applications.prime-agent.extensions.meters.power.enable needs
+                      meters.cost = true: the GPU electricity meter is rendered
                       as part of the cost footer.
                     '';
                   }
                   {
                     # The tok/s rate renders inside the cost footer.
-                    assertion = prime-agent.costFooter || !prime-agent.tpsMeter;
+                    assertion = prime-agent.extensions.meters.cost || !prime-agent.extensions.meters.tps;
                     message = ''
-                      icedos.applications.prime-agent.tpsMeter needs
-                      costFooter = true: the tok/s rate is rendered as part of
+                      icedos.applications.prime-agent.extensions.meters.tps needs
+                      meters.cost = true: the tok/s rate is rendered as part of
                       the cost footer.
                     '';
                   }
                   {
                     # Both load a "cost-footer" extension and would double-render.
-                    assertion = !prime-agent.costFooter || !(prime-agent.extensions ? "cost-footer");
+                    assertion = !prime-agent.extensions.meters.cost || !(prime-agent.extensions.inline ? "cost-footer");
                     message = ''
-                      icedos.applications.prime-agent.extensions already declares
+                      icedos.applications.prime-agent.extensions.inline already declares
                       "cost-footer"; the built-in cost footer ships the same
                       extension. Remove the inline declaration or set
-                      costFooter = false.
+                      meters.cost = false.
                     '';
                   }
                   {
@@ -1175,11 +1203,11 @@
                     # zen-session.ts drops any apiKey or headers models.json set for opencode.
                     assertion =
                       let
-                        oc = prime-agent.providers.opencode or { };
+                        oc = prime-agent.settings.providers.opencode or { };
                       in
                       (oc.apiKey or null) == null && (oc.headers or { }) == { };
                     message = ''
-                      icedos.applications.prime-agent.providers.opencode sets apiKey or
+                      icedos.applications.prime-agent.settings.providers.opencode sets apiKey or
                       headers, which the zen-session extension drops when it refreshes the
                       session header. Keep the key in prime-agent's auth store, and set
                       extra opencode headers from an extension instead.
@@ -1187,13 +1215,13 @@
                   }
                   {
                     assertion = lib.all (n: builtins.match "[A-Za-z0-9._-]+" n != null) (
-                      lib.attrNames prime-agent.extensions
+                      lib.attrNames prime-agent.extensions.inline
                     );
                     message = ''
-                      icedos.applications.prime-agent.extensions names must be
+                      icedos.applications.prime-agent.extensions.inline names must be
                       simple: ${
                         builtins.concatStringsSep ", " (
-                          lib.filter (n: builtins.match "[A-Za-z0-9._-]+" n == null) (lib.attrNames prime-agent.extensions)
+                          lib.filter (n: builtins.match "[A-Za-z0-9._-]+" n == null) (lib.attrNames prime-agent.extensions.inline)
                         )
                       }
                     '';
@@ -1210,7 +1238,7 @@
                   ++ extensionLocalHomeFiles
                   ++ [
                     # No shell hooks; extensions auto-load from <agentDir>/extensions/*.ts.
-                    (mkIf (peonPingEnabled && prime-agent.peonPing) {
+                    (mkIf (peonPingEnabled && prime-agent.extensions.peonPing) {
                       "${relDataDir}/extensions/peon-ping.ts".source = pkgs.replaceVars ./extensions/peon-ping.ts {
                         # Installed by peon-ping's hm module; bin/peon carries its own PATH.
                         peonSh = "${config.home.homeDirectory}/.openpeon/peon.sh";
@@ -1218,12 +1246,12 @@
                     })
 
                     # Live session cost (USD) + token totals in the TUI bottom bar.
-                    (mkIf prime-agent.costFooter {
+                    (mkIf prime-agent.extensions.meters.cost {
                       "${relDataDir}/extensions/cost-footer".source = costFooterSrc;
                     })
 
                     # Point models at the per-language code-intelligence skills.
-                    (mkIf prime-agent.codeIntelligence {
+                    (mkIf prime-agent.skills.code.intelligence {
                       "${relDataDir}/extensions/code-intelligence-glue.ts".source =
                         ./extensions/code-intelligence-glue.ts;
                     })
@@ -1232,6 +1260,11 @@
                     {
                       "${relDataDir}/extensions/zen-session.ts".source = zenSessionSrc;
                     }
+
+                    # Caps model context windows at extensions.context-window-cap.percent of native.
+                    (mkIf prime-agent.extensions.context-window-cap.enable {
+                      "${relDataDir}/extensions/context-cap.ts".source = contextCapSrc;
+                    })
                   ]
                 );
 
@@ -1249,14 +1282,14 @@
             lib.optionals prime-agent.desktopEntry [
               "prime-agent is in the app launcher; it opens in your default terminal."
             ]
-            ++ lib.optionals prime-agent.costFooter [
+            ++ lib.optionals prime-agent.extensions.meters.cost [
               "prime-agent shows what the session has cost so far; /cost hides the line."
             ]
-            ++ lib.optionals prime-agent.powerMeter [
+            ++ lib.optionals prime-agent.extensions.meters.power.enable [
               "Models running on your own graphics card are priced by the electricity they use."
             ]
-            ++ lib.optionals prime-agent.tpsMeter [
-              "The cost footer shows live generation tok/s; tpsMeter = false hides it."
+            ++ lib.optionals prime-agent.extensions.meters.tps [
+              "The cost footer shows live generation tok/s; extensions.meters.tps = false hides it."
             ]
             ++ lib.optionals prime-agent.includeInIcedosGc [
               "icedos gc also clears out old prime-agent sessions and logs."
