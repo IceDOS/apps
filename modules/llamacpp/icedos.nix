@@ -730,13 +730,13 @@
             # This module serves models on the local GPU, so it is the one that
             # knows its provider should be metered rather than billed per token.
             # listOf merges, so a user adding another provider keeps this one.
-            prime-agent.powerProviders = lib.optional (model != "") lifecycleProvider;
+            prime-agent.extensions.meters.power.providers = lib.optional (model != "") lifecycleProvider;
 
             # The provider block prime-agent needs, emitted from the module that
             # runs the server — the counterpart of the opencode provider below.
             # A local model has no per-token price, so cost is zero and the power
             # meter reports the real electricity instead.
-            prime-agent.providers = lib.optionalAttrs (model != "") {
+            prime-agent.settings.providers = lib.optionalAttrs (model != "") {
               ${lifecycleProvider} = {
                 api = "openai-completions";
                 apiKey = "no-key";
@@ -796,7 +796,7 @@
             }
             {
               # An empty name yields a provider literally called "" in
-              # models.json, and powerProviders = [""] which the meter drops —
+              # models.json, and meters.power.providers = [""] which the meter drops —
               # metering and the lifecycle both silently do nothing.
               assertion = lib.match "[A-Za-z0-9._-]+" lifecycleProvider != null;
               message = ''
@@ -913,7 +913,7 @@
               { config, lib, ... }:
               let
                 # The already-resolved agent dir, as prime-agent publishes it.
-                # NOT config.icedos.applications.prime-agent.dataDir: `config`
+                # NOT config.icedos.applications.prime-agent.settings.dataDir: `config`
                 # here is the home-manager config, which has no `icedos`
                 # attribute, and that option is a raw string still needing the
                 # $XDG/~ expansion prime-agent applies to it.

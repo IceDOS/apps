@@ -51,7 +51,7 @@ import {
 } from "./power.ts";
 import { createTpsMeter } from "./tps.ts";
 
-// Build-time flag from prime-agent.tpsMeter: false drops the tok/s cell.
+// Build-time flag from prime-agent.extensions.meters.tps: false drops the tok/s cell.
 const tpsMeter = @tpsMeter@;
 
 export default function (pi: ExtensionAPI) {
