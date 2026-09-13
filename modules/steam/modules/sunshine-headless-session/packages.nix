@@ -174,10 +174,24 @@ let
     $CC -O2 -Wall ${./lib/sunshine-headless-xnudge.c} -lX11 -o $out/bin/sunshine-headless-xnudge
   '';
 
-  # -steamos3 "Switch to Desktop": shut the headless session down via steam -shutdown.
-  steamosSessionSelect = pkgs.writeShellScriptBin "steamos-session-select" ''
-    exec steam -shutdown
-  '';
+  # -steamos3 "Switch to Desktop": stop the Steam that spawned us (matched by HOME).
+  steamosSessionSelect = pkgs.writeShellApplication {
+    name = "steamos-session-select";
+    runtimeInputs = with pkgs; [
+      coreutils
+      procps
+      util-linux
+    ];
+    text = ''
+      # Detach so Steam's call returns instead of blocking on the wait below.
+      if [ -z "''${STEAMOS_SESSION_SELECT_DETACHED:-}" ]; then
+        STEAMOS_SESSION_SELECT_DETACHED=1 exec setsid -f "$0" "$@"
+      fi
+      sess_home="''${HOME:-}"
+      ${import ./steam-helpers.nix}
+      steam_stop
+    '';
+  };
 in
 {
   inherit

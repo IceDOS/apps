@@ -77,6 +77,36 @@ let
     exec ${pkgs.mangohud}/bin/mangoapp "$@"
   '';
 
+  steamHelpers = import ./steam-helpers.nix;
+
+  # Intentional stops (stop_gamescope/start_gamescope) create this marker; the drain skips them.
+  stoppingMarker = "sunshine-headless-gamescope-stopping";
+
+  # ExecStopPost of the gamescope unit: a crash must not leave Steam on a dead display.
+  # Runs outside the KillSignal=SIGKILL sweep, which would kill an in-unit drainer first.
+  drainApp = writeShellApplication {
+    name = "sunshine-headless-drain";
+    runtimeInputs = with pkgs; [
+      coreutils
+      procps
+      systemd
+    ];
+    text = ''
+      rt="''${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+      if [ -e "$rt/${stoppingMarker}" ]; then
+        rm -f "$rt/${stoppingMarker}"
+        exit 0
+      fi
+      ${steamHelpers}
+      # Only Steams launched into gamescope carry this; the desktop client never does.
+      steam_alive GAMESCOPE_WAYLAND_DISPLAY gamescope-0 || exit 0
+      # A paused session is frozen and would ignore TERM.
+      systemctl is-active --quiet sunshine-headless-steam.scope 2>/dev/null \
+        && systemctl thaw sunshine-headless-steam.scope 2>/dev/null || true
+      steam_stop GAMESCOPE_WAYLAND_DISPLAY gamescope-0
+    '';
+  };
+
   sessionApp = writeShellApplication {
     name = "sunshine-headless-session";
 
@@ -136,18 +166,7 @@ let
 
       # Match Steam by $HOME so wait/stop never touch a coexisting desktop/second-session Steam.
       sess_home="''${2:-$HOME}"
-      session_steam_pids() {
-        local p h
-        for p in $(pgrep -x steam 2>/dev/null); do
-          h="$(tr '\0' '\n' <"/proc/$p/environ" 2>/dev/null | sed -n 's/^HOME=//p' | head -n1 || true)"
-          if [ "$h" = "$sess_home" ]; then
-            printf '%s\n' "$p"
-          fi
-        done
-      }
-      session_steam_alive() {
-        [ -n "$(session_steam_pids)" ]
-      }
+      ${steamHelpers}
       # Resolve a window's appid by walking parent PIDs up to the reaper (SteamAppId lies).
       steam_launch_appid() {
         local p="$1" i cmd aid
@@ -189,7 +208,7 @@ let
           local p a launch sess
           # Scope to this session's Steam (the normal/secondary sessions share one
           # gamescope and one root window), matching route_session_audio's pattern.
-          sess=" $(session_steam_pids | tr '\n' ' ')"
+          sess=" $(steam_pids | tr '\n' ' ')"
           for p in /proc/[0-9]*; do
             grep -qz '^PROTON_ENABLE_WAYLAND=1$' "$p/environ" 2>/dev/null || continue
             tr '\0' '\n' <"$p/environ" 2>/dev/null | grep -q '^DISPLAY=.' && continue
@@ -266,7 +285,7 @@ let
         local target sess ci pid idx sinkid
         target="$(pactl list short sinks 2>/dev/null | awk '$2=="steam-sunshine-headless-sink"{print $1; exit}')"
         [ -n "$target" ] || return 0
-        sess=" $(session_steam_pids | tr '\n' ' ')"
+        sess=" $(steam_pids | tr '\n' ' ')"
         # Resolve sink-inputs via their pulse-client (some apps omit application.process.id).
         declare -A cpid
         while IFS=$'\t' read -r ci pid; do cpid[$ci]="$pid"; done < <(
@@ -288,8 +307,19 @@ let
           /^[[:space:]]*Sink:[[:space:]]/ { sink=$2; if (idx!="") print idx"\t"sink"\t"cli }')
       }
 
+      # Intentional stop: the marker tells the ExecStopPost drain to leave Steam alone.
+      # No is-active guard: a crash-looping unit exits 3 there, skipping the stop that cancels its restart.
+      stop_gamescope_unit() {
+        : >"$rt/${stoppingMarker}"
+        systemctl --user stop --quiet sunshine-headless-gamescope.service 2>/dev/null || true
+        # stop blocks through ExecStopPost; clear a marker no drain consumed.
+        rm -f "$rt/${stoppingMarker}"
+      }
+
       stop_gamescope() {
-        systemctl --user stop sunshine-headless-gamescope.service 2>/dev/null || true
+        # Killing a Restart=always unit (or freezing it) instead of stopping it latches it on systemd 261.
+        stop_gamescope_unit
+        systemctl --user reset-failed sunshine-headless-gamescope.service 2>/dev/null || true
         for _ in $(seq 1 30); do
           [ ! -S "$rt/gamescope-0" ] && break
           sleep 0.1
@@ -314,12 +344,15 @@ let
         # Free the transient unit first: a leftover makes systemd-run refuse the name.
         rm -f "$rt/gamescope-0"
         systemctl --user reset-failed sunshine-headless-gamescope.service 2>/dev/null || true
-        systemctl --user stop sunshine-headless-gamescope.service 2>/dev/null || true
+        stop_gamescope_unit
+        # KillSignal=SIGKILL skips gamescope's destructor path on stop.
         systemd-run --user \
           --collect \
           --unit=sunshine-headless-gamescope.service \
           --property=Type=simple \
           --property=Restart=always \
+          --property=KillSignal=SIGKILL \
+          --property=ExecStopPost=${drainApp}/bin/sunshine-headless-drain \
           --same-dir \
           --property="Environment=$gamescope_env" \
           "''${input_args[@]}" \
@@ -424,17 +457,9 @@ let
           else
             start_gamescope "1920" "1080" "60" "$client_hdr"
           fi
-          # NORMAL session: close the desktop Steam first (single-instance per $HOME);
-          # SIGTERM if -shutdown can't reach its pipe. Second session: leave it running.
-          if [ -z "''${2:-}" ] && pgrep -x steam >/dev/null; then
-            steam -shutdown 2>/dev/null || true
-            for i in $(seq 1 60); do
-              pgrep -x steam >/dev/null || break
-              if [ "$i" -ge 16 ]; then
-                pkill -TERM -x steam 2>/dev/null || true
-              fi
-              sleep 0.25
-            done
+          # NORMAL session: close the desktop Steam first (single-instance per $HOME).
+          if [ -z "''${2:-}" ]; then
+            steam_stop
           fi
           # Wait for Steam's singleton FIFO ($HOME/.steam/steam.pipe) to release before
           # launching: a write-open succeeds only while a reader lives (the f16a66e race).
@@ -521,7 +546,7 @@ let
 
           # Block while the injected Steam lives (poll by $HOME-scoped name, not PID: bootstrap re-execs).
           for _ in $(seq 1 60); do
-            session_steam_alive && break
+            steam_alive && break
             sleep 0.5
           done
           # ...then block until it's been gone 3s straight (rides the re-exec gap).
@@ -529,7 +554,7 @@ let
           frozen=0
           idle_since=""
           while :; do
-            if session_steam_alive; then
+            if steam_alive; then
               gone=0
               # Throttled input-isolation check; warn once when a virtual device escaped.
               iso_tick=$(( iso_tick + 1 ))
@@ -687,26 +712,10 @@ let
           done
           ;;
         stop)
-          # A paused session may be frozen: thaw first so shutdown/stop don't wait out SIGSTOP.
+          # A paused session may be frozen: thaw first so stop doesn't wait out SIGSTOP.
           systemctl is-active --quiet sunshine-headless-steam.scope 2>/dev/null \
             && systemctl thaw sunshine-headless-steam.scope 2>/dev/null || true
-          # Shut down this session's Steam (by $HOME): -shutdown first, SIGTERM if it lingers.
-          if session_steam_alive; then
-            if [ -n "''${2:-}" ]; then
-              HOME="$2" steam -shutdown 2>/dev/null || true
-            else
-              steam -shutdown 2>/dev/null || true
-            fi
-          fi
-          for i in $(seq 1 60); do
-            session_steam_alive || break
-            if [ "$i" -ge 16 ]; then
-              for p in $(session_steam_pids); do
-                kill -TERM "$p" 2>/dev/null || true
-              done
-            fi
-            sleep 0.25
-          done
+          steam_stop
           if [ "$isolate_phys" = 1 ] || [ "$pause" = 1 ]; then
             systemctl stop --quiet sunshine-headless-steam.scope 2>/dev/null || true
           fi
