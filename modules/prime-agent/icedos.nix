@@ -18,7 +18,7 @@
       inherit ((importTOML ./config.toml).icedos.applications.prime-agent)
         desktopEntry
         includeInIcedosGc
-        ollamaCloud
+        providers
         sessionRetentionDays
         zedAgentPanelTerminal
         ;
@@ -40,7 +40,9 @@
 
       # Ship the bundled Ollama Cloud provider (24 models + /login API-key flow
       # with OLLAMA_API_KEY). Disable to keep the built-in catalog Ollama-free.
-      ollamaCloud = mkBoolOption { default = ollamaCloud; };
+      providers = {
+        ollama = mkBoolOption { default = providers.ollama; };
+      };
 
       # Whether `icedos gc` prunes stale prime-agent sessions (unshade-style).
       includeInIcedosGc = mkBoolOption { default = includeInIcedosGc; };
@@ -134,17 +136,19 @@
           default = settings.mcpCallTimeout;
         } 60 3600;
 
-        # Bound is 65335 so portBase + (sha256(name) mod 200) stays <= 65535.
-        portBase = mkIntBetweenOption {
-          path = "icedos.applications.prime-agent.settings.portBase";
-          source = ./config.toml;
-          default = settings.portBase;
-        } 0 65335;
+        ports = {
+          # Bound is 65335 so base + (sha256(name) mod 200) stays <= 65535.
+          base = mkIntBetweenOption {
+            path = "icedos.applications.prime-agent.settings.ports.base";
+            source = ./config.toml;
+            default = settings.ports.base;
+          } 0 65335;
 
-        # Pins are system-wide; derived ports fold the username in and cannot collide.
-        portOverrides = mkAttrsOfOption { default = settings.portOverrides; } (
-          lib.types.ints.between 1 65535
-        );
+          # Pins are system-wide; derived ports fold the username in and cannot collide.
+          overrides = mkAttrsOfOption { default = settings.ports.overrides; } (
+            lib.types.ints.between 1 65535
+          );
+        };
 
         # Provider overrides merged into models.json (modelOverrides is partial merge).
         providers = mkSubmoduleAttrsOption { default = settings.providers; } {
@@ -468,7 +472,7 @@
                 extraBuiltinSkills = prime-agent.skills.extraBuiltin;
                 codeIntelligence = prime-agent.skills.code.intelligence;
                 codeReview = prime-agent.skills.code.review;
-                ollamaCloud = prime-agent.ollamaCloud;
+                ollamaCloud = prime-agent.providers.ollama;
               };
             })
           ];
@@ -610,7 +614,7 @@
 
                 localServers = lib.filterAttrs (_: s: s.command != null) enabled;
                 # ---- deterministic per-server ports ----
-                # portBase + sha256(name) mod 200, collisions bumped; portOverrides wins.
+                # ports.base + sha256(name) mod 200, collisions bumped; ports.overrides wins.
 
                 hexDigit =
                   c:
@@ -641,7 +645,7 @@
                 # Username folded in so two users' bridges cannot collide; pins stay system-wide.
                 hashPort =
                   name:
-                  prime-agent.settings.portBase
+                  prime-agent.settings.ports.base
                   + mod (hashInt (
                     substring 0 6 (builtins.hashString "sha256" "${config.home.username}:${name}")
                   )) 200;
@@ -653,7 +657,7 @@
                     );
                     # Reserved up front so derived ports bump around pins; double pins fail below.
                     pinnedUsed = lib.listToAttrs (
-                      map (p: lib.nameValuePair (toString p) true) (lib.attrValues prime-agent.settings.portOverrides)
+                      map (p: lib.nameValuePair (toString p) true) (lib.attrValues prime-agent.settings.ports.overrides)
                     );
 
                     step =
@@ -662,8 +666,8 @@
                       let
                         find = n: if used.${toString n} or false then find (n + 1) else n;
                         p =
-                          if prime-agent.settings.portOverrides ? ${s.name} then
-                            prime-agent.settings.portOverrides.${s.name}
+                          if prime-agent.settings.ports.overrides ? ${s.name} then
+                            prime-agent.settings.ports.overrides.${s.name}
                           else
                             find (hashPort s.name);
                       in
@@ -1135,17 +1139,17 @@
                   # user's pin is checked in that user's own sharedModule.
                   {
                     assertion = lib.all (n: !(enabled ? ${n}) || localServers ? ${n}) (
-                      lib.attrNames prime-agent.settings.portOverrides
+                      lib.attrNames prime-agent.settings.ports.overrides
                     );
                     message = ''
-                      prime-agent portOverrides pins a server that is enabled
+                      prime-agent ports.overrides pins a server that is enabled
                       but not a local (stdio) bridge: ${
                         builtins.concatStringsSep ", " (
                           lib.filter (n: enabled ? ${n} && !(localServers ? ${n})) (
-                            lib.attrNames prime-agent.settings.portOverrides
+                            lib.attrNames prime-agent.settings.ports.overrides
                           )
                         )
-                      }. portOverrides only applies to local MCP servers
+                      }. ports.overrides only applies to local MCP servers
                       bridged by mcp-proxy; remote (url) servers have no
                       port.
                     '';
@@ -1155,7 +1159,7 @@
                     message = ''
                       prime-agent MCP bridge port collision: ${
                         builtins.concatStringsSep ", " (map (e: "${e.name} -> ${toString e.p}") duplicatePorts)
-                      }. portOverrides pins are honored verbatim, so two
+                      }. ports.overrides pins are honored verbatim, so two
                       servers resolving to one port must be re-pinned.
                     '';
                   }
@@ -1322,7 +1326,7 @@
             ++ lib.optionals prime-agent.includeInIcedosGc [
               "icedos gc also clears out old prime-agent sessions and logs."
             ]
-            ++ lib.optionals prime-agent.ollamaCloud [
+            ++ lib.optionals prime-agent.providers.ollama [
               "prime-agent can call Ollama Cloud models; /login and pick Ollama to store an API key."
             ];
         }
