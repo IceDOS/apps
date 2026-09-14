@@ -15,6 +15,9 @@
   codeReview ? true,
   # Install a Terminal=true desktop entry launching the TUI in the default terminal.
   desktopEntry ? true,
+  # Ship the bundled Ollama Cloud provider (24 models + /login API-key flow with
+  # OLLAMA_API_KEY). Disable to keep the built-in catalog Ollama-free.
+  ollamaCloud ? true,
   fetchFromGitHub,
   autoPatchelfHook,
   bash,
@@ -137,6 +140,11 @@ buildNpmPackage (finalAttrs: {
     # daemon writes its ownership registry to hardcoded ~/.prime; its env override is
     # stripped on launch. Follow PRIME_AGENT_CODING_AGENT_DIR instead so nothing lives there.
     ./patches/daemon-supervisor-registry-follow-agentdir.patch
+  ]
+  ++ lib.optionals ollamaCloud [
+    # Ollama Cloud provider: bundled models (https://ollama.com/v1) + the /login
+    # API-key flow (OLLAMA_API_KEY), upstream-style openai-completions integration.
+    ./patches/ollama-cloud-provider.patch
   ];
 
   npmDepsFetcherVersion = 2;
