@@ -4,6 +4,11 @@
 # preferred terminal emulator).
 desktopEntry = true
 
+# Ship the bundled Ollama Cloud provider (https://ollama.com/v1): 24 cloud
+# models + the /login API-key flow (OLLAMA_API_KEY). False keeps the built-in
+# catalog Ollama-free.
+ollamaCloud = true
+
 # Spawn this agent in a new Zed agent-panel terminal (agent.terminal_init_command
 # = "prime-agent", ctrl-n in the agent panel) instead of using ACP. Only applies
 # when the zed module is loaded.
