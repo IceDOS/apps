@@ -15,204 +15,179 @@
         mkSubmoduleListOption
         ;
 
-      inherit ((importTOML ./config.toml).icedos.applications.llamacpp)
-        batchSize
-        cacheTypeK
-        cacheTypeV
-        contextSize
-        flashAttn
-        gpuLayers
-        vkDisableHostVisibleVidmem
-        radvNoGttSpill
-        host
-        mmproj
-        mmprojOffload
-        model
-        prio
-        prioBatch
-        parallel
-        patches
-        port
-        priorityUsers
-        lifecycle
-        lifecycleIdleSeconds
-        lifecycleProvider
-        lifecycleBin
-        lifecycleModelId
-        lifecycleModelName
-        lifecycleModelReasoning
-        lifecycleModelMaxTokens
-        lifecycleModelThinkingLevelMap
-        sleepIdleSeconds
-        specType
-        specDraftNMax
-        specDraftPMin
-        reasoningBudgetDivider
-        reasoningPreserve
-        service
-        threads
-        ubatchSize
-        ;
+      defaults = (importTOML ./config.toml).icedos.applications.llamacpp;
+      inherit (defaults) lifecycle settings;
     in
     {
-      batchSize = mkIntBetweenOption {
-        path = "icedos.applications.llamacpp.batchSize";
-        source = ./config.toml;
-        default = batchSize;
-      } 1 1048576;
-      cacheTypeK = mkStrOption { default = cacheTypeK; };
-      cacheTypeV = mkStrOption { default = cacheTypeV; };
-      specType = mkStrOption { default = specType; };
-      specDraftNMax = mkIntBetweenOption {
-        path = "icedos.applications.llamacpp.specDraftNMax";
-        source = ./config.toml;
-        default = specDraftNMax;
-      } 0 1024;
-      specDraftPMin = mkFloatBetweenOption {
-        path = "icedos.applications.llamacpp.specDraftPMin";
-        source = ./config.toml;
-        default = specDraftPMin;
-      } 0.0 1.0;
-      # Floor of 1, not 0: llama.cpp reads 0 as "use the model's own trained
-      # context", which this module cannot honour because it also feeds
-      # contextSize to prime-agent's contextWindow.
-      contextSize = mkIntBetweenOption {
-        path = "icedos.applications.llamacpp.contextSize";
-        source = ./config.toml;
-        default = contextSize;
-      } 1 4194304;
-      flashAttn = mkBoolOption { default = flashAttn; };
-      # Vulkan-only: bars llama.cpp from routing tensors through host-visible
-      # device memory (the small ReBAR window). On BAR-limited cards like Navi21
-      # that path collapses token generation ~3x.
-      vkDisableHostVisibleVidmem = mkBoolOption { default = vkDisableHostVisibleVidmem; };
-      # RADV-only: sets RADV_PERFTEST=nogttspill, appended to any value already in the
-      # environment, so allocations stay out of GTT (system RAM) under VRAM pressure.
-      radvNoGttSpill = mkBoolOption { default = radvNoGttSpill; };
-      # -1 is llama.cpp's own default ("auto") and -2 means "all"; both are
-      # sentinels rather than counts.
-      gpuLayers = mkIntBetweenOption {
-        path = "icedos.applications.llamacpp.gpuLayers";
-        source = ./config.toml;
-        default = gpuLayers;
-      } (-2) 1024;
-      host = mkStrOption { default = host; };
-      mmproj = mkStrOption { default = mmproj; };
-      mmprojOffload = mkBoolOption { default = mmprojOffload; };
-      model = mkStrOption { default = model; };
-      # arg.cpp rejects anything outside these ranges — and they differ: --prio
-      # takes low(-1), while --prio-batch starts at normal(0). Validating here
-      # keeps a bad value from being caught only when the server refuses to boot.
-      prio = mkIntBetweenOption {
-        path = "icedos.applications.llamacpp.prio";
-        source = ./config.toml;
-        default = prio;
-      } (-1) 3;
-
-      prioBatch = mkIntBetweenOption {
-        path = "icedos.applications.llamacpp.prioBatch";
-        source = ./config.toml;
-        default = prioBatch;
-      } 0 3;
-
-      # 0 omits --parallel, so llama.cpp picks the slot count and a unified KV cache.
-      # An explicit count splits contextSize evenly across slots.
-      parallel = mkIntBetweenOption {
-        path = "icedos.applications.llamacpp.parallel";
-        source = ./config.toml;
-        default = parallel;
-      } 0 256;
-
       # Applied to the nixpkgs llama.cpp with fetchpatch, so any entry rebuilds it locally.
-      patches = mkSubmoduleListOption { default = patches; } {
+      patches = mkSubmoduleListOption { default = defaults.patches; } {
         url = mkStrOption { };
         hash = mkStrOption { };
       };
 
-      port = mkIntBetweenOption {
-        path = "icedos.applications.llamacpp.port";
-        source = ./config.toml;
-        default = port;
-      } 1 65535;
-
-      # A raised nice ceiling lets a process starve interactive work — grant it
-      # only to an explicit allowlist of usernames, or the literal "all"
-      # (constrained to fail on typos). Takes effect at the next login, or when
-      # user@$UID.service restarts if lingering is enabled.
-      #
-      # pam_limits ranks a user-domain line above a group-domain one, so a name
-      # listed here stops receiving group-scoped nice grants (a @pipewire -19,
-      # say) and gets this ceiling instead.
-      priorityUsers = mkEitherOption { default = priorityUsers; } (
+      # An allowlist, since a raised nice ceiling can starve interactive work. A user-domain
+      # pam_limits line outranks group grants, so a listed user loses e.g. @pipewire's -19.
+      priorityUsers = mkEitherOption { default = defaults.priorityUsers; } (
         (types.addCheck types.str (v: v == "all"))
         // {
           description = ''the literal "all"'';
         }
       ) (types.listOf types.str);
 
-      # Install prime-agent's lifecycle extension. Owned here rather than by
-      # prime-agent: it drives this module's own serve/stop and /slots, and
-      # keeping both idle mechanisms in one module means the conflict between
-      # them can be asserted without a cross-module read.
-      lifecycle = mkBoolOption { default = lifecycle; };
+      service = mkBoolOption { default = defaults.service; };
 
-      lifecycleIdleSeconds = mkIntBetweenOption {
-        path = "icedos.applications.llamacpp.lifecycleIdleSeconds";
-        source = ./config.toml;
-        default = lifecycleIdleSeconds;
-      } 0 86400;
+      lifecycle = {
+        # Owned here, not by prime-agent, so its conflict with sleepIdleSeconds is asserted in one module.
+        enable = mkBoolOption { default = lifecycle.enable; };
 
-      lifecycleProvider = mkStrOption { default = lifecycleProvider; };
-      lifecycleBin = mkStrOption { default = lifecycleBin; };
+        idle = mkIntBetweenOption {
+          path = "icedos.applications.llamacpp.lifecycle.idle";
+          source = ./config.toml;
+          default = lifecycle.idle;
+        } 0 86400;
+      };
 
-      # Registers this server with prime-agent. api/baseUrl/contextWindow are
-      # derived from the options above so they cannot drift from what the server
-      # is actually running; only what the module cannot know is settable.
-      lifecycleModelId = mkStrOption { default = lifecycleModelId; };
-      lifecycleModelName = mkStrOption { default = lifecycleModelName; };
-      lifecycleModelReasoning = mkBoolOption { default = lifecycleModelReasoning; };
+      settings = {
+        flashAttn = mkBoolOption { default = settings.flashAttn; };
 
-      lifecycleModelMaxTokens = mkIntBetweenOption {
-        path = "icedos.applications.llamacpp.lifecycleModelMaxTokens";
-        source = ./config.toml;
-        default = lifecycleModelMaxTokens;
-      } 1 1048576;
+        # Sentinels, not counts: -1 is llama.cpp's "auto" and -2 is "all".
+        gpuLayers = mkIntBetweenOption {
+          path = "icedos.applications.llamacpp.settings.gpuLayers";
+          source = ./config.toml;
+          default = settings.gpuLayers;
+        } (-2) 1024;
 
-      # Model-specific, so the module cannot derive it. See prime-agent's
-      # thinkingLevelMap for the accepted keys.
-      lifecycleModelThinkingLevelMap = mkAttrsOfOption {
-        default = lifecycleModelThinkingLevelMap;
-      } (types.nullOr types.str);
+        # -1 means every core.
+        threads = mkIntBetweenOption {
+          path = "icedos.applications.llamacpp.settings.threads";
+          source = ./config.toml;
+          default = settings.threads;
+        } (-1) 4096;
 
-      # Int, not number: arg.cpp parses with std::stoi, so a float would be
-      # silently truncated (2.5 -> 2) or rejected outright (0.5 -> "cannot be 0").
-      sleepIdleSeconds = mkIntBetweenOption {
-        path = "icedos.applications.llamacpp.sleepIdleSeconds";
-        source = ./config.toml;
-        default = sleepIdleSeconds;
-      } (-1) 86400;
+        batch = {
+          size = mkIntBetweenOption {
+            path = "icedos.applications.llamacpp.settings.batch.size";
+            source = ./config.toml;
+            default = settings.batch.size;
+          } 1 1048576;
 
-      # Bounded on the option, not by an assertion: contextSize is divided by
-      # this while building the serve script, which happens before assertions
-      # are reported — a 0 aborts with a bare "division by zero" instead.
-      reasoningBudgetDivider = mkFloatBetweenOption {
-        path = "icedos.applications.llamacpp.reasoningBudgetDivider";
-        source = ./config.toml;
-        default = reasoningBudgetDivider;
-      } 0.001 1024;
-      reasoningPreserve = mkBoolOption { default = reasoningPreserve; };
-      service = mkBoolOption { default = service; };
-      # -1 means every core; anything below that is meaningless to llama.cpp.
-      threads = mkIntBetweenOption {
-        path = "icedos.applications.llamacpp.threads";
-        source = ./config.toml;
-        default = threads;
-      } (-1) 4096;
-      ubatchSize = mkIntBetweenOption {
-        path = "icedos.applications.llamacpp.ubatchSize";
-        source = ./config.toml;
-        default = ubatchSize;
-      } 1 1048576;
+          ubatchSize = mkIntBetweenOption {
+            path = "icedos.applications.llamacpp.settings.batch.ubatchSize";
+            source = ./config.toml;
+            default = settings.batch.ubatchSize;
+          } 1 1048576;
+        };
+
+        cache = {
+          typeK = mkStrOption { default = settings.cache.typeK; };
+          typeV = mkStrOption { default = settings.cache.typeV; };
+        };
+
+        mmproj = {
+          offload = mkBoolOption { default = settings.mmproj.offload; };
+          path = mkStrOption { default = settings.mmproj.path; };
+        };
+
+        model = {
+          # Floor of 1: llama.cpp reads 0 as the model's trained context, which clients
+          # would not see, since contextSize is also their context window.
+          contextSize = mkIntBetweenOption {
+            path = "icedos.applications.llamacpp.settings.model.contextSize";
+            source = ./config.toml;
+            default = settings.model.contextSize;
+          } 1 4194304;
+
+          maxTokens = mkIntBetweenOption {
+            path = "icedos.applications.llamacpp.settings.model.maxTokens";
+            source = ./config.toml;
+            default = settings.model.maxTokens;
+          } 1 1048576;
+
+          name = mkStrOption { default = settings.model.name; };
+          path = mkStrOption { default = settings.model.path; };
+          reasoning = mkBoolOption { default = settings.model.reasoning; };
+
+          # See prime-agent's thinkingLevelMap for the accepted keys.
+          thinking-level-map = mkAttrsOfOption {
+            default = settings.model.thinking-level-map;
+          } (types.nullOr types.str);
+        };
+
+        # arg.cpp's own ranges, which differ: --prio accepts low (-1), --prio-batch starts at normal (0).
+        priority = {
+          process = mkIntBetweenOption {
+            path = "icedos.applications.llamacpp.settings.priority.process";
+            source = ./config.toml;
+            default = settings.priority.process;
+          } (-1) 3;
+
+          batch = mkIntBetweenOption {
+            path = "icedos.applications.llamacpp.settings.priority.batch";
+            source = ./config.toml;
+            default = settings.priority.batch;
+          } 0 3;
+        };
+
+        reasoning = {
+          # Bounded here, not by an assertion: the serve script divides by it before
+          # assertions run, so 0 would abort with a bare "division by zero".
+          budgetDivider = mkFloatBetweenOption {
+            path = "icedos.applications.llamacpp.settings.reasoning.budgetDivider";
+            source = ./config.toml;
+            default = settings.reasoning.budgetDivider;
+          } 0.001 1024;
+
+          preserve = mkBoolOption { default = settings.reasoning.preserve; };
+        };
+
+        server = {
+          host = mkStrOption { default = settings.server.host; };
+
+          port = mkIntBetweenOption {
+            path = "icedos.applications.llamacpp.settings.server.port";
+            source = ./config.toml;
+            default = settings.server.port;
+          } 1 65535;
+
+          # 0 omits --parallel (auto slots, unified KV cache); a count splits contextSize across slots.
+          parallel = mkIntBetweenOption {
+            path = "icedos.applications.llamacpp.settings.server.parallel";
+            source = ./config.toml;
+            default = settings.server.parallel;
+          } 0 256;
+
+          # Int, not number: arg.cpp uses std::stoi, which truncates 2.5 to 2 and rejects 0.5.
+          sleepIdleSeconds = mkIntBetweenOption {
+            path = "icedos.applications.llamacpp.settings.server.sleepIdleSeconds";
+            source = ./config.toml;
+            default = settings.server.sleepIdleSeconds;
+          } (-1) 86400;
+        };
+
+        spec = {
+          type = mkStrOption { default = settings.spec.type; };
+
+          draftNMax = mkIntBetweenOption {
+            path = "icedos.applications.llamacpp.settings.spec.draftNMax";
+            source = ./config.toml;
+            default = settings.spec.draftNMax;
+          } 0 1024;
+
+          draftPMin = mkFloatBetweenOption {
+            path = "icedos.applications.llamacpp.settings.spec.draftPMin";
+            source = ./config.toml;
+            default = settings.spec.draftPMin;
+          } 0.0 1.0;
+        };
+
+        vulkan = {
+          # Keeps tensors out of the small ReBAR window, which cuts token generation ~3x on cards like Navi21.
+          disableHostVisibleVidmem = mkBoolOption { default = settings.vulkan.disableHostVisibleVidmem; };
+
+          # RADV-only: appends nogttspill to RADV_PERFTEST so allocations stay out of system RAM under VRAM pressure.
+          radvNoGttSpill = mkBoolOption { default = settings.vulkan.radvNoGttSpill; };
+        };
+      };
     };
 
   outputs.nixosModules =
@@ -237,44 +212,51 @@
             ;
           inherit (config.icedos) users;
 
-          inherit (config.icedos.applications.llamacpp)
-            batchSize
-            cacheTypeK
-            cacheTypeV
-            contextSize
-            flashAttn
-            gpuLayers
+          cfg = config.icedos.applications.llamacpp;
+          inherit (cfg) patches priorityUsers service;
+          inherit (cfg.settings) flashAttn gpuLayers threads;
+          inherit (cfg.settings.server)
             host
-            vkDisableHostVisibleVidmem
-            radvNoGttSpill
-            mmproj
-            mmprojOffload
-            model
-            prio
-            prioBatch
             parallel
-            patches
             port
-            priorityUsers
-            lifecycle
-            lifecycleIdleSeconds
-            lifecycleProvider
-            lifecycleBin
-            lifecycleModelId
-            lifecycleModelName
-            lifecycleModelReasoning
-            lifecycleModelMaxTokens
-            lifecycleModelThinkingLevelMap
             sleepIdleSeconds
-            specType
-            specDraftNMax
-            specDraftPMin
-            reasoningBudgetDivider
-            reasoningPreserve
-            service
-            threads
-            ubatchSize
             ;
+
+          batchSize = cfg.settings.batch.size;
+          ubatchSize = cfg.settings.batch.ubatchSize;
+          cacheTypeK = cfg.settings.cache.typeK;
+          cacheTypeV = cfg.settings.cache.typeV;
+          contextSize = cfg.settings.model.contextSize;
+          mmproj = cfg.settings.mmproj.path;
+          mmprojOffload = cfg.settings.mmproj.offload;
+          model = cfg.settings.model.path;
+          prio = cfg.settings.priority.process;
+          prioBatch = cfg.settings.priority.batch;
+          reasoningBudgetDivider = cfg.settings.reasoning.budgetDivider;
+          reasoningPreserve = cfg.settings.reasoning.preserve;
+          specType = cfg.settings.spec.type;
+          specDraftNMax = cfg.settings.spec.draftNMax;
+          specDraftPMin = cfg.settings.spec.draftPMin;
+          vkDisableHostVisibleVidmem = cfg.settings.vulkan.disableHostVisibleVidmem;
+          radvNoGttSpill = cfg.settings.vulkan.radvNoGttSpill;
+
+          lifecycle = cfg.lifecycle.enable;
+          lifecycleIdleSeconds = cfg.lifecycle.idle;
+
+          # Not configurable: opencode and prime-agent's context-cap match this exact name.
+          provider = "llamacpp";
+
+          # The GGUF file name, minus a split model's -00001-of-00003 suffix.
+          modelId =
+            let
+              stem = lib.removeSuffix ".gguf" (baseNameOf model);
+              shard = lib.match "(.*)-[0-9]{5}-of-[0-9]{5}" stem;
+            in
+            if shard == null then stem else lib.head shard;
+          modelName = cfg.settings.model.name;
+          modelReasoning = cfg.settings.model.reasoning;
+          modelMaxTokens = cfg.settings.model.maxTokens;
+          modelThinkingLevelMap = cfg.settings.model.thinking-level-map;
 
           llamaCpp =
             if patches == [ ] then
@@ -284,8 +266,7 @@
                 patches = (old.patches or [ ]) ++ map (p: pkgs.fetchpatch { inherit (p) url hash; }) patches;
               });
 
-          # host is what the server binds; these are what a client dials. A
-          # wildcard bind is not an address, and IPv6 needs brackets in a URL.
+          # What a client dials: a wildcard bind is not an address, and IPv6 needs brackets in a URL.
           clientHost =
             if host == "0.0.0.0" then
               "127.0.0.1"
@@ -296,22 +277,17 @@
             else
               host;
 
-          # The extension only means anything if prime-agent is around to load it.
           hasPrimeAgent = icedosLib.hasModule {
             inherit config repoUrl;
             name = "prime-agent";
           };
 
-          # Also on the model: an extension that can never start a server still
-          # registers before_provider_request, and prime-agent parks its
-          # Idempotency-Key reuse whenever any handler exists — so an inert
-          # install would make every provider's auto-retry billable.
-          lifecycleEnabled = lifecycle && hasPrimeAgent && model != "" && lifecycleModelId != "";
+          # Any before_provider_request handler disables prime-agent's Idempotency-Key reuse,
+          # so an extension that can never start a server would make every auto-retry billable.
+          lifecycleEnabled = lifecycle && hasPrimeAgent && model != "" && modelId != "";
 
-          # The markers sit inside TypeScript string literals so the template
-          # still parses on its own; jsStr escapes a value for that context,
-          # which escapeShellArg (which protects the builder, not the literal)
-          # does not do.
+          # Markers sit inside TypeScript string literals; escapeShellArg only protects the builder,
+          # so values also need JS escaping.
           jsStr =
             v: lib.escapeShellArg (lib.replaceStrings [ "\\" "\"" "\n" "\r" ] [ "\\\\" "\\\"" "\\n" "\\r" ] v);
 
@@ -320,8 +296,6 @@
             chmod +w $out
             substituteInPlace $out \
               --replace-fail "@llamacppUrl@" ${jsStr "http://${clientHost}:${toString port}"} \
-              --replace-fail "@llamacppBin@" ${jsStr lifecycleBin} \
-              --replace-fail "@llamacppProvider@" ${jsStr lifecycleProvider} \
               --replace-fail "@llamacppIdleSeconds@" ${jsStr (toString lifecycleIdleSeconds)}
 
             if ${pkgs.gnugrep}/bin/grep -qE '@[a-zA-Z_][0-9A-Za-z_-]*@' $out; then
@@ -336,12 +310,8 @@
             RUNTIME="''${XDG_RUNTIME_DIR:?XDG_RUNTIME_DIR unset}"
             ${pkgs.coreutils}/bin/mkdir -p "$RUNTIME/icedos"
 
-            # O_EXCL, because serve's guard runs before this wrapper exists: two
-            # callers racing both pass that guard, and without an atomic claim
-            # here both would start a server, the loser dying on the port and
-            # leaving the pidfile naming a corpse. This wrapper is the sole
-            # authority on the pidfile — nothing removes it on exit, so it also
-            # has to recognise its own leftovers or a restart could never claim.
+            # Atomic O_EXCL claim: racing callers both pass serve's guard. Nothing removes the
+            # pidfile on exit, so the wrapper must also recognise stale ones.
             PIDFILE="$RUNTIME/icedos/llamacpp.pid"
             claim() { (set -C; echo "$$" >"$PIDFILE") 2>/dev/null; }
 
@@ -355,15 +325,14 @@
                 exit 1
               fi
 
-              # Stale: the previous server died without cleaning up. mkdir is
-              # atomic, so exactly one wrapper does the removal — an unguarded
-              # rm here would delete a fresh claim another wrapper had just won.
+              # Stale pidfile. mkdir is atomic, so only one wrapper removes it; a bare rm
+              # could delete a claim another wrapper just won.
               if ${pkgs.coreutils}/bin/mkdir "$PIDFILE.recover" 2>/dev/null; then
                 ${pkgs.coreutils}/bin/rm -f "$PIDFILE"
                 claim || true
                 ${pkgs.coreutils}/bin/rmdir "$PIDFILE.recover" 2>/dev/null || true
               else
-                # Someone else is recovering; give them a moment and re-try.
+                # Another wrapper is recovering.
                 ${pkgs.coreutils}/bin/sleep 0.3
               fi
 
@@ -373,9 +342,7 @@
               fi
             fi
 
-            # Wait for dmemcg-booster to enable dmem on our scope. Store-pinned
-            # rather than ambient so the closure is explicit and the wrapper is
-            # immune to PATH or awk-implementation changes.
+            # Wait for dmemcg-booster to enable dmem on this scope.
             DMEM_DEVICE=$(${pkgs.gawk}/bin/awk '{print $1}' /sys/fs/cgroup/dmem.capacity 2>/dev/null) || true
             if [ -n "$DMEM_DEVICE" ]; then
               CGROUP_PATH=$(${pkgs.gnused}/bin/sed 's/0:://' /proc/$$/cgroup 2>/dev/null) || true
@@ -396,6 +363,7 @@
 
             exec ${pkgs.util-linux}/bin/chrt --other 0 ${llamaCpp}/bin/llama-server \
               -m ${lib.escapeShellArg model} \
+              ${lib.optionalString (modelId != "") "--alias ${lib.escapeShellArg modelId}"} \
               --host ${lib.escapeShellArg host} \
               --port ${toString port} \
               -ngl ${toString gpuLayers} \
@@ -590,11 +558,8 @@
                       ];
                     }}
 
-                    # A courtesy check only, for a readable error before the model
-                    # loads. It deliberately does NOT remove a stale pidfile: that
-                    # decision and the removal cannot be made atomic against a
-                    # concurrent wrapper, and racing it let two servers start. The
-                    # wrapper's O_EXCL claim is the sole authority.
+                    # Courtesy check for a readable error only. It never removes a stale pidfile:
+                    # that races the wrapper, whose O_EXCL claim is the sole authority.
                     PIDFILE="''${XDG_RUNTIME_DIR:?XDG_RUNTIME_DIR unset}/icedos/llamacpp.pid"
                     if [[ -f "$PIDFILE" ]]; then
                       PID=$(${pkgs.coreutils}/bin/cat "$PIDFILE" 2>/dev/null || true)
@@ -606,7 +571,6 @@
                       fi
                     fi
 
-                    # Build override args for flags that were explicitly set
                     ARGS=()
                     if [[ "$LLAMACPP_HOST_SET" == "1" ]]; then ARGS+=(--host "$LLAMACPP_HOST"); fi
                     if [[ "$LLAMACPP_PORT_SET" == "1" ]]; then ARGS+=(--port "$LLAMACPP_PORT"); fi
@@ -657,8 +621,7 @@
                     CAT=${pkgs.coreutils}/bin/cat
                     RM=${pkgs.coreutils}/bin/rm
 
-                    # is_help_flag is true for the empty string, so it can only be
-                    # consulted once we know an argument was actually given.
+                    # is_help_flag is true for "", so only consult it once an argument was given.
                     if [[ $# -gt 0 ]]; then
                       if [[ -n "$1" ]] && is_help_flag "$1"; then
                         echo "Usage: icedos llamacpp stop"
@@ -667,36 +630,22 @@
                       die "stop takes no arguments"
                     fi
 
-                    # Killing the unit's MainPID behind systemd's back makes the
-                    # SIGKILL escalation look like a failure, and Restart= brings
-                    # the server straight back up. ActiveState is the right gate:
-                    # is-active returns non-zero during the auto-restart window
-                    # (where stopping is exactly what's wanted), while unit
-                    # existence is true even for a unit that is not running —
-                    # which would send every `stop` down this branch when
-                    # service = true, leaving a hand-started server holding VRAM.
-                    # Matched positively: `failed`, `inactive` and the empty string
-                    # a systemctl error leaves behind must all fall through to the
-                    # pidfile path, or a hand-started server is left holding VRAM
-                    # while this reports success.
                     PIDFILE="''${XDG_RUNTIME_DIR:?XDG_RUNTIME_DIR unset}/icedos/llamacpp.pid"
 
-                    # The pidfile is the only handle this command has, so before
-                    # reporting "not running" make sure nothing is actually
-                    # serving — otherwise a server whose pidfile was lost keeps
-                    # its ~13 GiB and the caller is told it is gone.
+                    # Before reporting "not running", check nothing still serves; a server
+                    # with a lost pidfile would otherwise keep its ~13 GiB unnoticed.
                     orphaned() {
                       ${pkgs.curl}/bin/curl -sf -m 2 -o /dev/null \
                         http://${clientHost}:${toString port}/health
                     }
 
+                    # Stop through systemd, or Restart= revives the server. Match live states positively:
+                    # failed, inactive and a systemctl error must fall through to the pidfile path.
                     STATE=$("$SYSTEMCTL" --user show -P ActiveState llamacpp 2>/dev/null) || STATE=""
                     case "$STATE" in
                       active | activating | reloading | refreshing | deactivating | maintenance)
                         "$SYSTEMCTL" --user stop llamacpp || die "failed to stop the llamacpp user unit"
-                        # The unit's ExecStart writes the pidfile and nothing
-                        # removes it; leaving it would let a later hand-run serve
-                        # start outside systemd and collide with the unit.
+                        # Nothing else removes the unit's pidfile, and a leftover one confuses a later hand-run serve.
                         "$RM" -f "$PIDFILE"
                         echo "llamacpp stopped (systemd unit)"
                         exit 0
@@ -712,8 +661,7 @@
                     fi
 
                     PID=$("$CAT" "$PIDFILE" 2>/dev/null || true)
-                    # Unvalidated this would be catastrophic: `kill -TERM -1` signals
-                    # every process the user owns, and this script escalates to KILL.
+                    # Unvalidated, `kill -TERM -1` would signal every process the user owns, then KILL them.
                     if [[ ! "$PID" =~ ^[1-9][0-9]*$ ]]; then
                       "$RM" -f "$PIDFILE"
                       if orphaned; then
@@ -723,25 +671,15 @@
                       exit 0
                     fi
 
-                    # serve installs no exit trap, so a stale pidfile can outlive the
-                    # server and its pid be recycled onto something unrelated.
-                    #
-                    # cmdline, not comm: the pidfile is written by the wrapper before
-                    # it execs llama-server, and during that window comm is the
-                    # wrapper's own truncated store name. cmdline also reads empty
-                    # for a zombie or a process mid-teardown, where `kill -0` still
-                    # succeeds — so this doubles as the liveness test.
-                    # Identity: is this pid still the server we wrote down?
+                    # Whether the pid is still our server, since a stale pid can be recycled. cmdline, not comm:
+                    # comm is the wrapper's truncated name until exec, and cmdline is empty for zombies.
                     identity() {
                       kill -0 "$PID" 2>/dev/null &&
                         "$GREP" -qa 'llama-server\|llamacpp-serve' "/proc/$PID/cmdline" 2>/dev/null
                     }
 
-                    # Liveness: /proc/PID survives until the task is reaped, so
-                    # this stays true through exit_files() — where the DRM fd,
-                    # and the VRAM with it, is actually released. cmdline empties
-                    # earlier, at exit_mm(), which would let the next serve race
-                    # a half-freed GPU context.
+                    # /proc/PID lasts until reaping, past exit_files() where VRAM is freed. cmdline empties
+                    # earlier, at exit_mm(), which would let the next serve race a half-freed GPU context.
                     running() {
                       [[ -e "/proc/$PID" ]] &&
                         [[ "$("$CAT" "/proc/$PID/stat" 2>/dev/null)" != *') Z '* ]]
@@ -758,12 +696,8 @@
 
                     kill -TERM "$PID" 2>/dev/null || true
 
-                    # llama-server unmaps the model on SIGTERM; give it time before
-                    # escalating, or the next serve races a half-freed GPU context.
-                    # Measured at 32.5 s with a request in flight, so the budget is
-                    # sized against systemd's DefaultTimeoutStopSec (90 s) rather
-                    # than guessed. Each turn costs a little over 0.1 s once
-                    # running()'s fork is counted, so this lands around 95 s.
+                    # Unmapping took 32.5 s with a request in flight. ~95 s budget (each turn is just
+                    # over 0.1 s), sized against systemd's 90 s DefaultTimeoutStopSec.
                     i=0
                     while ((i++ < 900)); do
                       running || break
@@ -779,9 +713,7 @@
                       done
                     fi
 
-                    # Report what actually happened, and keep the pidfile if it did
-                    # not die: removing it would hide the surviving server from
-                    # serve's guard, which would then start a second one.
+                    # Keep the pidfile of a survivor, or serve's guard would start a second server.
                     if running; then
                       die "llamacpp (PID $PID) did not exit; VRAM is still held"
                     fi
@@ -794,32 +726,25 @@
             }
           ];
 
-          # Structurally omitted rather than mkIf'd: mkIf guards the value but
-          # the option path is still resolved, so defining these while
-          # prime-agent is absent aborts with "The option ... does not exist".
+          # optionalAttrs, not mkIf: mkIf still resolves the option path, which fails without prime-agent.
           icedos.applications = lib.optionalAttrs hasPrimeAgent {
-            # This module serves models on the local GPU, so it is the one that
-            # knows its provider should be metered rather than billed per token.
-            # listOf merges, so a user adding another provider keeps this one.
-            prime-agent.extensions.meters.power.providers = lib.optional (model != "") lifecycleProvider;
+            # Local GPU, so metered by power instead of per token. listOf merges with user-added providers.
+            prime-agent.extensions.meters.power.providers = lib.optional (model != "") provider;
 
-            # The provider block prime-agent needs, emitted from the module that
-            # runs the server — the counterpart of the opencode provider below.
-            # A local model has no per-token price, so cost is zero and the power
-            # meter reports the real electricity instead.
+            # Zero cost: the power meter reports the real electricity instead.
             prime-agent.settings.providers = lib.optionalAttrs (model != "") {
-              ${lifecycleProvider} = {
+              ${provider} = {
                 api = "openai-completions";
                 apiKey = "no-key";
                 baseUrl = "http://${clientHost}:${toString port}/v1";
 
-                models = lib.optional (lifecycleModelId != "") {
-                  id = lifecycleModelId;
-                  name = if lifecycleModelName != "" then lifecycleModelName else lifecycleModelId;
-                  reasoning = lifecycleModelReasoning;
+                models = lib.optional (modelId != "") {
+                  id = modelId;
+                  name = if modelName != "" then modelName else modelId;
+                  reasoning = modelReasoning;
                   contextWindow = contextSize;
-                  maxTokens = lifecycleModelMaxTokens;
-                  # A projector is what makes the server accept images at all.
+                  maxTokens = modelMaxTokens;
+                  # The server only accepts images with a projector loaded.
                   input = [ "text" ] ++ lib.optional (mmproj != "") "image";
 
                   cost = {
@@ -829,7 +754,7 @@
                     cacheWrite = 0;
                   };
 
-                  thinkingLevelMap = lifecycleModelThinkingLevelMap;
+                  thinkingLevelMap = modelThinkingLevelMap;
                 };
               };
             };
@@ -837,8 +762,7 @@
 
           assertions = [
             {
-              # llama.cpp rejects an unknown type at startup, which the lifecycle
-              # extension only surfaces as a server that never becomes healthy.
+              # llama.cpp rejects unknown types at startup, which lifecycle only shows as a server that never gets healthy.
               assertion =
                 specType == ""
                 || lib.all (
@@ -858,7 +782,7 @@
                   ]
                 ) (lib.splitString "," specType);
               message = ''
-                icedos.applications.llamacpp.specType must be a comma-separated
+                icedos.applications.llamacpp.settings.spec.type must be a comma-separated
                 list of llama.cpp --spec-type values: none, draft-simple,
                 draft-eagle3, draft-mtp, draft-dflash, draft-dspark,
                 ngram-simple, ngram-map-k, ngram-map-k4v, ngram-mod or
@@ -866,36 +790,21 @@
               '';
             }
             {
-              # An empty name yields a provider literally called "" in
-              # models.json, and meters.power.providers = [""] which the meter drops —
-              # metering and the lifecycle both silently do nothing.
-              assertion = lib.match "[A-Za-z0-9._-]+" lifecycleProvider != null;
-              message = ''
-                icedos.applications.llamacpp.lifecycleProvider must be a
-                non-empty provider name of letters, digits, dots, underscores or
-                hyphens; it keys prime-agent's provider table.
-              '';
-            }
-            {
-              # The unit autostarts at graphical-session.target while the
-              # extension stops the server, after which serve --detached starts
-              # a transient scope outside the unit and systemd reports inactive
-              # for a server that is running.
+              # After the extension stops the unit, serve --detached starts a scope outside it,
+              # and systemd reports inactive for a running server.
               assertion = !(service && lifecycleEnabled);
               message = ''
                 icedos.applications.llamacpp.service cannot be combined with
-                lifecycle: the extension starts and stops the server itself, so
+                lifecycle.enable: the extension starts and stops the server itself, so
                 the systemd unit ends up fighting it. Pick one owner.
               '';
             }
             {
-              # /slots is not on llama.cpp's bypass_sleep list, so the extension's
-              # polling wakes a sleeping server every 15s and resets its idle
-              # timer — the two settings cancel each other out.
+              # /slots is not on llama.cpp's bypass_sleep list, so polling it every 15 s keeps waking the server.
               assertion = !lifecycleEnabled || sleepIdleSeconds <= 0;
               message = ''
-                icedos.applications.llamacpp.lifecycle cannot be combined with
-                sleepIdleSeconds > 0: the extension polls /slots, which wakes a
+                icedos.applications.llamacpp.lifecycle.enable cannot be combined with
+                settings.server.sleepIdleSeconds > 0: the extension polls /slots, which wakes a
                 sleeping server. Pick one idle mechanism.
               '';
             }
@@ -911,21 +820,11 @@
             }
           ];
 
-          # `--prio` makes llama.cpp call setpriority() with a negative nice value,
-          # which a user session cannot do until RLIMIT_NICE is raised here.
-          # pam_limits applies at session open, so this takes effect at the next
-          # login — or, with lingering enabled, only when user@$UID.service
-          # restarts, since that manager outlives logout and carries the limits
-          # the service = true path inherits.
-          #
-          # This deliberately does NOT cover the thread priorities: ggml puts its
-          # workers on SCHED_FIFO 40/80/90 for medium/high/realtime, which needs
-          # RLIMIT_RTPRIO. Unbounded SCHED_FIFO across every core can lock a
-          # desktop out of its own input handling, so those calls are left to fail.
+          # Lets --prio set a negative nice. RLIMIT_RTPRIO stays unraised on purpose: ggml's
+          # SCHED_FIFO workers on every core can lock the desktop out of input handling.
           security.pam.loginLimits =
             let
-              # ggml_sched_priority: low = -1, normal = 0, medium = 1, high = 2,
-              # realtime = 3 (ggml.h), mapped to nice in common.cpp.
+              # ggml_sched_priority to nice, as mapped in llama.cpp's common.cpp.
               niceOf =
                 p:
                 if p >= 3 then
@@ -937,11 +836,9 @@
                 else
                   0;
 
-              # Only `--prio` reaches setpriority(); `--prio-batch` feeds the
-              # threadpool alone, so it cannot justify a nice grant.
+              # Only --prio calls setpriority(); --prio-batch only affects the threadpool.
               nice = niceOf prio;
 
-              # "all" raises the ceiling for every user; otherwise an explicit list.
               priorityFor = n: priorityUsers == "all" || elem n priorityUsers;
               # System users have no interactive session to raise a limit for.
               selected = attrNames (filterAttrs (n: u: (u.isNormalUser or false) && priorityFor n) users);
@@ -983,18 +880,12 @@
             (
               { config, lib, ... }:
               let
-                # The already-resolved agent dir, as prime-agent publishes it.
-                # NOT config.icedos.applications.prime-agent.settings.dataDir: `config`
-                # here is the home-manager config, which has no `icedos`
-                # attribute, and that option is a raw string still needing the
-                # $XDG/~ expansion prime-agent applies to it.
+                # Resolved by prime-agent. Not settings.dataDir: `config` here is home-manager's,
+                # and that option is still unexpanded.
                 dataDir = config.home.sessionVariables.PRIME_AGENT_CODING_AGENT_DIR;
                 relDataDir = lib.removePrefix (config.home.homeDirectory + "/") dataDir;
               in
-              # home-manager.sharedModules runs for every user, but only
-              # prime-agent's own users get this variable — without the guard the
-              # extension lands in a home with no prime-agent config, and the
-              # dataDir read above would throw for that user.
+              # sharedModules runs for every user; only prime-agent users have this variable.
               lib.mkIf (lifecycleEnabled && config.home.sessionVariables ? PRIME_AGENT_CODING_AGENT_DIR) {
                 home.file."${relDataDir}/extensions/llamacpp-lifecycle.ts".source = lifecycleSrc;
               }
@@ -1008,19 +899,15 @@
                   apiKey = "no-key";
                 };
 
-                # Derived from the same options as the prime-agent provider, so
-                # the advertised model cannot drift from the one being served —
-                # this block previously named a model the module had stopped
-                # shipping, with an output cap equal to the whole context.
-                models = lib.optionalAttrs (model != "" && lifecycleModelId != "") {
-                  ${lifecycleModelId} = {
-                    name = if lifecycleModelName != "" then lifecycleModelName else lifecycleModelId;
-                    reasoning = lifecycleModelReasoning;
+                models = lib.optionalAttrs (model != "" && modelId != "") {
+                  ${modelId} = {
+                    name = if modelName != "" then modelName else modelId;
+                    reasoning = modelReasoning;
                     tool_call = true;
                     images = mmproj != "";
                     limit = {
                       context = contextSize;
-                      output = lifecycleModelMaxTokens;
+                      output = modelMaxTokens;
                     };
                   };
                 };

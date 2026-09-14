@@ -1,91 +1,82 @@
 [icedos.applications.llamacpp]
-cacheTypeK = ""
-cacheTypeV = ""
-contextSize = 4096
-flashAttn = false
-vkDisableHostVisibleVidmem = false
-radvNoGttSpill = false
-batchSize = 2048
-gpuLayers = 99
-host = "127.0.0.1"
-model = ""
-mmproj = ""
-mmprojOffload = true
-prio = 2
-prioBatch = 3
-port = 8080
-# Server slots. 0 lets llama.cpp choose (4, sharing one KV cache). Each draft-mtp
-# slot gets its own draft context, so 1 saves VRAM when speculating.
-parallel = 0
-# Extra patches for llama.cpp, e.g. unmerged PRs, as [{ url, hash }] for fetchpatch.
-# A PR .diff URL tracks the PR, so its hash breaks whenever the PR is pushed; a commit URL does not.
+# [{ url, hash }] for fetchpatch. Prefer commit URLs: a PR .diff changes on every push, breaking its hash.
 patches = []
 
-# Seconds of idleness after which the server releases the model and sleeps,
-# reloading it on the next request (measured: ~13 GiB freed, ~34 s to wake).
-# The port stays open while asleep. -1 or 0 disables sleeping (llama.cpp
-# itself rejects a literal 0, so it is never passed through).
-#
-# Incompatible with this module's own lifecycle option: /slots is not on
-# llama.cpp's bypass_sleep list, so the lifecycle extension's polling wakes a
-# sleeping server and resets its idle timer.
-sleepIdleSeconds = -1
-
-# Users whose RLIMIT_NICE is raised so a negative `prio` can apply — an
-# allowlist of usernames, or "all" for every icedos-declared normal user.
-# Empty by default: nobody gets a negative nice ceiling, and llama.cpp logs a
-# harmless EPERM warning. Applies at session open, so a change needs a
-# re-login — or, with lingering enabled, a restart of user@$UID.service.
+# Usernames, or "all", allowed the negative nice that priority.process needs. Applies at next login.
 priorityUsers = []
 
-# Install prime-agent's llamacpp-lifecycle extension (no-op unless the
-# prime-agent module is loaded): it starts this server when a model it serves is
-# about to be used and stops it once /slots reports every slot idle for
-# lifecycleIdleSeconds. Idleness is the server's own answer, so it cannot fire
-# mid-generation.
-lifecycle = false
-
-# Seconds with every slot idle before the server is stopped. 0 never stops it.
-lifecycleIdleSeconds = 300
-
-# The provider name prime-agent knows this server by; must match the key under
-# icedos.applications.prime-agent.settings.providers.
-lifecycleProvider = "llamacpp"
-
-# Command exposing `llamacpp serve` and `llamacpp stop`.
-lifecycleBin = "icedos"
-
-# Registers this server as a prime-agent provider (api/baseUrl/contextWindow are
-# derived from the options above, so they cannot drift from what the server is
-# actually running). Empty id means no model entry is emitted.
-lifecycleModelId = ""
-
-# Display name; falls back to the id.
-lifecycleModelName = ""
-
-# Whether the model emits reasoning content.
-lifecycleModelReasoning = true
-
-# Output cap per response. The context window comes from contextSize.
-lifecycleModelMaxTokens = 16384
-
-# Speculative decoding, as llama.cpp's comma-separated --spec-type list: the
-# ngram-* types draft from repeated text and need no draft model or VRAM, draft-mtp
-# uses the model's own MTP layers, other draft-* types need --spec-draft-model.
-# Empty keeps llama.cpp's own default.
-specType = "" # e.g. "ngram-simple"
-# Draft tokens per step and minimum draft probability for specType. 0 keeps
-# llama.cpp's defaults (n-max 3, p-min 0.00). draft-mtp needs a GGUF with MTP layers.
-specDraftNMax = 0
-specDraftPMin = 0.0
-
-reasoningBudgetDivider = 1.25
-reasoningPreserve = true
 service = false
+
+# Starts the server when prime-agent uses its model and stops it after `idle` seconds of idle /slots.
+# Needs the prime-agent module and settings.model.path.
+[icedos.applications.llamacpp.lifecycle]
+enable = true
+
+# 0 never stops the server.
+idle = 300
+
+[icedos.applications.llamacpp.settings]
+flashAttn = false
+gpuLayers = 99
 threads = -1
+
+[icedos.applications.llamacpp.settings.batch]
+size = 2048
 ubatchSize = 512
 
-# Maps prime-agent thinking levels to the reasoning_effort this model accepts;
-# a level absent from the map is sent through unmapped. Model-specific, so the
-# module cannot derive it.
-[icedos.applications.llamacpp.lifecycleModelThinkingLevelMap]
+[icedos.applications.llamacpp.settings.cache]
+typeK = ""
+typeV = ""
+
+[icedos.applications.llamacpp.settings.mmproj]
+offload = true
+path = ""
+
+[icedos.applications.llamacpp.settings.model]
+contextSize = 4096
+
+# Output cap per response.
+maxTokens = 16384
+
+# Display name; defaults to the file name of path, which is also the model id.
+name = ""
+
+path = ""
+
+# Whether the model emits reasoning content.
+reasoning = true
+
+# Maps prime-agent thinking levels to the reasoning_effort this model accepts; unmapped levels pass through.
+[icedos.applications.llamacpp.settings.model.thinking-level-map]
+
+# llama.cpp --prio (-1 to 3) and --prio-batch (0 to 3).
+[icedos.applications.llamacpp.settings.priority]
+process = 2
+batch = 3
+
+[icedos.applications.llamacpp.settings.reasoning]
+budgetDivider = 1.25
+preserve = true
+
+[icedos.applications.llamacpp.settings.server]
+host = "127.0.0.1"
+port = 8080
+
+# Server slots; 0 lets llama.cpp choose. Each draft-mtp slot gets its own draft context, so 1 saves VRAM.
+parallel = 0
+
+# Idle seconds before the server unloads the model (~13 GiB freed, ~34 s to wake); -1 or 0 disables.
+# Conflicts with lifecycle, whose /slots polling keeps waking the server.
+sleepIdleSeconds = -1
+
+# llama.cpp --spec-type list: ngram-* need no draft model, draft-mtp uses the model's MTP layers.
+[icedos.applications.llamacpp.settings.spec]
+type = "" # e.g. "ngram-simple"
+
+# 0 keeps llama.cpp's defaults (n-max 3, p-min 0.00).
+draftNMax = 0
+draftPMin = 0.0
+
+[icedos.applications.llamacpp.settings.vulkan]
+disableHostVisibleVidmem = false
+radvNoGttSpill = false
