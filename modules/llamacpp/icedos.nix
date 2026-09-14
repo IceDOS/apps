@@ -22,12 +22,14 @@
         flashAttn
         gpuLayers
         vkDisableHostVisibleVidmem
+        radvNoGttSpill
         host
         mmproj
         mmprojOffload
         model
         prio
         prioBatch
+        parallel
         port
         priorityUsers
         lifecycle
@@ -41,6 +43,8 @@
         lifecycleModelThinkingLevelMap
         sleepIdleSeconds
         specType
+        specDraftNMax
+        specDraftPMin
         reasoningBudgetDivider
         reasoningPreserve
         service
@@ -57,6 +61,16 @@
       cacheTypeK = mkStrOption { default = cacheTypeK; };
       cacheTypeV = mkStrOption { default = cacheTypeV; };
       specType = mkStrOption { default = specType; };
+      specDraftNMax = mkIntBetweenOption {
+        path = "icedos.applications.llamacpp.specDraftNMax";
+        source = ./config.toml;
+        default = specDraftNMax;
+      } 0 1024;
+      specDraftPMin = mkFloatBetweenOption {
+        path = "icedos.applications.llamacpp.specDraftPMin";
+        source = ./config.toml;
+        default = specDraftPMin;
+      } 0.0 1.0;
       # Floor of 1, not 0: llama.cpp reads 0 as "use the model's own trained
       # context", which this module cannot honour because it also feeds
       # contextSize to prime-agent's contextWindow.
@@ -70,6 +84,9 @@
       # device memory (the small ReBAR window). On BAR-limited cards like Navi21
       # that path collapses token generation ~3x.
       vkDisableHostVisibleVidmem = mkBoolOption { default = vkDisableHostVisibleVidmem; };
+      # RADV-only: sets RADV_PERFTEST=nogttspill, appended to any value already in the
+      # environment, so allocations stay out of GTT (system RAM) under VRAM pressure.
+      radvNoGttSpill = mkBoolOption { default = radvNoGttSpill; };
       # -1 is llama.cpp's own default ("auto") and -2 means "all"; both are
       # sentinels rather than counts.
       gpuLayers = mkIntBetweenOption {
@@ -95,6 +112,14 @@
         source = ./config.toml;
         default = prioBatch;
       } 0 3;
+
+      # 0 omits --parallel, so llama.cpp picks the slot count and a unified KV cache.
+      # An explicit count splits contextSize evenly across slots.
+      parallel = mkIntBetweenOption {
+        path = "icedos.applications.llamacpp.parallel";
+        source = ./config.toml;
+        default = parallel;
+      } 0 256;
 
       port = mkIntBetweenOption {
         path = "icedos.applications.llamacpp.port";
@@ -213,11 +238,13 @@
             gpuLayers
             host
             vkDisableHostVisibleVidmem
+            radvNoGttSpill
             mmproj
             mmprojOffload
             model
             prio
             prioBatch
+            parallel
             port
             priorityUsers
             lifecycle
@@ -231,6 +258,8 @@
             lifecycleModelThinkingLevelMap
             sleepIdleSeconds
             specType
+            specDraftNMax
+            specDraftPMin
             reasoningBudgetDivider
             reasoningPreserve
             service
@@ -288,6 +317,7 @@
 
           llamaServer = pkgs.writeShellScript "llamacpp-serve" ''
             ${lib.optionalString vkDisableHostVisibleVidmem "export GGML_VK_DISABLE_HOST_VISIBLE_VIDMEM=1"}
+            ${lib.optionalString radvNoGttSpill "export RADV_PERFTEST=\"\${RADV_PERFTEST:+$RADV_PERFTEST,}nogttspill\""}
             RUNTIME="''${XDG_RUNTIME_DIR:?XDG_RUNTIME_DIR unset}"
             ${pkgs.coreutils}/bin/mkdir -p "$RUNTIME/icedos"
 
@@ -357,6 +387,7 @@
               -t ${toString threads} \
               -b ${toString batchSize} \
               -ub ${toString ubatchSize} \
+              ${lib.optionalString (parallel > 0) "--parallel ${toString parallel}"} \
               --prio ${toString prio} \
               --prio-batch ${toString prioBatch} \
               --ctx-size ${toString contextSize} \
@@ -366,6 +397,8 @@
               ${lib.optionalString (cacheTypeK != "") "--cache-type-k ${lib.escapeShellArg cacheTypeK}"} \
               ${lib.optionalString (cacheTypeV != "") "--cache-type-v ${lib.escapeShellArg cacheTypeV}"} \
               ${lib.optionalString (specType != "") "--spec-type ${lib.escapeShellArg specType}"} \
+              ${lib.optionalString (specDraftNMax > 0) "--spec-draft-n-max ${toString specDraftNMax}"} \
+              ${lib.optionalString (specDraftPMin > 0) "--spec-draft-p-min ${toString specDraftPMin}"} \
               --flash-attn ${if flashAttn then "on" else "off"} \
               ${lib.optionalString (sleepIdleSeconds > 0) "--sleep-idle-seconds ${toString sleepIdleSeconds}"} \
               ${lib.optionalString reasoningPreserve "--reasoning-preserve"} \
@@ -452,6 +485,13 @@
                           description = "Microbatch size";
                         }
                         {
+                          name = "parallel";
+                          short = "np";
+                          type = "int";
+                          default = parallel;
+                          description = "Server slots (0 = llama.cpp auto)";
+                        }
+                        {
                           name = "cache-type-k";
                           short = "ctk";
                           type = "string";
@@ -470,6 +510,19 @@
                           type = "string";
                           default = specType;
                           description = "Speculative decoding types";
+                        }
+                        {
+                          name = "spec-draft-n-max";
+                          type = "int";
+                          default = specDraftNMax;
+                          description = "Draft tokens per speculative step (0 = llama.cpp default)";
+                        }
+                        {
+                          # string: the flag parser has no float type, llama.cpp validates the value
+                          name = "spec-draft-p-min";
+                          type = "string";
+                          default = toString specDraftPMin;
+                          description = "Minimum draft probability (0 = llama.cpp default)";
                         }
                         {
                           name = "mmproj";
@@ -548,9 +601,12 @@
                     if [[ "$LLAMACPP_CTX_SIZE_SET" == "1" ]]; then ARGS+=(--ctx-size "$LLAMACPP_CTX_SIZE"); fi
                     if [[ "$LLAMACPP_BATCH_SIZE_SET" == "1" ]]; then ARGS+=(--batch-size "$LLAMACPP_BATCH_SIZE"); fi
                     if [[ "$LLAMACPP_UBATCH_SIZE_SET" == "1" ]]; then ARGS+=(--ubatch-size "$LLAMACPP_UBATCH_SIZE"); fi
+                    if [[ "$LLAMACPP_PARALLEL_SET" == "1" && "$LLAMACPP_PARALLEL" != "0" ]]; then ARGS+=(--parallel "$LLAMACPP_PARALLEL"); fi
                     if [[ "$LLAMACPP_CACHE_TYPE_K_SET" == "1" ]]; then ARGS+=(--cache-type-k "$LLAMACPP_CACHE_TYPE_K"); fi
                     if [[ "$LLAMACPP_CACHE_TYPE_V_SET" == "1" ]]; then ARGS+=(--cache-type-v "$LLAMACPP_CACHE_TYPE_V"); fi
                     if [[ "$LLAMACPP_SPEC_TYPE_SET" == "1" ]]; then ARGS+=(--spec-type "$LLAMACPP_SPEC_TYPE"); fi
+                    if [[ "$LLAMACPP_SPEC_DRAFT_N_MAX_SET" == "1" ]]; then ARGS+=(--spec-draft-n-max "$LLAMACPP_SPEC_DRAFT_N_MAX"); fi
+                    if [[ "$LLAMACPP_SPEC_DRAFT_P_MIN_SET" == "1" ]]; then ARGS+=(--spec-draft-p-min "$LLAMACPP_SPEC_DRAFT_P_MIN"); fi
                     if [[ "$LLAMACPP_MMPROJ_SET" == "1" ]]; then ARGS+=(--mmproj "$LLAMACPP_MMPROJ" --image-min-tokens 1024); fi
                     if [[ "$LLAMACPP_PRIO_SET" == "1" ]]; then ARGS+=(--prio "$LLAMACPP_PRIO"); fi
                     if [[ "$LLAMACPP_PRIO_BATCH_SET" == "1" ]]; then ARGS+=(--prio-batch "$LLAMACPP_PRIO_BATCH"); fi
