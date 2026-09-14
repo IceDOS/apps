@@ -68,6 +68,11 @@ currency = ""
 # default: a module that serves models locally (llamacpp) adds itself.
 providers = []
 
+# Rolling cost windows shown in the footer, in order. Each is a positive integer
+# plus a unit: s, m (minutes), h, d, w or M (calendar months), e.g. "1s", "15m",
+# "24h", "1M". Empty uses ["1h", "24h", "7d", "30d"].
+windows = []
+
 [icedos.applications.prime-agent.providers]
 ollama = true
 
