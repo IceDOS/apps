@@ -1,0 +1,110 @@
+diff --git a/packages/coding-agent/src/modes/interactive/interactive-mode.ts b/packages/coding-agent/src/modes/interactive/interactive-mode.ts
+index c1e6dc5..f9e1540 100644
+--- a/packages/coding-agent/src/modes/interactive/interactive-mode.ts
++++ b/packages/coding-agent/src/modes/interactive/interactive-mode.ts
+@@ -280,7 +280,7 @@ import {
+ 	type ThemeColor,
+ 	theme,
+ } from "./theme/theme.js";
+-import { setWorkingPulseFrame, WORKING_ICON_INTERVAL_MS } from "./theme/working-icon.js";
++import { setWorkingPulseFrame, WORKING_ICON_INTERVAL_MS, workingIconFrame } from "./theme/working-icon.js";
+ 
+ interface Expandable {
+ 	setExpanded(expanded: boolean): void;
+@@ -972,6 +972,9 @@ export class InteractiveMode {
+ 	private featureHintSuppressedByQueue = false;
+ 	private pulseTimer: NodeJS.Timeout | undefined = undefined;
+ 	private pulseFrame = 0;
++	private lastTerminalTitle: string | undefined;
++	// Headline fallback before the daemon summarizer writes a recap.
++	private firstUserMessage: string | undefined;
+ 	private readonly activityTracker = new AgentActivityTracker();
+ 	// activityTracker token count already folded into the context snapshot; only output beyond
+ 	// this counts as live in-flight (keeps auto-retries from re-adding a failed attempt).
+@@ -1529,14 +1532,40 @@ export class InteractiveMode {
+ 		await this.updateAvailableProviderCount();
+ 	}
+ 
++	// "<status glyph> <headline>": Zed terminal threads split the glyph off as a status marker.
+ 	private updateTerminalTitle(): void {
+-		const cwdBasename = path.basename(this.getCurrentCwd());
+-		const sessionName = this.getCurrentSessionName();
+-		if (sessionName) {
+-			this.ui.terminal.setTitle(`${APP_TITLE} - ${sessionName} - ${cwdBasename}`);
+-		} else {
+-			this.ui.terminal.setTitle(`${APP_TITLE} - ${cwdBasename}`);
+-		}
++		const headline = [
++			this.getCurrentSessionName(),
++			this.connectionState?.recap ?? this.sessionRecap,
++			this.firstUserMessage,
++		]
++			.map((candidate) => candidate?.replace(/\s+/g, " ").trim())
++			.find((candidate) => candidate);
++		const text = headline
++			? headline.length > 80
++				? `${headline.slice(0, 79)}…`
++				: headline
++			: `${APP_TITLE} - ${path.basename(this.getCurrentCwd())}`;
++		const glyph = this.isAgentStreaming() ? workingIconFrame(this.pulseFrame) : "✳";
++		const title = `${glyph} ${text}`;
++		if (title === this.lastTerminalTitle) return;
++		this.lastTerminalTitle = title;
++		this.ui.terminal.setTitle(title);
++	}
++
++	private setFirstUserMessage(messages: readonly AgentMessage[]): void {
++		this.firstUserMessage = messages
++			.filter((message) => message.role === "user")
++			.map((message) =>
++				typeof message.content === "string"
++					? message.content
++					: message.content
++							.filter((block) => block.type === "text")
++							.map((block) => block.text)
++							.join(" "),
++			)
++			.find((content) => content.trim());
++		this.updateTerminalTitle();
+ 	}
+ 
+ 	async run(): Promise<InteractiveModeRunResult> {
+@@ -3262,6 +3291,7 @@ export class InteractiveMode {
+ 
+ 	// Recover the in-flight run's start from a restored transcript so the elapsed timer survives re-attach.
+ 	private restoreTurnStartFromMessages(messages: readonly AgentMessage[]): void {
++		this.setFirstUserMessage(messages);
+ 		this.turnStartedAt = undefined;
+ 		if (!this.isAgentStreaming()) return;
+ 		for (let i = messages.length - 1; i >= 0; i--) {
+@@ -3407,8 +3437,10 @@ export class InteractiveMode {
+ 		}
+ 	}
+ 
++	// Every connection state patch (streaming, name, recap) lands here, so it also refreshes the title.
+ 	private updateWorkingPulse(): void {
+ 		const active = this.isAgentStreaming();
++		this.updateTerminalTitle();
+ 		if (!active) {
+ 			this.stopWorkingPulse();
+ 			return;
+@@ -3422,6 +3454,7 @@ export class InteractiveMode {
+ 	private tickWorkingPulse(): void {
+ 		this.pulseFrame += 1;
+ 		setWorkingPulseFrame(this.pulseFrame);
++		this.updateTerminalTitle();
+ 		this.ui.requestRender();
+ 	}
+ 
+@@ -5592,7 +5625,10 @@ export class InteractiveMode {
+ 				break;
+ 
+ 			case "message_end":
+-				if (event.message.role === "user") break;
++				if (event.message.role === "user") {
++					if (!this.firstUserMessage) this.setFirstUserMessage([event.message]);
++					break;
++				}
+ 				if (event.message.role === "assistant") {
+ 					this.streamingMessage = event.message;
+ 					let errorMessage: string | undefined;

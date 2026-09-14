@@ -140,6 +140,10 @@ buildNpmPackage (finalAttrs: {
     # daemon writes its ownership registry to hardcoded ~/.prime; its env override is
     # stripped on launch. Follow PRIME_AGENT_CODING_AGENT_DIR instead so nothing lives there.
     ./patches/daemon-supervisor-registry-follow-agentdir.patch
+
+    # Title is set once at startup. Keep it as "<status glyph> <name|recap|first message>"
+    # so Zed terminal threads show live status and topic, like Claude Code.
+    ./patches/terminal-title-session-headline.patch
   ]
   ++ lib.optionals ollamaCloud [
     # Ollama Cloud provider: bundled models (https://ollama.com/v1) + the /login
