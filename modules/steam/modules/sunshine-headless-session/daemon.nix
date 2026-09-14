@@ -12,11 +12,7 @@
 }:
 
 let
-  inherit (cfg)
-    autoStart
-    name
-    port
-    ;
+  inherit (cfg.session.sunshine) autoStart name port;
 
   # The top-level `env` node is REQUIRED: without it Sunshine's parser aborts.
   appsJson = pkgs.writeText "sunshine-headless-apps.json" (

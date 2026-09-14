@@ -13,17 +13,18 @@
 }:
 
 let
-  inherit (cfg)
-    hdr
-    colorManagement
-    inputInjection
-    mangoApp
-    nativeWayland
-    steamOS
-    preferDiscreteGpu
-    sdrGamutWideness
-    sdrContentNits
-    ;
+  # Map new nested option paths to local names (body references unchanged).
+  inherit (cfg) gamescope session;
+
+  hdr = gamescope.hdr;
+  colorManagement = gamescope.colorManagement;
+  inputInjection = gamescope.inputInjection;
+  mangoApp = session.steam.mangoApp;
+  nativeWayland = gamescope.nativeWayland;
+  steamOS = session.steam.steamOS;
+  preferDiscreteGpu = gamescope.preferDiscreteGpu;
+  sdrGamutWideness = gamescope.sdrGamutWideness;
+  sdrContentNits = gamescope.sdrContentNits;
 
   # Marker group for the input bridge; the wrapper alone turns it into `input` access.
   inputBridgeGroup = "sunshine-headless";

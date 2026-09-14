@@ -13,28 +13,29 @@
 let
   inherit (pkgs) writeShellApplication;
 
-  inherit (cfg)
-    colorManagement
-    hdr
-    renderWidth
-    renderHeight
-    sdrContentNits
-    sdrGamutWideness
-    mangoApp
-    nativeWayland
-    pauseOnDisconnect
-    steamOS
-    upscaleFilter
-    fsrSharpness
-    excludeHostControllers
-    inputInjection
-    isolateVirtualControllers
-    realtime
-    secondarySteamSession
-    secondarySteamSessionPath
-    sessionIdleTimeout
-    gamescopeRegrowTimeout
-    ;
+  # Map new nested option paths to local names (body references unchanged).
+  inherit (cfg) gamescope session secondary;
+
+  colorManagement = gamescope.colorManagement;
+  hdr = gamescope.hdr;
+  renderWidth = gamescope.renderWidth;
+  renderHeight = gamescope.renderHeight;
+  sdrContentNits = gamescope.sdrContentNits;
+  sdrGamutWideness = gamescope.sdrGamutWideness;
+  mangoApp = session.steam.mangoApp;
+  nativeWayland = gamescope.nativeWayland;
+  pauseOnDisconnect = session.pauseOnDisconnect;
+  steamOS = session.steam.steamOS;
+  upscaleFilter = gamescope.upscaleFilter;
+  fsrSharpness = gamescope.fsrSharpness;
+  excludeHostControllers = session.controllers.excludeHost;
+  inputInjection = gamescope.inputInjection;
+  isolateVirtualControllers = session.controllers.isolateVirtual;
+  realtime = gamescope.realtime;
+  secondarySteamSession = secondary.enable;
+  secondarySteamSessionPath = secondary.path;
+  sessionIdleTimeout = session.idleTimeout;
+  gamescopeRegrowTimeout = gamescope.regrowTimeout;
 
   upscaleFlags =
     if upscaleFilter != "" then "-F ${upscaleFilter} --fsr-sharpness ${toString fsrSharpness} " else "";
@@ -745,8 +746,8 @@ let
           start_gamescope "1" "1" "1" "0"
           ;;
         recycle)
-          # 30s timer: tear the session down after sessionIdleTimeout without a stream, and
-          # regrow the probe gamescope after gamescopeRegrowTimeout with no gamescope at all.
+          # 30s timer: tear the session down after session.idleTimeout without a stream, and
+          # regrow the probe gamescope after gamescope.regrowTimeout with no gamescope at all.
           hb="$rt/sunshine-headless-stream-hb"
           gone="$rt/sunshine-headless-gamescope-gone"
           if streaming_active; then
