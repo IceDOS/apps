@@ -52,7 +52,6 @@
         default = sessionRetentionDays;
       } 1 3650;
 
-
       # Spawn this agent in a new Zed agent-panel terminal (agent.terminal_init_command
       # = "prime-agent", ctrl-n in the agent panel) instead of using ACP.
       zedAgentPanelTerminal = mkBoolOption { default = zedAgentPanelTerminal; };
@@ -143,7 +142,9 @@
         } 0 65335;
 
         # Pins are system-wide; derived ports fold the username in and cannot collide.
-        portOverrides = mkAttrsOfOption { default = settings.portOverrides; } (lib.types.ints.between 1 65535);
+        portOverrides = mkAttrsOfOption { default = settings.portOverrides; } (
+          lib.types.ints.between 1 65535
+        );
 
         # Provider overrides merged into models.json (modelOverrides is partial merge).
         providers = mkSubmoduleAttrsOption { default = settings.providers; } {
@@ -403,7 +404,11 @@
           # so the XDG vars carry their spec defaults.
           shellDataDir =
             let
-              raw = if prime-agent.settings.dataDir == "" then "$XDG_CONFIG_HOME/prime-agent" else prime-agent.settings.dataDir;
+              raw =
+                if prime-agent.settings.dataDir == "" then
+                  "$XDG_CONFIG_HOME/prime-agent"
+                else
+                  prime-agent.settings.dataDir;
               subst =
                 builtins.replaceStrings
                   [ "$XDG_CONFIG_HOME" "$XDG_DATA_HOME" ]
@@ -490,9 +495,9 @@
 
           # Spawn this agent in a new Zed agent-panel terminal (Ctrl+N) instead of
           # using ACP; the zed module owns the agent.terminal_init_command wiring.
-          icedos.applications.zed.terminalInitCommand = mkIf (
-            hasZed && prime-agent.zedAgentPanelTerminal
-          ) "prime-agent";
+          icedos.applications.zed.terminalInitCommand = mkIf (hasZed && prime-agent.zedAgentPanelTerminal) (
+            lib.mkDefault "prime-agent"
+          );
 
           home-manager.sharedModules = [
             (
@@ -509,7 +514,11 @@
                 # "" means the default; expanded per user here (prime-agent knows ~, not $VARS).
                 dataDir =
                   let
-                    raw = if prime-agent.settings.dataDir == "" then "$XDG_CONFIG_HOME/prime-agent" else prime-agent.settings.dataDir;
+                    raw =
+                      if prime-agent.settings.dataDir == "" then
+                        "$XDG_CONFIG_HOME/prime-agent"
+                      else
+                        prime-agent.settings.dataDir;
 
                     expand =
                       builtins.replaceStrings
@@ -561,7 +570,12 @@
                     --replace-fail "@powerCurrency@" ${jsStr prime-agent.extensions.meters.power.currency} \
                     --replace-fail "@powerProviders@" ${
                       jsStr (
-                        lib.concatStringsSep "," (if prime-agent.extensions.meters.power.enable then prime-agent.extensions.meters.power.providers else [ ])
+                        lib.concatStringsSep "," (
+                          if prime-agent.extensions.meters.power.enable then
+                            prime-agent.extensions.meters.power.providers
+                          else
+                            [ ]
+                        )
                       )
                     }
 
@@ -1125,7 +1139,9 @@
                       prime-agent portOverrides pins a server that is enabled
                       but not a local (stdio) bridge: ${
                         builtins.concatStringsSep ", " (
-                          lib.filter (n: enabled ? ${n} && !(localServers ? ${n})) (lib.attrNames prime-agent.settings.portOverrides)
+                          lib.filter (n: enabled ? ${n} && !(localServers ? ${n})) (
+                            lib.attrNames prime-agent.settings.portOverrides
+                          )
                         )
                       }. portOverrides only applies to local MCP servers
                       bridged by mcp-proxy; remote (url) servers have no
@@ -1152,7 +1168,9 @@
                     '';
                   }
                   {
-                    assertion = prime-agent.extensions.meters.power.idleWatts >= 0 && prime-agent.extensions.meters.power.rateKwh >= 0;
+                    assertion =
+                      prime-agent.extensions.meters.power.idleWatts >= 0
+                      && prime-agent.extensions.meters.power.rateKwh >= 0;
                     message = ''
                       icedos.applications.prime-agent.extensions.meters.power.idleWatts and
                       rateKwh must not be negative: a negative idle floor is
@@ -1227,7 +1245,9 @@
                       icedos.applications.prime-agent.extensions.inline names must be
                       simple: ${
                         builtins.concatStringsSep ", " (
-                          lib.filter (n: builtins.match "[A-Za-z0-9._-]+" n == null) (lib.attrNames prime-agent.extensions.inline)
+                          lib.filter (n: builtins.match "[A-Za-z0-9._-]+" n == null) (
+                            lib.attrNames prime-agent.extensions.inline
+                          )
                         )
                       }
                     '';
