@@ -33,16 +33,56 @@ const MAX_REQUEST_MS = 30 * 60_000;
 // a month of history to a few thousand entries.
 const BUCKET_MS = 15 * 60_000;
 const RETAIN_MS = 32 * 86_400_000;
-const WINDOWS: [string, number][] = [
-  ["1h", 3_600_000],
-  ["24h", 86_400_000],
-  ["7d", 7 * 86_400_000],
-  ["30d", 30 * 86_400_000],
-];
+// Labels like "1s", "15m", "24h", "30d", "2w", "1M"; the build asserts the format.
+// M is a calendar month, so its ms is only the longest span, for sizing buckets.
+const UNIT_MS: Record<string, number> = {
+  s: 1_000,
+  m: 60_000,
+  h: 3_600_000,
+  d: 86_400_000,
+  w: 7 * 86_400_000,
+  M: 31 * 86_400_000,
+};
+// [label, longest span in ms, calendar months (0 for fixed spans)]
+const WINDOWS: [string, number, number][] = "@powerWindows@"
+  .split(",")
+  .filter(Boolean)
+  .map((l) => {
+    const n = Number(l.slice(0, -1));
+    const unit = l.slice(-1);
+    return [l, n * (UNIT_MS[unit] ?? NaN), unit === "M" ? n : 0] as [string, number, number];
+  })
+  .filter(([, ms]) => Number.isFinite(ms) && ms > 0);
+const monthsAgo = (now: number, n: number) => {
+  const d = new Date(now);
+  const day = d.getDate();
+  d.setDate(1);
+  d.setMonth(d.getMonth() - n);
+  // Mar 31 minus one month is the end of February, not Mar 3.
+  d.setDate(Math.min(day, new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate()));
+  return d.getTime();
+};
+// Short windows get finer buckets, retained only as long as they need, so the
+// straddling edge bucket stays at most a quarter of the window where possible.
+const FINE_STEPS = [1_000, 60_000];
+const resolutionFor = (ms: number) =>
+  ms / 4 >= BUCKET_MS ? BUCKET_MS : ([...FINE_STEPS].reverse().find((r) => r <= ms / 4) ?? FINE_STEPS[0]);
+const FINE_RETAIN = new Map<number, number>();
+for (const [, ms] of WINDOWS) {
+  const r = resolutionFor(ms);
+  if (r !== BUCKET_MS) FINE_RETAIN.set(r, Math.max(FINE_RETAIN.get(r) ?? 0, ms + r));
+}
+const COARSE_RETAIN_MS = Math.max(RETAIN_MS, ...WINDOWS.map(([, ms]) => ms + BUCKET_MS));
+// Persisted windows only move on a flush, so a short window needs flushes
+// while a long request is still running.
+const FLUSH_MS = Math.min(60_000, Math.max(1_000, Math.min(...WINDOWS.map(([, ms]) => ms / 4))));
 // A writer that died mid-update must not block every later flush.
 const LOCK_STALE_MS = 5_000;
 
-type State = { buckets: Record<string, number>; total: number };
+// `buckets` stays the 15-minute tier so older builds still read the file;
+// `fine` maps a finer bucket size in ms to its buckets.
+type Buckets = Record<string, number>;
+type State = { buckets: Buckets; fine: Record<string, Buckets>; total: number };
 
 const stateFile = () => join(costDir(), "power", "energy.json");
 const lockPath = () => join(costDir(), "power", "energy.lock");
@@ -227,20 +267,27 @@ const readState = (): State | null => {
   }
   try {
     const d = JSON.parse(readFileSync(stateFile(), "utf8"));
-    const buckets: Record<string, number> = {};
     // Keys are bucket indices and values are joules; anything else would
     // survive pruning forever and poison the sums by string-concatenating.
-    for (const [k, v] of Object.entries(d?.buckets ?? {})) {
-      if (Number.isFinite(Number(k)) && typeof v === "number" && Number.isFinite(v) && v >= 0) {
-        buckets[k] = v;
+    const clean = (raw: unknown): Buckets => {
+      const out: Buckets = {};
+      for (const [k, v] of Object.entries(raw && typeof raw === "object" ? raw : {})) {
+        if (Number.isFinite(Number(k)) && typeof v === "number" && Number.isFinite(v) && v >= 0) {
+          out[k] = v;
+        }
       }
+      return out;
+    };
+    const fine: Record<string, Buckets> = {};
+    for (const [r, b] of Object.entries(d?.fine && typeof d.fine === "object" ? d.fine : {})) {
+      if (FINE_STEPS.includes(Number(r))) fine[r] = clean(b);
     }
-    cache = { buckets, total: Number.isFinite(d?.total) ? d.total : 0 };
+    cache = { buckets: clean(d?.buckets), fine, total: Number.isFinite(d?.total) ? d.total : 0 };
     cacheMtime = mtime;
     return cache;
   } catch (e: any) {
     if (e?.code === "ENOENT") {
-      cache = { buckets: {}, total: 0 };
+      cache = { buckets: {}, fine: {}, total: 0 };
       cacheMtime = -1;
       return cache;
     }
@@ -256,7 +303,7 @@ const readState = (): State | null => {
       } catch {
       }
       renameSync(stateFile(), `${stateFile()}.${Date.now()}.corrupt`);
-      cache = { buckets: {}, total: 0 };
+      cache = { buckets: {}, fine: {}, total: 0 };
       cacheMtime = -1;
       return cache;
     } catch {
@@ -346,13 +393,23 @@ const flushEnergy = (joules: number): boolean => {
     const s = readState();
     if (!s) return false;
     const now = Date.now();
-    const key = String(Math.floor(now / BUCKET_MS));
-    s.buckets[key] = (s.buckets[key] ?? 0) + joules;
-    s.total += joules;
-    const cutoff = Math.floor((now - RETAIN_MS) / BUCKET_MS);
-    for (const k of Object.keys(s.buckets)) {
-      if (Number(k) < cutoff) delete s.buckets[k];
+    const record = (b: Buckets, size: number, retain: number) => {
+      const key = String(Math.floor(now / size));
+      b[key] = (b[key] ?? 0) + joules;
+      const cutoff = Math.floor((now - retain) / size);
+      for (const k of Object.keys(b)) {
+        if (Number(k) < cutoff) delete b[k];
+      }
+    };
+    record(s.buckets, BUCKET_MS, COARSE_RETAIN_MS);
+    // Tiers no configured window reads are dropped rather than kept growing.
+    const fine: Record<string, Buckets> = {};
+    for (const [size, retain] of FINE_RETAIN) {
+      fine[size] = s.fine[size] ?? {};
+      record(fine[size], size, retain);
     }
+    s.fine = fine;
+    s.total += joules;
     try {
       writeAtomic(stateFile(), JSON.stringify(s));
       cacheMtime = -1;
@@ -364,12 +421,16 @@ const flushEnergy = (joules: number): boolean => {
   return done === true;
 };
 
-const windowJoules = (s: State, ms: number): number => {
+const windowJoules = (s: State, ms: number, months: number): number => {
+  const size = resolutionFor(ms);
+  const buckets = size === BUCKET_MS ? s.buckets : (s.fine[size] ?? {});
+  const now = Date.now();
+  const start = months > 0 ? monthsAgo(now, months) : now - ms;
   // Floored so the bucket straddling the window edge counts whole; dropping it
   // would make "1h" mean anywhere between 45 and 60 minutes.
-  const cutoff = Math.floor((Date.now() - ms) / BUCKET_MS);
+  const cutoff = Math.floor(start / size);
   let sum = 0;
-  for (const [k, v] of Object.entries(s.buckets)) {
+  for (const [k, v] of Object.entries(buckets)) {
     if (Number(k) >= cutoff) sum += v;
   }
   return sum;
@@ -422,6 +483,7 @@ export function createPowerMeter(onRepaint: () => void) {
   let shownWatts = -1;
   let owned = false;
   let lastClaimRefresh = 0;
+  let lastFlush = 0;
 
   const sample = () => {
     if (!owned) return;
@@ -446,6 +508,10 @@ export function createPowerMeter(onRepaint: () => void) {
       pendingJoules += joules;
     }
     lastSampleAt = now;
+    if (now - lastFlush >= FLUSH_MS) {
+      lastFlush = now;
+      if (flushEnergy(pendingJoules)) pendingJoules = 0;
+    }
   };
   const settle = () => {
     if (inFlight > 0 || !sampler) return;
@@ -500,6 +566,7 @@ export function createPowerMeter(onRepaint: () => void) {
       idleSamples = 0;
       lastSampleAt = Date.now();
       startedAt = lastSampleAt;
+      lastFlush = lastSampleAt;
       sampler = setInterval(() => tick(isIdle), SAMPLE_MS);
       sampler.unref?.();
     },
@@ -519,7 +586,7 @@ export function createPowerMeter(onRepaint: () => void) {
         // Persisted only: adding this instance's unflushed joules would make
         // two windows disagree about a machine-wide number.
         windows: s
-          ? WINDOWS.map(([label, ms]) => [label, windowJoules(s, ms)] as [string, number])
+          ? WINDOWS.map(([label, ms, months]) => [label, windowJoules(s, ms, months)] as [string, number])
           : [],
       };
     },

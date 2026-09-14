@@ -105,6 +105,9 @@
 
             # Providers served by the local GPU; everything else is left unmetered.
             providers = mkStrListOption { default = extensions.meters.power.providers; };
+
+            # Rolling cost windows shown in the footer ("1s", "15m", "24h", "2w", "1M" = calendar month); empty uses 1h/24h/7d/30d.
+            windows = mkStrListOption { default = extensions.meters.power.windows; };
           };
         };
       };
@@ -564,6 +567,19 @@
                   );
                 # power.ts carries build-time constants, so the dir is copied, not symlinked.
                 # The markers sit inside TS string literals; jsStr escapes values for that context, which escapeShellArg (protecting the builder, not the literal) does not.
+                powerWindows =
+                  let
+                    w = prime-agent.extensions.meters.power.windows;
+                  in
+                  if w == [ ] then
+                    [
+                      "1h"
+                      "24h"
+                      "7d"
+                      "30d"
+                    ]
+                  else
+                    w;
                 jsStr =
                   v: lib.escapeShellArg (lib.replaceStrings [ "\\" "\"" "\n" "\r" ] [ "\\\\" "\\\"" "\\n" "\\r" ] v);
                 costFooterSrc = pkgs.runCommand "prime-agent-cost-footer" { } ''
@@ -574,6 +590,7 @@
                     --replace-fail "@powerRate@" ${jsStr (builtins.toJSON prime-agent.extensions.meters.power.rateKwh)} \
                     --replace-fail "@powerIdle@" ${jsStr (builtins.toJSON prime-agent.extensions.meters.power.idleWatts)} \
                     --replace-fail "@powerCurrency@" ${jsStr prime-agent.extensions.meters.power.currency} \
+                    --replace-fail "@powerWindows@" ${jsStr (lib.concatStringsSep "," powerWindows)} \
                     --replace-fail "@powerProviders@" ${
                       jsStr (
                         lib.concatStringsSep "," (
@@ -1182,6 +1199,16 @@
                       rateKwh must not be negative: a negative idle floor is
                       added to every sample rather than subtracted, and a negative
                       rate reports negative cost.
+                    '';
+                  }
+                  {
+                    assertion = builtins.all (
+                      w: builtins.match "[1-9][0-9]*[smhdwM]" w != null
+                    ) prime-agent.extensions.meters.power.windows;
+                    message = ''
+                      icedos.applications.prime-agent.extensions.meters.power.windows entries
+                      must be a positive integer followed by s, m, h, d, w or M (e.g. "1s",
+                      "15m", "24h", "1M"), got: ${builtins.concatStringsSep ", " prime-agent.extensions.meters.power.windows}
                     '';
                   }
                   {
