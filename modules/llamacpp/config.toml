@@ -17,6 +17,9 @@ port = 8080
 # Server slots. 0 lets llama.cpp choose (4, sharing one KV cache). Each draft-mtp
 # slot gets its own draft context, so 1 saves VRAM when speculating.
 parallel = 0
+# Extra patches for llama.cpp, e.g. unmerged PRs, as [{ url, hash }] for fetchpatch.
+# A PR .diff URL tracks the PR, so its hash breaks whenever the PR is pushed; a commit URL does not.
+patches = []
 
 # Seconds of idleness after which the server releases the model and sleeps,
 # reloading it on the next request (measured: ~13 GiB freed, ~34 s to wake).

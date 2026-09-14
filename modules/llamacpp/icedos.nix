@@ -12,6 +12,7 @@
         mkFloatBetweenOption
         mkIntBetweenOption
         mkStrOption
+        mkSubmoduleListOption
         ;
 
       inherit ((importTOML ./config.toml).icedos.applications.llamacpp)
@@ -30,6 +31,7 @@
         prio
         prioBatch
         parallel
+        patches
         port
         priorityUsers
         lifecycle
@@ -120,6 +122,12 @@
         source = ./config.toml;
         default = parallel;
       } 0 256;
+
+      # Applied to the nixpkgs llama.cpp with fetchpatch, so any entry rebuilds it locally.
+      patches = mkSubmoduleListOption { default = patches; } {
+        url = mkStrOption { };
+        hash = mkStrOption { };
+      };
 
       port = mkIntBetweenOption {
         path = "icedos.applications.llamacpp.port";
@@ -245,6 +253,7 @@
             prio
             prioBatch
             parallel
+            patches
             port
             priorityUsers
             lifecycle
@@ -267,7 +276,13 @@
             ubatchSize
             ;
 
-          llamaCpp = pkgs.llama-cpp-vulkan;
+          llamaCpp =
+            if patches == [ ] then
+              pkgs.llama-cpp-vulkan
+            else
+              pkgs.llama-cpp-vulkan.overrideAttrs (old: {
+                patches = (old.patches or [ ]) ++ map (p: pkgs.fetchpatch { inherit (p) url hash; }) patches;
+              });
 
           # host is what the server binds; these are what a client dials. A
           # wildcard bind is not an address, and IPv6 needs brackets in a URL.
