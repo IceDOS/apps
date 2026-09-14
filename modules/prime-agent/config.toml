@@ -4,11 +4,6 @@
 # preferred terminal emulator).
 desktopEntry = true
 
-# Ship the bundled Ollama Cloud provider (https://ollama.com/v1): 24 cloud
-# models + the /login API-key flow (OLLAMA_API_KEY). False keeps the built-in
-# catalog Ollama-free.
-ollamaCloud = true
-
 # Spawn this agent in a new Zed agent-panel terminal (agent.terminal_init_command
 # = "prime-agent", ctrl-n in the agent panel) instead of using ACP. Only applies
 # when the zed module is loaded.
@@ -73,15 +68,15 @@ currency = ""
 # default: a module that serves models locally (llamacpp) adds itself.
 providers = []
 
+[icedos.applications.prime-agent.providers]
+ollama = true
+
 [icedos.applications.prime-agent.settings]
 # "" means $XDG_CONFIG_HOME/prime-agent; $XDG_CONFIG_HOME / $XDG_DATA_HOME / $HOME / ~ expand per user.
 dataDir = ""
 
 # MCP tool-call timeout in seconds (60–3600). Heavy reviews may need more.
 mcpCallTimeout = 900
-
-portBase = 8850
-portOverrides = {}
 
 # Per-provider overrides merged into models.json (partial merge).
 providers = {}
@@ -98,6 +93,10 @@ shareTraces = false
 # Send product analytics (token usage, model/provider categories) to Prime Intellect.
 # Off by default; flips prime-agent's upstream `telemetry.enabled` (default true).
 telemetry = false
+
+[icedos.applications.prime-agent.settings.ports]
+base = 8850
+overrides = {}
 
 [icedos.applications.prime-agent.skills]
 # Extra built-in skills: name -> full SKILL.md content, shipped into dist/skills so
