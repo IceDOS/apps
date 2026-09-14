@@ -18,6 +18,7 @@
       inherit ((importTOML ./config.toml).icedos.applications.prime-agent)
         desktopEntry
         includeInIcedosGc
+        ollamaCloud
         sessionRetentionDays
         zedAgentPanelTerminal
         ;
@@ -36,6 +37,10 @@
       # Install a desktop entry launching the TUI in the user's default
       # terminal (Terminal=true; the desktop environment picks the terminal).
       desktopEntry = mkBoolOption { default = desktopEntry; };
+
+      # Ship the bundled Ollama Cloud provider (24 models + /login API-key flow
+      # with OLLAMA_API_KEY). Disable to keep the built-in catalog Ollama-free.
+      ollamaCloud = mkBoolOption { default = ollamaCloud; };
 
       # Whether `icedos gc` prunes stale prime-agent sessions (unshade-style).
       includeInIcedosGc = mkBoolOption { default = includeInIcedosGc; };
@@ -458,6 +463,7 @@
                 extraBuiltinSkills = prime-agent.skills.extraBuiltin;
                 codeIntelligence = prime-agent.skills.code.intelligence;
                 codeReview = prime-agent.skills.code.review;
+                ollamaCloud = prime-agent.ollamaCloud;
               };
             })
           ];
@@ -1293,6 +1299,9 @@
             ]
             ++ lib.optionals prime-agent.includeInIcedosGc [
               "icedos gc also clears out old prime-agent sessions and logs."
+            ]
+            ++ lib.optionals prime-agent.ollamaCloud [
+              "prime-agent can call Ollama Cloud models; /login and pick Ollama to store an API key."
             ];
         }
       )
