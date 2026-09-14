@@ -49,7 +49,7 @@ checkout (`path:/abs/path/to/apps`), then `icedos rebuild --build` (no activatio
   `sunshine` module is always the primary, stock daemon (real desktop capture). Loading the
   headless module stands up a SECOND, independent `sunshine-headless` daemon (own ports/state)
   pinned to a private gamescope-0 portal; autostart via its
-  `icedos.applications.steam.headless-session.autoStart`.
+  `icedos.applications.steam.headless-session.session.sunshine.autoStart`.
 - `gamescope`, `lsfg-vk`, `mangohud` — gaming/perf.
 - `helium` — loads `inputs.nur.modules.nixos.default` (the input is supplied by
   `providers#nur` via `meta.dependencies`), which puts unvetted `pkgs.nur.repos.*`

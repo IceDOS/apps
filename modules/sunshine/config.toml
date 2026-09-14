@@ -3,5 +3,6 @@ applications = {}
 autoStart = false
 capSysAdmin = false # Required for DRM/KMS screen capture.
 openFirewall = false
+shortcutStartsUnit = true # Desktop shortcut starts the systemd unit (correct conf + name) instead of the bare binary
 
 [icedos.applications.sunshine.settings]
