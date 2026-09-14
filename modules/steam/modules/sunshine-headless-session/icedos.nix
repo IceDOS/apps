@@ -21,16 +21,15 @@
 
           inherit (lib) mkIf mkMerge;
 
-          inherit (cfg)
-            excludeHostControllers
-            inputInjection
-            isolateVirtualControllers
-            pauseOnDisconnect
-            port
-            secondarySteamSession
-            secondarySteamSessionPath
-            steamOS
-            ;
+          # Map new nested option paths to local names (body references unchanged).
+          excludeHostControllers = cfg.session.controllers.excludeHost;
+          inputInjection = cfg.gamescope.inputInjection;
+          isolateVirtualControllers = cfg.session.controllers.isolateVirtual;
+          pauseOnDisconnect = cfg.session.pauseOnDisconnect;
+          port = cfg.session.sunshine.port;
+          secondarySteamSession = cfg.secondary.enable;
+          secondarySteamSessionPath = cfg.secondary.path;
+          steamOS = cfg.session.steam.steamOS;
 
           # Non-seat0 seat: inputtino suffixes devices with it; udev rules stay scoped here.
           headlessSeat = "seat-headless";
@@ -214,7 +213,7 @@
           assertions = [
             {
               assertion = !secondarySteamSession || secondarySteamSessionPath != "";
-              message = "icedos.applications.steam.headless-session.secondarySteamSessionPath must be set (non-empty) when secondarySteamSession is enabled.";
+              message = "icedos.applications.steam.headless-session.secondary.path must be set (non-empty) when secondary.enable is true.";
             }
             {
               # The shim assumes `input` has no human members; any voids the caller gate.
@@ -232,19 +231,19 @@
                     || u.group == "input"
                   )
                 ) (lib.attrNames config.users.users));
-              message = "The setgid-`input` shim assumes the `input` group has no human members, but at least one normal (human) user is in `input` (hand-written icedos.users.<name>.extraGroups, or the input-remapper module which injects every user — remove `input-remapper` from the apps repo's `modules` list, not a user entry). Remove input-remapper, or turn off isolateVirtualControllers/steamOS/inputInjection (then the shim is not built); input membership defeats the uaccess isolation the shim backs.";
+              message = "The setgid-`input` shim assumes the `input` group has no human members, but at least one normal (human) user is in `input` (hand-written icedos.users.<name>.extraGroups, or the input-remapper module which injects every user — remove `input-remapper` from the apps repo's `modules` list, not a user entry). Remove input-remapper, or turn off isolateVirtual/steamOS/inputInjection (then the shim is not built); input membership defeats the uaccess isolation the shim backs.";
             }
             {
               # Base port must differ from the primary's (the bind loser loops in Restart=always).
               assertion = port != (config.services.sunshine.settings.port or 47989);
-              message = "icedos.applications.steam.headless-session.port (${toString port}) must differ from the primary sunshine instance's port (${
+              message = "icedos.applications.steam.headless-session.session.sunshine.port (${toString port}) must differ from the primary sunshine instance's port (${
                 toString (config.services.sunshine.settings.port or 47989)
               }) — two Sunshine daemons cannot share a TCP/UDP base port.";
             }
             {
               # openFirewall opens port+21 (RTSP); cap so it stays in NixOS' port range.
               assertion = port + 21 <= 65535;
-              message = "icedos.applications.steam.headless-session.port (${toString port}) must be <= 65514 because the openFirewall rule opens the derived port+21 (RTSP) block.";
+              message = "icedos.applications.steam.headless-session.session.sunshine.port (${toString port}) must be <= 65514 because the openFirewall rule opens the derived port+21 (RTSP) block.";
             }
           ];
 
@@ -329,8 +328,8 @@
             };
           };
 
-          # Tears the session down after sessionIdleTimeout, regrows the probe gamescope after
-          # gamescopeRegrowTimeout. Hardened like idle.service; it systemd-runs gamescope too.
+          # Tears the session down after session.idleTimeout, regrows the probe gamescope after
+          # gamescope.regrowTimeout. Hardened like idle.service; it systemd-runs gamescope too.
           systemd.user.services.sunshine-headless-recycle = {
             description = "Sunshine headless session recycler (idle teardown + probe gamescope regrow)";
             serviceConfig = {
@@ -361,7 +360,7 @@
           # The headless daemon: a second, independent Sunshine pinned to the private portal.
           systemd.user.services.sunshine-headless = headlessDaemon.service;
 
-          networking.firewall = mkIf cfg.openFirewall headlessDaemon.firewall;
+          networking.firewall = mkIf cfg.session.sunshine.openFirewall headlessDaemon.firewall;
         }
       )
     ];

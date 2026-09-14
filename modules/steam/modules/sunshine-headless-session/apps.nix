@@ -10,12 +10,7 @@
 
 let
   inherit (lib) getExe;
-
-  inherit (cfg)
-    normalSteamSession
-    secondarySteamSession
-    secondarySteamSessionPath
-    ;
+  inherit (cfg) main secondary;
 
   # Cover-label font: stylix sans-serif (variable fonts lack static bold).
   fontPkg = config.stylix.fonts.sansSerif.package;
@@ -58,11 +53,14 @@ let
     in
     {
       name = baseName;
+
       image-path = steamCover {
-        second = normalSteamSession && secondarySteamSession && home != "";
+        second = main.enable && secondary.enable && home != "";
       };
+
       cmd = "${getExe sessionApp} wait${homeArg}";
       auto-detach = false;
+
       prep-cmd = [
         {
           do = "${getExe sessionApp} start \"${home}\"";
@@ -72,16 +70,16 @@ let
     };
 
   steamApps =
-    lib.optionals normalSteamSession [
+    lib.optionals main.enable [
       (mkSteamApp {
         baseName = "Steam";
         home = "";
       })
     ]
-    ++ lib.optionals secondarySteamSession [
+    ++ lib.optionals secondary.enable [
       (mkSteamApp {
         baseName = "Steam (Second Session)";
-        home = secondarySteamSessionPath;
+        home = secondary.path;
       })
     ];
 in
