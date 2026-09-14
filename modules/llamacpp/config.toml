@@ -4,6 +4,7 @@ cacheTypeV = ""
 contextSize = 4096
 flashAttn = false
 vkDisableHostVisibleVidmem = false
+radvNoGttSpill = false
 batchSize = 2048
 gpuLayers = 99
 host = "127.0.0.1"
@@ -13,6 +14,9 @@ mmprojOffload = true
 prio = 2
 prioBatch = 3
 port = 8080
+# Server slots. 0 lets llama.cpp choose (4, sharing one KV cache). Each draft-mtp
+# slot gets its own draft context, so 1 saves VRAM when speculating.
+parallel = 0
 
 # Seconds of idleness after which the server releases the model and sleeps,
 # reloading it on the next request (measured: ~13 GiB freed, ~34 s to wake).
@@ -63,9 +67,14 @@ lifecycleModelReasoning = true
 lifecycleModelMaxTokens = 16384
 
 # Speculative decoding, as llama.cpp's comma-separated --spec-type list: the
-# ngram-* types draft from repeated text and need no draft model or VRAM, the
-# draft-* types need --spec-draft-model. Empty keeps llama.cpp's own default.
+# ngram-* types draft from repeated text and need no draft model or VRAM, draft-mtp
+# uses the model's own MTP layers, other draft-* types need --spec-draft-model.
+# Empty keeps llama.cpp's own default.
 specType = "" # e.g. "ngram-simple"
+# Draft tokens per step and minimum draft probability for specType. 0 keeps
+# llama.cpp's defaults (n-max 3, p-min 0.00). draft-mtp needs a GGUF with MTP layers.
+specDraftNMax = 0
+specDraftPMin = 0.0
 
 reasoningBudgetDivider = 1.25
 reasoningPreserve = true
