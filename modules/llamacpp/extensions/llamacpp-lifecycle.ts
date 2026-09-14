@@ -1,15 +1,5 @@
-// Loads the local llama.cpp server when a model it serves is about to be used,
-// and stops it once the server itself reports every slot idle. The model is most
-// of the card's VRAM, so leaving it resident blocks other GPU work.
-//
-// Idleness comes from the server's /slots endpoint, never from this extension's
-// own view of the conversation. An earlier version timed idleness from agent
-// events and killed generations mid-stream, because a long generation looks
-// identical to an idle session from out here. is_processing does not.
-//
-// The llamacppUrl / llamacppBin / llamacppProvider / llamacppIdleSeconds values
-// below are substituted at build time (the @ markers
-// are the substitution syntax, so they are not repeated in prose here).
+// Starts the local llama.cpp server on demand and stops it once /slots reports every slot idle.
+// Agent events cannot detect idleness: a long generation looks idle from here, is_processing does not.
 
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
@@ -18,27 +8,24 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
+// Substituted at build time by icedos.nix.
 const URL_BASE = "@llamacppUrl@";
-const BIN = "@llamacppBin@";
-const PROVIDER = "@llamacppProvider@";
+const BIN = "icedos";
+const PROVIDER = "llamacpp";
 const IDLE_MS = Number("@llamacppIdleSeconds@") * 1000;
 
-// Loading a 27B model off disk takes tens of seconds; well under this.
+// A 27B model takes tens of seconds to load, well under this.
 const START_TIMEOUT_MS = 180_000;
 const PROBE_TIMEOUT_MS = 2_000;
 const POLL_MS = 1_000;
 const IDLE_CHECK_MS = 15_000;
-// After a failed start, fail fast for a while instead of making every request
-// sit through the full start timeout again.
+// Fail fast after a failed start instead of making every request wait out the timeout again.
 const FAILURE_BACKOFF_MS = 60_000;
-// An instance whose marker is older than this crashed without cleaning up.
+// A marker older than this belongs to an instance that crashed without cleaning up.
 const INSTANCE_STALE_MS = 120_000;
 
-// The daemon spawns subagent runtimes in the same process and re-loads the
-// extensions for each, and tearing one down emits session_shutdown with
-// reason "quit" — indistinguishable from the user actually quitting. So
-// "is anyone still using this?" has to be answered by counting live instances
-// rather than by trusting the reason.
+// Subagent teardown also emits session_shutdown with reason "quit", so whether
+// anyone still uses the model comes from counting live instances, not the reason.
 const INSTANCE = `${process.pid}-${randomUUID()}`;
 const instanceDir = () =>
   join(
@@ -71,10 +58,8 @@ const markerAlive = (name: string): boolean => {
     return e?.code === "EPERM"; // exists, owned by another user
   }
 };
-// Counts instances other than this one that are actually using the local
-// model, reaping markers left by crashes. A marker is only written while a
-// session is on the local provider, so a cloud-only window cannot pin the
-// model in VRAM.
+// Counts other instances on the local model and reaps crashed markers. Only local
+// sessions write a marker, so a cloud-only window cannot keep the model in VRAM.
 const otherInstances = (): number => {
   let n = 0;
   try {
@@ -82,8 +67,7 @@ const otherInstances = (): number => {
       if (f === INSTANCE) continue;
       const path = join(instanceDir(), f);
       try {
-        // Age alone would keep a SIGKILLed window counted for two minutes,
-        // and nothing would run again to free the VRAM.
+        // Age alone would count a SIGKILLed window for two minutes with nothing left to free the VRAM.
         if (!markerAlive(f) || Date.now() - statSync(path).mtimeMs > INSTANCE_STALE_MS) {
           unlinkSync(path);
           continue;
@@ -118,8 +102,7 @@ export default function (pi: ExtensionAPI) {
   };
   const healthy = async () => (await get("/health")) !== null;
 
-  // null when the server can't be reached or the shape is unexpected — the
-  // caller must treat that as "not known to be idle" rather than as idle.
+  // null means unreachable or an unexpected shape, which callers must not treat as idle.
   const allSlotsIdle = async (): Promise<boolean | null> => {
     const res = await get("/slots");
     if (!res) return null;
@@ -142,8 +125,7 @@ export default function (pi: ExtensionAPI) {
     }
   };
 
-  // `starting` is assigned synchronously before the first await, so two hooks
-  // firing together share one promise instead of racing two servers up.
+  // `starting` is set before the first await, so concurrent hooks share one start.
   const ensureUp = async (notify?: (s: string) => void): Promise<boolean> => {
     if (starting) return starting;
     if (Date.now() < failedUntil) return false;
@@ -156,8 +138,7 @@ export default function (pi: ExtensionAPI) {
       run(["llamacpp", "serve", "--detached"]);
       const deadline = Date.now() + START_TIMEOUT_MS;
       while (Date.now() < deadline) {
-        // unref'd: a start that never succeeds must not keep the process alive
-        // for the full timeout after the user has quit.
+        // unref'd so a failing start does not keep the process alive after the user quits.
         await new Promise((r) => {
           const t = setTimeout(r, POLL_MS);
           t.unref?.();
@@ -181,14 +162,13 @@ export default function (pi: ExtensionAPI) {
   };
 
   const startIdleWatch = () => {
-    // After the guard: with the poller disabled there is nothing to advertise,
-    // and a marker nobody refreshes would just be reaped by another window.
+    // Register after the guard: with polling off, a marker nobody refreshes would just be reaped.
     if (idleTimer || IDLE_MS <= 0) return;
     registerInstance();
     idleTimer = setInterval(async () => {
       if (!enabled || starting) return;
       const idle = await allSlotsIdle();
-      // Unreachable, or still loading: either way, not a moment to stop it.
+      // Unreachable or still loading, so not safe to stop.
       if (idle !== true) {
         if (idle === false) lastBusyAt = Date.now();
         return;
@@ -205,22 +185,17 @@ export default function (pi: ExtensionAPI) {
     clearInterval(idleTimer);
     idleTimer = null;
   };
-  // Tearing the poller down leaves nobody to free the VRAM, so hand it one
-  // last chance: stop the server if it is up and genuinely idle. Never on a
-  // busy one — is_processing is the server's own answer.
+  // Last chance to free VRAM once the poller is gone; never stops a busy server.
   const stopIfIdle = async () => {
     if (IDLE_MS <= 0) return;
     if ((await allSlotsIdle()) === true) run(["llamacpp", "stop"]);
   };
 
-  // The request payload carries a bare model id, not "provider/id", so the
-  // provider has to come from the registry.
+  // The payload carries a bare model id, not "provider/id", so the provider comes from the registry.
   const isLocal = (ctx: any, id?: unknown): boolean => {
     if (typeof id === "string" && id) {
       try {
-        // find(), not a getAll() scan: built-ins are listed before custom
-        // models, so an id shared with a cloud built-in would resolve to the
-        // cloud entry and the server would never be started.
+        // find(), not getAll(): built-ins list first, so an id shared with a cloud model would match it.
         if (ctx?.modelRegistry?.find?.(PROVIDER, id)) return true;
       } catch {
         // registry unavailable; fall through to the session's model
@@ -230,16 +205,12 @@ export default function (pi: ExtensionAPI) {
   };
   const notifier = (ctx: any) => (s: string) => ctx?.ui?.notify?.(s);
 
-  // -- hooks ----------------------------------------------------------------
-  // Start the load as soon as the model is chosen, but do NOT await it here.
-  // Both of these run inside a daemon RPC (set_model) that times out well
-  // before a ~35 s cold load finishes, which fails the selection itself. The
-  // request path below waits on the same promise instead.
+  // Not awaited: set_model's RPC times out before a ~35 s cold load, which would fail the
+  // selection. before_provider_request waits on the same promise instead.
   const beginLoad = (ctx: any) => {
     void ensureUp(notifier(ctx)).catch(() => {});
   };
-  // Refreshes the marker only while one exists; registerInstance is called
-  // from startIdleWatch, so a cloud-only session never registers at all.
+  // Refreshes only an existing marker, so a cloud-only session never registers.
   const heartbeat = setInterval(() => {
     if (idleTimer) registerInstance();
   }, 30_000);
@@ -253,9 +224,7 @@ export default function (pi: ExtensionAPI) {
   pi.on("model_select", async (event: any, ctx: any) => {
     if (!enabled || !isLocal(ctx)) {
       stopIdleWatch();
-      // Only when actually leaving the local model, and only if no other
-      // session is still using it — a cloud-to-cloud switch must not stop a
-      // server this session never touched.
+      // Only when leaving the local model with no other session on it; cloud-to-cloud switches leave it alone.
       if (
         enabled &&
         event?.previousModel?.provider === PROVIDER &&
@@ -268,9 +237,7 @@ export default function (pi: ExtensionAPI) {
     startIdleWatch();
     beginLoad(ctx);
   });
-  // Blocking here is deliberate: the request would otherwise hit a closed port
-  // while the model loads. The provider's own retries give up long before the
-  // ~35 s a cold load takes.
+  // Blocks on purpose: provider retries give up long before a ~35 s cold load finishes.
   pi.on("before_provider_request", async (event: any, ctx: any) => {
     if (!enabled || !isLocal(ctx, event?.payload?.model)) return;
     lastBusyAt = Date.now();
@@ -278,17 +245,12 @@ export default function (pi: ExtensionAPI) {
     await ensureUp(notifier(ctx));
   });
 
-  // Fires for "reload", "new" and "fork" as well as "quit", and each of those
-  // re-evaluates this module into fresh closures while leaving the old ones'
-  // timers running — nothing invalidates them — so the poller must be cleared
-  // unconditionally or they accumulate one per reload.
+  // Also fires on reload/new/fork, which leave old closures' timers running, so always clear the poller.
   pi.on("session_shutdown", async (event: any) => {
     stopIdleWatch();
     clearInterval(heartbeat);
     unregisterInstance();
-    // "quit" is also what a finishing subagent reports, so the reason alone
-    // would unload the model on every Task spawn and make the parent's next
-    // turn pay a ~35 s reload. Stop only when nobody else is left.
+    // Subagents also report "quit"; stopping on the reason alone would reload the model after every Task.
     if (enabled && event?.reason === "quit" && otherInstances() === 0) {
       await stopIfIdle();
     }
