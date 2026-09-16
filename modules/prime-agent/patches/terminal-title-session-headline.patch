@@ -1,8 +1,8 @@
 diff --git a/packages/coding-agent/src/modes/interactive/interactive-mode.ts b/packages/coding-agent/src/modes/interactive/interactive-mode.ts
-index c1e6dc5..f9e1540 100644
+index 5474ed0..1116b20 100644
 --- a/packages/coding-agent/src/modes/interactive/interactive-mode.ts
 +++ b/packages/coding-agent/src/modes/interactive/interactive-mode.ts
-@@ -280,7 +280,7 @@ import {
+@@ -289,7 +289,7 @@ import {
  	type ThemeColor,
  	theme,
  } from "./theme/theme.js";
@@ -11,8 +11,8 @@ index c1e6dc5..f9e1540 100644
  
  interface Expandable {
  	setExpanded(expanded: boolean): void;
-@@ -972,6 +972,9 @@ export class InteractiveMode {
- 	private featureHintSuppressedByQueue = false;
+@@ -1005,6 +1005,9 @@ export class InteractiveMode {
+ 	private workingTimer: NodeJS.Timeout | undefined = undefined;
  	private pulseTimer: NodeJS.Timeout | undefined = undefined;
  	private pulseFrame = 0;
 +	private lastTerminalTitle: string | undefined;
@@ -21,8 +21,8 @@ index c1e6dc5..f9e1540 100644
  	private readonly activityTracker = new AgentActivityTracker();
  	// activityTracker token count already folded into the context snapshot; only output beyond
  	// this counts as live in-flight (keeps auto-retries from re-adding a failed attempt).
-@@ -1529,14 +1532,40 @@ export class InteractiveMode {
- 		await this.updateAvailableProviderCount();
+@@ -1631,14 +1634,40 @@ export class InteractiveMode {
+ 		})();
  	}
  
 +	// "<status glyph> <headline>": Zed terminal threads split the glyph off as a status marker.
@@ -69,7 +69,7 @@ index c1e6dc5..f9e1540 100644
  	}
  
  	async run(): Promise<InteractiveModeRunResult> {
-@@ -3262,6 +3291,7 @@ export class InteractiveMode {
+@@ -3539,6 +3568,7 @@ export class InteractiveMode {
  
  	// Recover the in-flight run's start from a restored transcript so the elapsed timer survives re-attach.
  	private restoreTurnStartFromMessages(messages: readonly AgentMessage[]): void {
@@ -77,26 +77,30 @@ index c1e6dc5..f9e1540 100644
  		this.turnStartedAt = undefined;
  		if (!this.isAgentStreaming()) return;
  		for (let i = messages.length - 1; i >= 0; i--) {
-@@ -3407,8 +3437,10 @@ export class InteractiveMode {
- 		}
+@@ -3576,12 +3606,14 @@ export class InteractiveMode {
+ 		this.statusContainer.clear();
  	}
  
 +	// Every connection state patch (streaming, name, recap) lands here, so it also refreshes the title.
  	private updateWorkingPulse(): void {
- 		const active = this.isAgentStreaming();
+ 		const active =
+ 			this.isAgentStreaming() ||
+ 			this.chatContainer.children.some(
+ 				(component) => component instanceof ToolExecutionComponent && component.hasRunningBackgroundShell(),
+ 			);
 +		this.updateTerminalTitle();
  		if (!active) {
  			this.stopWorkingPulse();
  			return;
-@@ -3422,6 +3454,7 @@ export class InteractiveMode {
- 	private tickWorkingPulse(): void {
+@@ -3596,6 +3628,7 @@ export class InteractiveMode {
+ 		this.updateWorkingPulse();
  		this.pulseFrame += 1;
  		setWorkingPulseFrame(this.pulseFrame);
 +		this.updateTerminalTitle();
  		this.ui.requestRender();
  	}
  
-@@ -5592,7 +5625,10 @@ export class InteractiveMode {
+@@ -5892,7 +5925,10 @@ export class InteractiveMode {
  				break;
  
  			case "message_end":
