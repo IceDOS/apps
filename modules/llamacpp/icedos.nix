@@ -9,6 +9,7 @@
         mkAttrsOfOption
         mkBoolOption
         mkEitherOption
+        mkEnumOption
         mkFloatBetweenOption
         mkIntBetweenOption
         mkStrOption
@@ -167,21 +168,38 @@
         spec = {
           type = mkStrOption { default = settings.spec.type; };
 
-          draftNMax = mkIntBetweenOption {
-            path = "icedos.applications.llamacpp.settings.spec.draftNMax";
-            source = ./config.toml;
-            default = settings.spec.draftNMax;
-          } 0 1024;
+          draft = {
+            nMax = mkIntBetweenOption {
+              path = "icedos.applications.llamacpp.settings.spec.draft.nMax";
+              source = ./config.toml;
+              default = settings.spec.draft.nMax;
+            } 0 1024;
 
-          draftPMin = mkFloatBetweenOption {
-            path = "icedos.applications.llamacpp.settings.spec.draftPMin";
-            source = ./config.toml;
-            default = settings.spec.draftPMin;
-          } 0.0 1.0;
+            pMin = mkFloatBetweenOption {
+              path = "icedos.applications.llamacpp.settings.spec.draft.pMin";
+              source = ./config.toml;
+              default = settings.spec.draft.pMin;
+            } 0.0 1.0;
+
+            # Upstream llama.cpp has no --spec-draft-sampling: without #27694 the server exits on the flag.
+            sampling =
+              mkEnumOption
+                {
+                  path = "icedos.applications.llamacpp.settings.spec.draft.sampling";
+                  source = ./config.toml;
+                  default = settings.spec.draft.sampling;
+                }
+                [
+                  ""
+                  "greedy"
+                  "probabilistic"
+                ];
+          };
         };
 
         vulkan = {
           # Keeps tensors out of the small ReBAR window, which cuts token generation ~3x on cards like Navi21.
+          # With Resizable BAR enabled the window is the whole of VRAM, and this costs ~2% instead.
           disableHostVisibleVidmem = mkBoolOption { default = settings.vulkan.disableHostVisibleVidmem; };
 
           # RADV-only: appends nogttspill to RADV_PERFTEST so allocations stay out of system RAM under VRAM pressure.
@@ -235,8 +253,9 @@
           reasoningBudgetDivider = cfg.settings.reasoning.budgetDivider;
           reasoningPreserve = cfg.settings.reasoning.preserve;
           specType = cfg.settings.spec.type;
-          specDraftNMax = cfg.settings.spec.draftNMax;
-          specDraftPMin = cfg.settings.spec.draftPMin;
+          specDraftNMax = cfg.settings.spec.draft.nMax;
+          specDraftPMin = cfg.settings.spec.draft.pMin;
+          specDraftSampling = cfg.settings.spec.draft.sampling;
           vkDisableHostVisibleVidmem = cfg.settings.vulkan.disableHostVisibleVidmem;
           radvNoGttSpill = cfg.settings.vulkan.radvNoGttSpill;
 
@@ -382,6 +401,11 @@
               ${lib.optionalString (specType != "") "--spec-type ${lib.escapeShellArg specType}"} \
               ${lib.optionalString (specDraftNMax > 0) "--spec-draft-n-max ${toString specDraftNMax}"} \
               ${lib.optionalString (specDraftPMin > 0) "--spec-draft-p-min ${toString specDraftPMin}"} \
+              ${
+                lib.optionalString (
+                  specDraftSampling != ""
+                ) "--spec-draft-sampling ${lib.escapeShellArg specDraftSampling}"
+              } \
               --flash-attn ${if flashAttn then "on" else "off"} \
               ${lib.optionalString (sleepIdleSeconds > 0) "--sleep-idle-seconds ${toString sleepIdleSeconds}"} \
               ${lib.optionalString reasoningPreserve "--reasoning-preserve"} \
@@ -508,6 +532,12 @@
                           description = "Minimum draft probability (0 = llama.cpp default)";
                         }
                         {
+                          name = "spec-draft-sampling";
+                          type = "string";
+                          default = specDraftSampling;
+                          description = "Draft verification: greedy or probabilistic";
+                        }
+                        {
                           name = "mmproj";
                           type = "string";
                           default = mmproj;
@@ -586,6 +616,7 @@
                     if [[ "$LLAMACPP_SPEC_TYPE_SET" == "1" ]]; then ARGS+=(--spec-type "$LLAMACPP_SPEC_TYPE"); fi
                     if [[ "$LLAMACPP_SPEC_DRAFT_N_MAX_SET" == "1" ]]; then ARGS+=(--spec-draft-n-max "$LLAMACPP_SPEC_DRAFT_N_MAX"); fi
                     if [[ "$LLAMACPP_SPEC_DRAFT_P_MIN_SET" == "1" ]]; then ARGS+=(--spec-draft-p-min "$LLAMACPP_SPEC_DRAFT_P_MIN"); fi
+                    if [[ "$LLAMACPP_SPEC_DRAFT_SAMPLING_SET" == "1" ]]; then ARGS+=(--spec-draft-sampling "$LLAMACPP_SPEC_DRAFT_SAMPLING"); fi
                     if [[ "$LLAMACPP_MMPROJ_SET" == "1" ]]; then ARGS+=(--mmproj "$LLAMACPP_MMPROJ" --image-min-tokens 1024); fi
                     if [[ "$LLAMACPP_PRIO_SET" == "1" ]]; then ARGS+=(--prio "$LLAMACPP_PRIO"); fi
                     if [[ "$LLAMACPP_PRIO_BATCH_SET" == "1" ]]; then ARGS+=(--prio-batch "$LLAMACPP_PRIO_BATCH"); fi
