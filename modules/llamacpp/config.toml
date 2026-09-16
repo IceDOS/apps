@@ -73,9 +73,13 @@ sleepIdleSeconds = -1
 [icedos.applications.llamacpp.settings.spec]
 type = "" # e.g. "ngram-simple"
 
-# 0 keeps llama.cpp's defaults (n-max 3, p-min 0.00).
-draftNMax = 0
-draftPMin = 0.0
+# nMax and pMin at 0 keep llama.cpp's defaults (n-max 3, p-min 0.00). sampling "probabilistic"
+# verifies the draft by rejection sampling instead of matching its argmax, which holds acceptance
+# up when sampling above temperature 0; it needs the #27694 patch, and "" leaves the flag off.
+[icedos.applications.llamacpp.settings.spec.draft]
+nMax = 0
+pMin = 0
+sampling = ""
 
 [icedos.applications.llamacpp.settings.vulkan]
 disableHostVisibleVidmem = false
