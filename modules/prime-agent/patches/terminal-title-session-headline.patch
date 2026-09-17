@@ -2,26 +2,19 @@ diff --git a/packages/coding-agent/src/modes/interactive/interactive-mode.ts b/p
 index 5474ed0..1116b20 100644
 --- a/packages/coding-agent/src/modes/interactive/interactive-mode.ts
 +++ b/packages/coding-agent/src/modes/interactive/interactive-mode.ts
-@@ -289,7 +289,7 @@ import {
- 	type ThemeColor,
- 	theme,
- } from "./theme/theme.js";
--import { setWorkingPulseFrame, WORKING_ICON_INTERVAL_MS } from "./theme/working-icon.js";
-+import { setWorkingPulseFrame, WORKING_ICON_INTERVAL_MS, workingIconFrame } from "./theme/working-icon.js";
- 
- interface Expandable {
- 	setExpanded(expanded: boolean): void;
-@@ -1005,6 +1005,9 @@ export class InteractiveMode {
+@@ -1005,6 +1005,11 @@ export class InteractiveMode {
  	private workingTimer: NodeJS.Timeout | undefined = undefined;
  	private pulseTimer: NodeJS.Timeout | undefined = undefined;
  	private pulseFrame = 0;
 +	private lastTerminalTitle: string | undefined;
++	// ⬒ ⬓ ■ share one width in Adwaita Sans; upstream ◈ falls back to a font of another width and shifts the title text.
++	private static readonly TITLE_WORKING_FRAMES = ["⬒", "⬒", "⬓", "⬓"] as const;
 +	// Headline fallback before the daemon summarizer writes a recap.
 +	private firstUserMessage: string | undefined;
  	private readonly activityTracker = new AgentActivityTracker();
  	// activityTracker token count already folded into the context snapshot; only output beyond
  	// this counts as live in-flight (keeps auto-retries from re-adding a failed attempt).
-@@ -1631,14 +1634,40 @@ export class InteractiveMode {
+@@ -1631,14 +1636,41 @@ export class InteractiveMode {
  		})();
  	}
  
@@ -46,7 +39,8 @@ index 5474ed0..1116b20 100644
 +				? `${headline.slice(0, 79)}…`
 +				: headline
 +			: `${APP_TITLE} - ${path.basename(this.getCurrentCwd())}`;
-+		const glyph = this.isAgentStreaming() ? workingIconFrame(this.pulseFrame) : "✳";
++		const frames = InteractiveMode.TITLE_WORKING_FRAMES;
++		const glyph = this.isAgentStreaming() ? frames[this.pulseFrame % frames.length] : "■";
 +		const title = `${glyph} ${text}`;
 +		if (title === this.lastTerminalTitle) return;
 +		this.lastTerminalTitle = title;
@@ -69,7 +63,7 @@ index 5474ed0..1116b20 100644
  	}
  
  	async run(): Promise<InteractiveModeRunResult> {
-@@ -3539,6 +3568,7 @@ export class InteractiveMode {
+@@ -3539,6 +3571,7 @@ export class InteractiveMode {
  
  	// Recover the in-flight run's start from a restored transcript so the elapsed timer survives re-attach.
  	private restoreTurnStartFromMessages(messages: readonly AgentMessage[]): void {
@@ -77,7 +71,7 @@ index 5474ed0..1116b20 100644
  		this.turnStartedAt = undefined;
  		if (!this.isAgentStreaming()) return;
  		for (let i = messages.length - 1; i >= 0; i--) {
-@@ -3576,12 +3606,14 @@ export class InteractiveMode {
+@@ -3576,12 +3609,14 @@ export class InteractiveMode {
  		this.statusContainer.clear();
  	}
  
@@ -92,7 +86,7 @@ index 5474ed0..1116b20 100644
  		if (!active) {
  			this.stopWorkingPulse();
  			return;
-@@ -3596,6 +3628,7 @@ export class InteractiveMode {
+@@ -3596,6 +3631,7 @@ export class InteractiveMode {
  		this.updateWorkingPulse();
  		this.pulseFrame += 1;
  		setWorkingPulseFrame(this.pulseFrame);
@@ -100,7 +94,7 @@ index 5474ed0..1116b20 100644
  		this.ui.requestRender();
  	}
  
-@@ -5892,7 +5925,10 @@ export class InteractiveMode {
+@@ -5892,7 +5928,10 @@ export class InteractiveMode {
  				break;
  
  			case "message_end":
