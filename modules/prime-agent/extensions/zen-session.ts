@@ -1,7 +1,4 @@
-// zen 429s unless identified as an opencode client, and since 2026-09-06 400s
-// free-tier requests carrying no session header.
-
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import type {
   ExtensionAPI,
   ExtensionContext,
@@ -15,6 +12,25 @@ const USER_AGENT = "opencode/@opencodeVersion@";
 // "Console Go" and needs the same headers as zen/v1.
 const PROVIDERS = ["opencode", "opencode-go"];
 
+const BASE62 = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+
+// Mirrors opencode's Identifier.descending("session") (packages/opencode/src/id/id.ts),
+// seeded from the pi session id so a resumed session keeps the same zen id.
+function opencodeSessionId(piSessionId: string): string {
+  const hex = piSessionId.replace(/-/g, "");
+  // uuidv7 carries its creation time in the first 48 bits.
+  const timestamp = hex[12] === "7" ? parseInt(hex.slice(0, 12), 16) : Date.now();
+  const now = ~(BigInt(timestamp) * BigInt(0x1000) + BigInt(1));
+  const time = Buffer.alloc(6);
+  for (let i = 0; i < 6; i++) {
+    time[i] = Number((now >> BigInt(40 - 8 * i)) & BigInt(0xff));
+  }
+  const digest = createHash("sha256").update(piSessionId).digest();
+  let suffix = "";
+  for (let i = 0; i < 14; i++) suffix += BASE62[digest[i] % 62];
+  return `ses_${time.toString("hex")}${suffix}`;
+}
+
 export default function zenSession(pi: ExtensionAPI) {
   let current = "";
 
@@ -27,7 +43,7 @@ export default function zenSession(pi: ExtensionAPI) {
       pi.registerProvider(provider, {
         headers: {
           "User-Agent": USER_AGENT,
-          "x-opencode-session": sessionId,
+          "x-opencode-session": opencodeSessionId(sessionId),
         },
       });
     }
@@ -37,8 +53,7 @@ export default function zenSession(pi: ExtensionAPI) {
   // first session_start.
   useSessionId(randomUUID());
 
-  // pi session ids are uuidv7, the shape zen wants. session_tree catches the
-  // switches and forks that reassign the id mid-process.
+  // session_tree catches the switches and forks that reassign the id mid-process.
   const track = (_event: unknown, ctx: ExtensionContext) => {
     useSessionId(ctx.sessionManager.getSessionId());
   };
