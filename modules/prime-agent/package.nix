@@ -144,6 +144,10 @@ buildNpmPackage (finalAttrs: {
     # Title is set once at startup. Keep it as "<status glyph> <name|recap|first message>"
     # so Zed terminal threads show live status and topic, like Claude Code.
     ./patches/terminal-title-session-headline.patch
+
+    # opencode zen 403s a free-tier request whose tools omit bash, grep, glob and
+    # read. Append stubs for the missing names so every zen request is accepted.
+    ./patches/opencode-zen-tool-floor.patch
   ]
   ++ lib.optionals ollamaCloud [
     # Ollama Cloud provider: bundled models (https://ollama.com/v1) + the /login
