@@ -1,7 +1,7 @@
 { icedosLib, lib, ... }:
 
 {
-  options.icedos.applications.steam.headless-session = import ./options.nix {
+  options.icedos.applications.sunshine-headless = import ./options.nix {
     inherit icedosLib lib;
   };
 
@@ -17,25 +17,56 @@
         }:
 
         let
-          cfg = config.icedos.applications.steam.headless-session;
+          cfg = config.icedos.applications.sunshine-headless;
 
           inherit (lib) mkIf mkMerge;
 
-          # Map new nested option paths to local names (body references unchanged).
-          excludeHostControllers = cfg.session.controllers.excludeHost;
           inputInjection = cfg.gamescope.inputInjection;
           isolateVirtualControllers = cfg.session.controllers.isolateVirtual;
-          pauseOnDisconnect = cfg.session.pauseOnDisconnect;
           port = cfg.session.sunshine.port;
-          secondarySteamSession = cfg.secondary.enable;
-          secondarySteamSessionPath = cfg.secondary.path;
-          steamOS = cfg.session.steam.steamOS;
 
           # Non-seat0 seat: inputtino suffixes devices with it; udev rules stay scoped here.
           headlessSeat = "seat-headless";
 
+          # A per-app override uses null to mean "inherit the module-global value".
+          pick = v: fallback: if v == null then fallback else v;
+
+          # A slug keys shell function names and runtime paths, so keep it [a-z0-9_].
+          mkSlug =
+            name:
+            let
+              mapped = lib.concatMapStrings (c: if builtins.match "[a-z0-9]" c != null then c else "_") (
+                lib.stringToCharacters (lib.toLower name)
+              );
+              # Runs of underscores would otherwise survive a single replacement pass.
+              collapse =
+                s:
+                if builtins.match "(.*)__(.*)" s == null then
+                  s
+                else
+                  collapse (builtins.replaceStrings [ "__" ] [ "_" ] s);
+            in
+            collapse mapped;
+
+          # Apps (falling back to a name-derived slug) drive the scripts, the Sunshine app
+          # list and the per-app scopes, so resolve them once here and share the result.
+          apps = map (
+            app:
+            app
+            // {
+              slug = if app.slug != "" then app.slug else mkSlug app.name;
+              # Null per-app overrides inherit the module-global gamescope value.
+              gamescope = lib.mapAttrs (k: v: if v == null then cfg.gamescope.${k} else v) app.gamescope;
+              session = {
+                idleTimeout = pick app.session.idleTimeout cfg.session.idleTimeout;
+                pauseOnDisconnect = pick app.session.pauseOnDisconnect cfg.session.pauseOnDisconnect;
+                controllers.excludeHost = pick app.session.controllers.excludeHost cfg.session.controllers.excludeHost;
+              };
+            }
+          ) cfg.apps;
+
           # One flag gates the input bridge (wrapper, group, membership) so they can't drift.
-          bridgeNeeded = isolateVirtualControllers || steamOS || inputInjection;
+          bridgeNeeded = isolateVirtualControllers || inputInjection || lib.any (app: app.shim) apps;
 
           packages = import ./packages.nix {
             inherit
@@ -43,10 +74,13 @@
               lib
               inputs
               cfg
+              apps
               ;
 
-            steamPkg = ((import ../../lib/resolved-steam.nix) { inherit config pkgs; }).resolved;
             sunshinePkg = pkgs.sunshine;
+            # Only the shim's TEST_MAIN build assert reads this, as an example of a live
+            # target name; the runtime gate is shape-based, so a lookup failure is fine.
+            steamVersion = pkgs.steam.version or "0";
           };
 
           inherit (packages)
@@ -59,27 +93,24 @@
 
           inherit
             (import ./scripts.nix {
-              inherit pkgs lib cfg;
+              inherit
+                pkgs
+                lib
+                cfg
+                apps
+                ;
               inherit headlessSeat;
 
               inherit (packages)
                 gamescopePkg
-                steamPkg
-                steamosSessionSelect
                 xnudge
                 ;
             })
             sessionApp
             ;
 
-          steamApps = import ./apps.nix {
-            inherit
-              pkgs
-              lib
-              cfg
-              config
-              sessionApp
-              ;
+          sunshineApps = import ./apps.nix {
+            inherit lib apps sessionApp;
           };
 
           headlessDaemon = import ./daemon.nix {
@@ -90,8 +121,9 @@
               headlessSeat
               bridgeNeeded
               sessionApp
-              steamApps
               ;
+
+            apps = sunshineApps;
           };
 
           # Custom session.conf: standard servicedirs + the gamescope portal's D-Bus service dir,
@@ -134,8 +166,8 @@
         {
           # The whole block below is the HEADLESS session; the primary is untouched.
 
-          # Strip uaccess from the headless pads (seat-suffixed, priority 72): only the
-          # shim-promoted Steam can open them.
+          # Strip uaccess from the headless pads (seat-suffixed, priority 72): only a
+          # shim-promoted app can open them (group `input` has no human members).
           services.udev.packages =
             lib.optional isolateVirtualControllers (
               pkgs.writeTextDir "etc/udev/rules.d/72-sunshine-headless-no-uaccess.rules" ''
@@ -148,18 +180,29 @@
                 SUBSYSTEM=="input", ATTRS{name}=="*passthrough (${headlessSeat})*", TAG-="uaccess", MODE="0660", RUN+="${pkgs.acl}/bin/setfacl -b $env{DEVNAME}"
               ''
             )
-            # -steamos3 Steam opens /dev/rfkill O_RDWR; give it to `input` (no human members).
-            ++ lib.optional steamOS (
-              pkgs.writeTextDir "etc/udev/rules.d/70-steam-rfkill-access.rules" ''
-                SUBSYSTEM=="misc", KERNEL=="rfkill", GROUP="input", MODE="0660"
-              ''
-            );
+            # The session creates devices while an app runs: the client's pad is announced a
+            # few seconds after the app started. Each app scope allows input devices per node,
+            # so refresh that list inside the udev event, before libudev clients hear about the
+            # device, because SDL opens a pad exactly then. Without this the scope denies that
+            # first open and the app never sees a Moonlight controller.
+            ++
+              lib.optional
+                (lib.any (app: app.session.controllers.excludeHost || app.session.pauseOnDisconnect) apps)
+                (
+                  pkgs.writeTextDir "etc/udev/rules.d/72-sunshine-headless-scope-refresh.rules" ''
+                    SUBSYSTEM=="input", ATTRS{name}=="Sunshine* (${headlessSeat})*", RUN+="${lib.getExe sessionApp} refresh"
+                    SUBSYSTEM=="input", ATTRS{name}=="*passthrough (${headlessSeat})*", RUN+="${lib.getExe sessionApp} refresh"
+                    # A hidraw node has no ATTRS{name} (the HID device keeps the name in
+                    # HID_NAME), so match on the subsystem and let refresh filter.
+                    SUBSYSTEM=="hidraw", RUN+="${lib.getExe sessionApp} refresh"
+                  ''
+                );
 
           # The gid shim's setgid exec clears ambient caps, so CAP_SYS_NICE has to come from
           # a wrapper the shim execs. Always registered; gamescope needs it for SetNice and --rt.
           security.wrappers = mkMerge [
             (mkIf bridgeNeeded {
-              # Mode A (setgid `input`) is for Steam and gamescope only; the daemon running
+              # Mode A (setgid `input`) is for apps and gamescope only; the daemon running
               # as gid `input` fails the portal's /proc/<pid>/root check and gets a 503.
               sunshine-headless-gid = {
                 setgid = true;
@@ -195,25 +238,65 @@
             icedosLib.users.mkGroupInjector inputBridgeGroup (config.icedos.users)
           );
 
-          # -steamos3 Steam needs InputPlumber for controller ordering/routing.
-          services.inputplumber.enable = mkIf steamOS true;
-
-          # Let the local session manage the injected-Steam scope without sudo
-          # (scope creation, DeviceAllow refresh, freeze/thaw).
-          security.polkit.extraConfig = mkIf (excludeHostControllers || pauseOnDisconnect) ''
-            polkit.addRule(function(action, subject) {
-              if (action.id == "org.freedesktop.systemd1.manage-units" &&
-                  action.lookup("unit") == "sunshine-headless-steam.scope" &&
-                  subject.local && subject.active) {
-                return polkit.Result.YES;
-              }
-            });
-          '';
+          # Let the local session manage the injected app scopes without sudo (scope creation,
+          # DeviceAllow refresh, freeze/thaw), one arm per app scope, and let this module's own
+          # group take the locks a session-less app needs: outside a session polkit wants auth
+          # for inhibit-block-sleep (inhibit-block-idle is allow_any) and denies the
+          # power-profile hold outright, so proton-launch would never exec the game.
+          security.polkit.extraConfig =
+            mkIf (lib.any (app: app.session.controllers.excludeHost || app.session.pauseOnDisconnect) apps)
+              ''
+                polkit.addRule(function(action, subject) {
+                  if (action.id == "org.freedesktop.systemd1.manage-units" &&
+                      (${
+                        lib.concatMapStrings (app: ''
+                          action.lookup("unit") == "sunshine-headless-${app.slug}.scope" ||
+                        '') apps
+                      } false) &&
+                      subject.local && subject.active) {
+                    return polkit.Result.YES;
+                  }
+                });
+                ${lib.optionalString bridgeNeeded ''
+                  polkit.addRule(function(action, subject) {
+                    if ((action.id == "org.freedesktop.login1.inhibit-block-sleep" ||
+                         action.id == "org.freedesktop.UPower.PowerProfiles.hold-profile") &&
+                        subject.isInGroup("${inputBridgeGroup}")) {
+                      return polkit.Result.YES;
+                    }
+                  });
+                ''}
+              '';
 
           assertions = [
             {
-              assertion = !secondarySteamSession || secondarySteamSessionPath != "";
-              message = "icedos.applications.steam.headless-session.secondary.path must be set (non-empty) when secondary.enable is true.";
+              # Names are the CLI key (`sunshine-headless start <name>`) and the
+              # Sunshine shortcut label; duplicates would collide on the runtime paths.
+              assertion = lib.all (app: app.name != "") apps;
+              message = "icedos.applications.sunshine-headless.apps entries need a non-empty name.";
+            }
+            {
+              assertion = lib.unique (map (app: app.name) apps) == map (app: app.name) apps;
+              message = "icedos.applications.sunshine-headless.apps names must be unique.";
+            }
+            {
+              assertion = lib.all (app: builtins.match "[a-zA-Z0-9_]+" app.slug != null) apps;
+              message = "icedos.applications.sunshine-headless.apps slugs must match [a-zA-Z0-9_]+ (derived from the name; override with `slug`).";
+            }
+            {
+              assertion = lib.unique (map (app: app.slug) apps) == map (app: app.slug) apps;
+              message = "icedos.applications.sunshine-headless.apps slugs must be unique.";
+            }
+            {
+              # Sunshine splits the generated app command itself and only strips double
+              # quotes, so a name with one cannot be passed as a single argument.
+              assertion = lib.all (app: !(lib.hasInfix "\"" app.name)) apps;
+              message = "icedos.applications.sunshine-headless.apps names must not contain a double quote (Sunshine splits the generated app command itself; use `slug`-friendly punctuation instead).";
+            }
+            {
+              # An app with neither a command nor a start hook would launch nothing.
+              assertion = lib.all (app: app.command != [ ] || app.hooks.start != "") apps;
+              message = "icedos.applications.sunshine-headless.apps entries need a command or a start hook.";
             }
             {
               # The shim assumes `input` has no human members; any voids the caller gate.
@@ -231,32 +314,43 @@
                     || u.group == "input"
                   )
                 ) (lib.attrNames config.users.users));
-              message = "The setgid-`input` shim assumes the `input` group has no human members, but at least one normal (human) user is in `input` (hand-written icedos.users.<name>.extraGroups, or the input-remapper module which injects every user — remove `input-remapper` from the apps repo's `modules` list, not a user entry). Remove input-remapper, or turn off isolateVirtual/steamOS/inputInjection (then the shim is not built); input membership defeats the uaccess isolation the shim backs.";
+              message = "The setgid-`input` shim assumes the `input` group has no human members, but at least one normal (human) user is in `input` (hand-written icedos.users.<name>.extraGroups, or the input-remapper module which injects every user — remove `input-remapper` from the apps repo's `modules` list, not a user entry). Remove input-remapper, or turn off isolateVirtual/inputInjection and any app's `shim` (then the shim is not built); input membership defeats the uaccess isolation the shim backs.";
             }
             {
               # Base port must differ from the primary's (the bind loser loops in Restart=always).
               assertion = port != (config.services.sunshine.settings.port or 47989);
-              message = "icedos.applications.steam.headless-session.session.sunshine.port (${toString port}) must differ from the primary sunshine instance's port (${
+              message = "icedos.applications.sunshine-headless.session.sunshine.port (${toString port}) must differ from the primary sunshine instance's port (${
                 toString (config.services.sunshine.settings.port or 47989)
               }) — two Sunshine daemons cannot share a TCP/UDP base port.";
             }
             {
               # openFirewall opens port+21 (RTSP); cap so it stays in NixOS' port range.
               assertion = port + 21 <= 65535;
-              message = "icedos.applications.steam.headless-session.session.sunshine.port (${toString port}) must be <= 65514 because the openFirewall rule opens the derived port+21 (RTSP) block.";
+              message = "icedos.applications.sunshine-headless.session.sunshine.port (${toString port}) must be <= 65514 because the openFirewall rule opens the derived port+21 (RTSP) block.";
+            }
+            {
+              # These four select a patched gamescope/wrapper at build time, so an app can
+              # only turn them ON when the module-global option built them. Off always works.
+              assertion = lib.all (
+                app:
+                lib.all (k: app.gamescope.${k} != true || cfg.gamescope.${k}) [
+                  "hdr"
+                  "nativeWayland"
+                  "inputInjection"
+                  "mangoApp"
+                ]
+              ) cfg.apps;
+              message = "icedos.applications.sunshine-headless.apps[].gamescope can only enable hdr/nativeWayland/inputInjection/mangoApp when the matching module-global gamescope.* option is also true (each selects a patched gamescope or wrapper at build time).";
+            }
+            {
+              # Steam's environment is built at evaluation time from the module globals
+              # (see steam-headless/hooks.nix), so a per-app value would be ignored there.
+              assertion = lib.all (
+                app: !app.steamMode || (app.gamescope.mangoApp == null && app.gamescope.nativeWayland == null)
+              ) cfg.apps;
+              message = "icedos.applications.sunshine-headless.apps[].gamescope.nativeWayland/mangoApp are ignored for a steamMode app: set the module-global gamescope value instead.";
             }
           ];
-
-          # Rename steamwebhelper's PulseAudio app: WirePlumber's shared "Chromium" key
-          # would poison desktop Chromium apps.
-          services.pipewire.extraConfig.pipewire-pulse."90-steam-headless-audio-name" = {
-            "pulse.rules" = [
-              {
-                matches = [ { "application.process.binary" = "steamwebhelper"; } ];
-                actions.update-props."application.name" = "Steam";
-              }
-            ];
-          };
 
           # Private D-Bus + portal so ScreenCast never touches the host portal.
           systemd.user.services.sunshine-portal-bus = {
@@ -366,12 +460,11 @@
     ];
 
   meta = {
-    name = "steam-sunshine-headless-session";
+    name = "sunshine-headless";
 
     dependencies = [
       {
         modules = [
-          "steam"
           "sunshine"
         ];
       }

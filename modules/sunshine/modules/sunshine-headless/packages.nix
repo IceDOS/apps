@@ -5,23 +5,21 @@
   lib,
   inputs,
   cfg,
-  # The resolved system Steam (programs.steam.package when enabled, else an FHS env
-  # carrying programs.steam.extraPackages so launch-option helpers exist in /usr).
-  steamPkg,
+  # Resolved apps (per-app values already inherit the module globals).
+  apps,
   # The headless daemon's Sunshine (pkgs.sunshine, same as daemon.nix).
   sunshinePkg,
+  # Only used by the shim's TEST_MAIN build asserts; the runtime target gate is shape-based.
+  steamVersion ? "0",
 }:
 
 let
-  # Map new nested option paths to local names (body references unchanged).
-  inherit (cfg) gamescope session;
+  inherit (cfg) gamescope;
 
   hdr = gamescope.hdr;
   colorManagement = gamescope.colorManagement;
   inputInjection = gamescope.inputInjection;
-  mangoApp = session.steam.mangoApp;
-  nativeWayland = gamescope.nativeWayland;
-  steamOS = session.steam.steamOS;
+  mangoApp = gamescope.mangoApp;
   preferDiscreteGpu = gamescope.preferDiscreteGpu;
   sdrGamutWideness = gamescope.sdrGamutWideness;
   sdrContentNits = gamescope.sdrContentNits;
@@ -29,18 +27,22 @@ let
   # Marker group for the input bridge; the wrapper alone turns it into `input` access.
   inputBridgeGroup = "sunshine-headless";
 
+  # native-wayland.patch only changes steam-mode focus/baselayer behaviour, so a config
+  # with no steamMode app must not pay for its gamescope rebuild.
+  nativeWaylandSteamApp = lib.any (app: app.steamMode && app.gamescope.nativeWayland) apps;
+
   # Every patch is gated by its own option (each forces a local rebuild). PR refs: #2271, #2217, #2270.
   # Bespoke native-wayland.patch has no upstream PR; gamescopePkg always adds a Steam-overlay postPatch.
   anyGamescopePatch =
-    preferDiscreteGpu || inputInjection || (nativeWayland && steamOS) || hdr || colorManagement;
+    preferDiscreteGpu || inputInjection || nativeWaylandSteamApp || hdr || colorManagement;
 
   gamescopePatched = pkgs.gamescope.overrideAttrs (old: {
     patches =
       (old.patches or [ ])
       ++ lib.optionals preferDiscreteGpu [ ./lib/prefer-discrete-gpu.patch ]
-      # nativeWayland works only in SteamOS mode (baselayer driver is in the steamos
-      # wait-loop branch), so the patch applies there only; non-steamOS keeps stock.
-      ++ lib.optionals (nativeWayland && steamOS) [ ./lib/native-wayland.patch ]
+      # nativeWayland: publish appIDs for native Wayland games. The patch only changes
+      # steam-mode focus/baselayer behaviour, so it is inert without a steamMode app.
+      ++ lib.optionals nativeWaylandSteamApp [ ./lib/native-wayland.patch ]
       ++ lib.optionals inputInjection [
         ./lib/pipewire-cursor.patch
         ./lib/headless-input.patch
@@ -155,15 +157,15 @@ let
     $CC -O2 -Wall -DEXPECTED_GROUP='"${inputBridgeGroup}"' -DINPUT_GROUP='"input"' \
         ${./lib/sunshine-headless-gid.c} -o $out
     $CC -O2 -Wall -DTEST_MAIN -DEXPECTED_GROUP='"${inputBridgeGroup}"' -DINPUT_GROUP='"input"' \
-        -DSTEAM_VERSION='"${steamPkg.version}"' -DGAMESCOPE_VERSION='"${gamescopePkg.version}"' \
+        -DSTEAM_VERSION='"${steamVersion}"' -DGAMESCOPE_VERSION='"${gamescopePkg.version}"' \
         -DSUNSHINE_VERSION='"${sunshinePkg.version}"' \
         ${./lib/sunshine-headless-gid.c} -o $TMPDIR/sunshine-headless-gid-test
     ${lib.optionalString (pkgs.stdenv.buildPlatform.canExecute pkgs.stdenv.hostPlatform) ''
       $TMPDIR/sunshine-headless-gid-test
       $TMPDIR/sunshine-headless-gid-test ${gamescopePkg}/bin/gamescope
-      $TMPDIR/sunshine-headless-gid-test ${steamPkg}/bin/steam
       $TMPDIR/sunshine-headless-gid-test ${sunshinePkg}/bin/sunshine
-      $TMPDIR/sunshine-headless-gid-test "steam-${steamPkg.version}"
+      $TMPDIR/sunshine-headless-gid-test "steam-${steamVersion}"
+      $TMPDIR/sunshine-headless-gid-test "steam-${steamVersion}-bwrap"
       $TMPDIR/sunshine-headless-gid-test "sunshine-${sunshinePkg.version}"
     ''}
   '';
@@ -175,33 +177,13 @@ let
     $CC -O2 -Wall ${./lib/sunshine-headless-xnudge.c} -lX11 -o $out/bin/sunshine-headless-xnudge
   '';
 
-  # -steamos3 "Switch to Desktop": stop the Steam that spawned us (matched by HOME).
-  steamosSessionSelect = pkgs.writeShellApplication {
-    name = "steamos-session-select";
-    runtimeInputs = with pkgs; [
-      coreutils
-      procps
-      util-linux
-    ];
-    text = ''
-      # Detach so Steam's call returns instead of blocking on the wait below.
-      if [ -z "''${STEAMOS_SESSION_SELECT_DETACHED:-}" ]; then
-        STEAMOS_SESSION_SELECT_DETACHED=1 exec setsid -f "$0" "$@"
-      fi
-      sess_home="''${HOME:-}"
-      ${import ./steam-helpers.nix}
-      steam_stop
-    '';
-  };
 in
 {
   inherit
     gamescopePkg
-    steamPkg
     xdg-desktop-portal-gamescope
     sunshinePortalConfig
     gidExec
-    steamosSessionSelect
     xnudge
     inputBridgeGroup
     ;

@@ -123,8 +123,7 @@
             ++ optionalReigntweak
             ++ optionalShadps4;
 
-          optionalSunshineHeadlessSteamOS =
-            applications.steam.headless-session.session.steam.steamOS or false;
+          optionalSunshineHeadlessSteamOS = applications.steam.headless-session.steamOS or false;
           session = hasAttr "session" applications.steam;
 
           steamdeck = icedosLib.hasModule {

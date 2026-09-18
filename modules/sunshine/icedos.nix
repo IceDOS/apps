@@ -50,7 +50,7 @@
           # headlessShortcut: optional; the headless module may not be loaded,
           # then there is no entry and this stays false.
           headlessShortcut =
-            config.icedos.applications.steam.headless-session.session.sunshine.desktopShortcut or false;
+            config.icedos.applications.sunshine-headless.session.sunshine.desktopShortcut or false;
         in
         {
           services.sunshine = {

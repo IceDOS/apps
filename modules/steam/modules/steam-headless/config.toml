@@ -1,0 +1,14 @@
+[icedos.applications.steam.headless-session]
+# Steam Deck UI mode (`steam -steamos3`): Steam manages gamescope focus natively and
+# takes over host Bluetooth.
+steamOS = true
+
+[icedos.applications.steam.headless-session.main]
+# Inject the normal Steam session (default HOME/account/library) into gamescope.
+enable = true
+
+[icedos.applications.steam.headless-session.secondary]
+# Inject a second Steam session under secondary.path (separate account/library).
+enable = false
+# HOME for the second session; REQUIRED when secondary.enable = true.
+path = ""

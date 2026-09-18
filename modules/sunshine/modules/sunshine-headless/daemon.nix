@@ -3,12 +3,13 @@
 {
   pkgs,
   lib,
-  cfg, # icedos.applications.steam.headless-session
+  cfg, # icedos.applications.sunshine-headless
   headlessSeat,
   # Use the shim wrapper only when icedos.nix builds the input bridge; else plain binary.
   bridgeNeeded,
   sessionApp,
-  steamApps,
+  # The Sunshine app entries (apps.nix) for the configured apps.
+  apps,
 }:
 
 let
@@ -20,7 +21,7 @@ let
       env = {
         PATH = "$(PATH):$(HOME)/.local/bin";
       };
-      apps = steamApps;
+      inherit apps;
     }
   );
 
@@ -35,7 +36,7 @@ let
     encoder=vulkan
     # Low Latency tune: reduces encoding delay at the cost of peak quality.
     vk_tune=2
-    audio_sink=steam-sunshine-headless-sink
+    audio_sink=sunshine-headless-sink
     system_tray=false
     file_apps=${appsJson}
   '');
