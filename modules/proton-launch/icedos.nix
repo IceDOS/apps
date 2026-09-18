@@ -700,6 +700,17 @@
                     ""
                 }
 
+                # Outside a user session (a systemd scope or service) polkit refuses both
+                # holds, and systemd-inhibit then exits without ever exec'ing the game.
+                if [ -n "$GAME_INHIBIT" ] && ! $GAME_INHIBIT true >/dev/null 2>&1; then
+                  echo "proton-launch: idle/sleep inhibitor refused here, starting without it" >&2
+                  GAME_INHIBIT=""
+                fi
+                if [ -n "$GAME_PERFORMANCE" ] && ! $GAME_PERFORMANCE true >/dev/null 2>&1; then
+                  echo "proton-launch: performance profile hold refused here, starting without it" >&2
+                  GAME_PERFORMANCE=""
+                fi
+
                 $GAME_INHIBIT $GAME_PERFORMANCE $MANGOHUD $GAMEMODE $GAMESCOPE "''${COMMAND[@]}"
               '';
             }
