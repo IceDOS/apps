@@ -13,7 +13,12 @@
 }:
 
 let
-  inherit (cfg.session.sunshine) autoStart name port;
+  inherit (cfg.session.sunshine)
+    autoStart
+    gamepad
+    name
+    port
+    ;
 
   # The top-level `env` node is REQUIRED: without it Sunshine's parser aborts.
   appsJson = pkgs.writeText "sunshine-headless-apps.json" (
@@ -30,6 +35,8 @@ let
   sunshineConf = pkgs.writeText "sunshine-headless.conf" (''
     sunshine_name=${name}
     port=${toString port}
+    # Left out when auto: Sunshine then follows the client's reported pad type.
+    ${lib.optionalString (gamepad != "auto") "gamepad=${gamepad}"}
     capture=portal
     # Stream to Vulkan Video (RADV) directly: skips the futile nvenc probe and its
     # libcuda/CUDA noise on AMD-only rigs.

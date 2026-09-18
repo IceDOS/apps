@@ -45,11 +45,28 @@ checkout (`path:/abs/path/to/apps`), then `icedos rebuild --build` (no activatio
   (per-user opt-in, `claudeCodeIntegration = true`), and `opencode` consumes the user
   settings for its own peon plugin. See core's *Per-user (`users`) options*.
 - `me3` — game mod loader (per-game profiles/natives/packages).
-- `sunshine` + `steam-sunshine-headless-session` — game streaming, incl. headless HDR. The base
-  `sunshine` module is always the primary, stock daemon (real desktop capture). Loading the
-  headless module stands up a SECOND, independent `sunshine-headless` daemon (own ports/state)
-  pinned to a private gamescope-0 portal; autostart via its
-  `icedos.applications.steam.headless-session.session.sunshine.autoStart`.
+- `sunshine` + `sunshine-headless` + `steam-headless` — game streaming, incl. headless
+  HDR. The base `sunshine` module is always the primary, stock daemon (real desktop capture).
+  Loading `sunshine-headless` stands up a SECOND, independent `sunshine-headless` daemon
+  (own ports/state) pinned to a private gamescope-0 portal; autostart via its
+  `icedos.applications.sunshine-headless.session.sunshine.autoStart`. The module is
+  generic: `icedos.applications.sunshine-headless.apps` lists the apps it streams (each
+  an argv `command` plus per-hook shell), and the helper records each app's process group
+  instead of shipping per-app launcher derivations. `steam-headless` (under `steam/modules/`)
+  only names Steam's sessions there: `icedos.applications.steam.headless-session`.
+  Sunshine tokenizes the generated `cmd` and `prep-cmd` strings itself, with no shell, so
+  nothing is expanded there: a name with a space must be double-quoted (the module does it,
+  and an assertion rejects a name containing a double quote). Pads the client forwards are
+  uinput evdev devices (only PS-type pads use `uhid` and gain a `/dev/hidraw*` node), and
+  `isolateVirtual` strips their uaccess, leaving `root:input 0660`. A plain app still reads
+  them because the daemon runs through `sunshine-headless-gid-root` and its children inherit
+  the `input` group; the `shim` matters only for a process that does not descend from the
+  daemon. `session.controllers.excludeHost` keeps host physical pads out of app scopes: the
+  scope keeps the daemon's `input` group, because its processes are the daemon's children and
+  inherit it, and the uaccess-stripped forwarded nodes `root:input 0660` need it; the cgroup
+  device policy is what denies host pads. Such a scope is in no session either, so polkit
+  refuses the idle/sleep and power-profile holds there (this module's rules let its marker group
+  take them, and proton-launch drops a refused hold instead of dying).
 - `gamescope`, `lsfg-vk`, `mangohud` — gaming/perf.
 - `helium` — loads `inputs.nur.modules.nixos.default` (the input is supplied by
   `providers#nur` via `meta.dependencies`), which puts unvetted `pkgs.nur.repos.*`

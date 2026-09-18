@@ -49,6 +49,8 @@ excludeHost = true
 isolateVirtual = true
 
 [icedos.applications.sunshine-headless.session.sunshine]
+# Pad Sunshine emulates: auto follows the client's reported type (Sunshine has no per-app type).
+gamepad = "auto"
 # Auto-start the headless daemon at the graphical session; false = start it manually.
 autoStart = true
 # App-menu launcher that starts the headless daemon (handy when autoStart = false).
