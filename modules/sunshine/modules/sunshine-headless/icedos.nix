@@ -180,6 +180,15 @@
                 SUBSYSTEM=="input", ATTRS{name}=="*passthrough (${headlessSeat})*", TAG-="uaccess", MODE="0660", RUN+="${pkgs.acl}/bin/setfacl -b $env{DEVNAME}"
               ''
             )
+            # A DualSense pad comes from uhid, and /dev/uhid is root-only by default, so a
+            # client that asks for one gets no pad at all (Sunshine logs `Gamepad ds5 is
+            # disabled due to Permission denied`). Group `input` has no human members and the
+            # shim-promoted daemon holds it, so hand that group the device.
+            ++ lib.optional bridgeNeeded (
+              pkgs.writeTextDir "etc/udev/rules.d/72-sunshine-headless-uhid.rules" ''
+                KERNEL=="uhid", GROUP="input", MODE="0660"
+              ''
+            )
             # The session creates devices while an app runs: the client's pad is announced a
             # few seconds after the app started. Each app scope allows input devices per node,
             # so refresh that list inside the udev event, before libudev clients hear about the

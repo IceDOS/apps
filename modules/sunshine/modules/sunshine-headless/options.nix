@@ -239,6 +239,25 @@ in
 
       # Open the headless instance's derived TCP/UDP port block in the host firewall.
       openFirewall = mkBoolOption { default = session.sunshine.openFirewall; };
+
+      # Pad Sunshine emulates on the host. `auto` follows the client's reported pad type, which
+      # is the default behaviour; the rest pin one type for every stream, because Sunshine
+      # parses `gamepad` once for the daemon and has no per-app pad type. Eden is the known
+      # case that wants a Switch Pro pad; `ds5` needs /dev/uhid, see the module's udev rules.
+      gamepad =
+        mkEnumOption
+          {
+            path = "icedos.applications.sunshine-headless.session.sunshine.gamepad";
+            source = ./config.toml;
+            default = session.sunshine.gamepad;
+          }
+          [
+            "auto"
+            "generic"
+            "ds5"
+            "switch"
+            "xone"
+          ];
     };
   };
 }
