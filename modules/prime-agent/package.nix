@@ -148,6 +148,10 @@ buildNpmPackage (finalAttrs: {
     # opencode zen 403s a free-tier request whose tools omit bash, grep, glob and
     # read. Append stubs for the missing names so every zen request is accepted.
     ./patches/opencode-zen-tool-floor.patch
+
+    # zen wraps flaky upstream rejections as 400 "Upstream request failed", which
+    # prime treats as permanent and ends the turn. Retry it like a server error.
+    ./patches/opencode-zen-upstream-retry.patch
   ]
   ++ lib.optionals ollamaCloud [
     # Ollama Cloud provider: bundled models (https://ollama.com/v1) + the /login
