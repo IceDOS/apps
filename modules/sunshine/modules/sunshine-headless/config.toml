@@ -1,23 +1,22 @@
-[icedos.applications.steam.headless-session.main]
-# Inject the normal Steam app (default HOME/account/library).
-enable = true
+# The headless gamescope session the second Sunshine daemon streams. The apps it
+# publishes come from the consuming module (see apps.nix), so nothing here assumes Steam.
 
-[icedos.applications.steam.headless-session.secondary]
-# Inject a second Steam app under secondary.path (separate account/library).
-enable = false
-# HOME for the second session; REQUIRED when secondary.enable = true.
-path = ""
+[icedos.applications.sunshine-headless]
+# Apps to publish over Moonlight; each carries its own launch command and hooks.
+apps = []
 
-[icedos.applications.steam.headless-session.gamescope]
-# Steam Display color controls (vibrance/temperature sliders); requires the patched gamescope.
+[icedos.applications.sunshine-headless.gamescope]
+# Display color controls (vibrance/temperature sliders); requires the patched gamescope.
 colorManagement = true
 # FSR/NIS sharpness: 0 = max sharp .. 20 = min sharp (gamescope default 2).
 fsrSharpness = 20
 # HDR-capable gamescope; stream HDR follows the client per-stream. false = always SDR.
 hdr = true
-# Forward Moonlight keyboard/mouse into the headless session; composites the cursor too (one feature).
+# Forward Moonlight keyboard/mouse into the session; composites the cursor too (one feature).
 inputInjection = true
-# Render Proton Wayland games natively (patched gamescope); inert without steamOS.
+# Gamescope --mangoapp; the app must also be told to render into it (see the steam app hooks).
+mangoApp = true
+# Render Proton Wayland games natively (patched gamescope).
 nativeWayland = true
 # Prefer the discrete GPU on hybrid rigs (stock picks the iGPU; upstream #2217). Inert on single GPU.
 preferDiscreteGpu = true
@@ -36,31 +35,26 @@ sdrGamutWideness = 0
 # gamescope upscaler (-F): fsr | nis | linear | nearest | pixel.
 upscaleFilter = ""
 
-[icedos.applications.steam.headless-session.session]
-# Seconds (15m) with no active stream before the session is torn down (Steam + full gamescope); 0 = never tear down.
+[icedos.applications.sunshine-headless.session]
+# Seconds (15m) with no active stream before the session is torn down (apps + full gamescope); 0 = never tear down.
 idleTimeout = 900
 # Freeze the session cgroup ~10s after the last client leaves; thaw on reconnect.
 pauseOnDisconnect = false
 
-[icedos.applications.steam.headless-session.session.controllers]
-# Keep host controllers out of the headless Steam (cgroup device policy denies /dev/input+hidraw).
+[icedos.applications.sunshine-headless.session.controllers]
+# Keep host controllers out of the session (cgroup device policy denies /dev/input+hidraw).
+# The scope keeps the caller's groups, and the module's polkit rules restore the session holds.
 excludeHost = true
-# Hide the headless Sunshine pad from the host desktop (uaccess strip + setgid-`input` shim).
+# Hide the session's virtual pad from the host desktop (uaccess strip + setgid-`input` shim).
 isolateVirtual = true
 
-[icedos.applications.steam.headless-session.session.steam]
-# MangoHud overlay (mangoapp): --mangoapp on the idle gamescope + STEAM_USE_MANGOAPP=1 on Steam.
-mangoApp = true
-# Steam Deck UI mode (`steam -steamos3`): Steam manages gamescope focus; takes over host Bluetooth.
-steamOS = true
-
-[icedos.applications.steam.headless-session.session.sunshine]
+[icedos.applications.sunshine-headless.session.sunshine]
 # Auto-start the headless daemon at the graphical session; false = start it manually.
 autoStart = true
 # App-menu launcher that starts the headless daemon (handy when autoStart = false).
 desktopShortcut = true
 # mDNS name; MUST differ from the primary.
-name = "SteamOS Headless"
+name = "Headless Session"
 # Open the headless instance's derived port block in the host firewall (plain-LAN streaming).
 openFirewall = false
 # Base port (primary uses 47989); Sunshine derives its whole TCP/UDP block from it.
