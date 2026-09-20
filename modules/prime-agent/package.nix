@@ -142,7 +142,8 @@ buildNpmPackage (finalAttrs: {
     ./patches/daemon-supervisor-registry-follow-agentdir.patch
 
     # Title is set once at startup. Keep it as "<status glyph> <name|recap|first message>"
-    # so Zed terminal threads show live status and topic, like Claude Code.
+    # so Zed terminal threads show live status and topic. A failure
+    # recap outlives the failure, so the title drops it once the agent moves on.
     ./patches/terminal-title-session-headline.patch
 
     # opencode zen 403s a free-tier request whose tools omit bash, grep, glob and
