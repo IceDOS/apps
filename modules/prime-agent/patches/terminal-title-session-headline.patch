@@ -1,12 +1,30 @@
-diff --git a/packages/coding-agent/src/modes/interactive/interactive-mode.ts b/packages/coding-agent/src/modes/interactive/interactive-mode.ts
-index 5474ed0..1116b20 100644
+--- a/packages/coding-agent/src/modes/daemon/daemon-session-summarizer.ts
++++ b/packages/coding-agent/src/modes/daemon/daemon-session-summarizer.ts
+@@ -207,7 +207,7 @@
+ 
+ // Recap prefix for a turn that errored; the transcript's own error text follows
+ // it so the persisted verdict reports the real last event, never invented work.
+-const ERROR_RECAP_PREFIX = "Model request failed";
++export const ERROR_RECAP_PREFIX = "Model request failed";
+ // Generous; the agents view truncates recaps further for display.
+ const ERROR_RECAP_MAX_CHARS = 160;
+ 
 --- a/packages/coding-agent/src/modes/interactive/interactive-mode.ts
 +++ b/packages/coding-agent/src/modes/interactive/interactive-mode.ts
-@@ -1005,6 +1005,11 @@ export class InteractiveMode {
+@@ -176,6 +176,7 @@
+ } from "../agent-connection/index.js";
+ import { AgentConnectionPromptAdmissionError } from "../agent-connection/index.js";
+ import type { SessionSummary } from "../daemon/daemon-session-list.js";
++import { ERROR_RECAP_PREFIX } from "../daemon/daemon-session-summarizer.js";
+ import { getModelArgumentCompletions } from "../model-autocomplete.js";
+ import {
+ 	checkForPackageUpdates,
+@@ -1005,6 +1006,12 @@
  	private workingTimer: NodeJS.Timeout | undefined = undefined;
  	private pulseTimer: NodeJS.Timeout | undefined = undefined;
  	private pulseFrame = 0;
 +	private lastTerminalTitle: string | undefined;
++	private turnErrored = false;
 +	// ⬒ ⬓ ■ share one width in Adwaita Sans; upstream ◈ falls back to a font of another width and shifts the title text.
 +	private static readonly TITLE_WORKING_FRAMES = ["⬒", "⬒", "⬓", "⬓"] as const;
 +	// Headline fallback before the daemon summarizer writes a recap.
@@ -14,7 +32,7 @@ index 5474ed0..1116b20 100644
  	private readonly activityTracker = new AgentActivityTracker();
  	// activityTracker token count already folded into the context snapshot; only output beyond
  	// this counts as live in-flight (keeps auto-retries from re-adding a failed attempt).
-@@ -1631,14 +1636,41 @@ export class InteractiveMode {
+@@ -1631,14 +1638,40 @@
  		})();
  	}
  
@@ -27,11 +45,10 @@ index 5474ed0..1116b20 100644
 -		} else {
 -			this.ui.terminal.setTitle(`${APP_TITLE} - ${cwdBasename}`);
 -		}
-+		const headline = [
-+			this.getCurrentSessionName(),
-+			this.connectionState?.recap ?? this.sessionRecap,
-+			this.firstUserMessage,
-+		]
++		const recap = this.connectionState?.recap ?? this.sessionRecap;
++		// A failure recap sticks until the summarizer next succeeds, so keep it only while that failed turn is still the last one.
++		const staleFailure = recap?.startsWith(ERROR_RECAP_PREFIX) && (this.isAgentStreaming() || !this.turnErrored);
++		const headline = [this.getCurrentSessionName(), staleFailure ? undefined : recap, this.firstUserMessage]
 +			.map((candidate) => candidate?.replace(/\s+/g, " ").trim())
 +			.find((candidate) => candidate);
 +		const text = headline
@@ -63,7 +80,7 @@ index 5474ed0..1116b20 100644
  	}
  
  	async run(): Promise<InteractiveModeRunResult> {
-@@ -3539,6 +3571,7 @@ export class InteractiveMode {
+@@ -3539,6 +3572,7 @@
  
  	// Recover the in-flight run's start from a restored transcript so the elapsed timer survives re-attach.
  	private restoreTurnStartFromMessages(messages: readonly AgentMessage[]): void {
@@ -71,7 +88,7 @@ index 5474ed0..1116b20 100644
  		this.turnStartedAt = undefined;
  		if (!this.isAgentStreaming()) return;
  		for (let i = messages.length - 1; i >= 0; i--) {
-@@ -3576,12 +3609,14 @@ export class InteractiveMode {
+@@ -3576,12 +3610,14 @@
  		this.statusContainer.clear();
  	}
  
@@ -86,7 +103,7 @@ index 5474ed0..1116b20 100644
  		if (!active) {
  			this.stopWorkingPulse();
  			return;
-@@ -3596,6 +3631,7 @@ export class InteractiveMode {
+@@ -3596,6 +3632,7 @@
  		this.updateWorkingPulse();
  		this.pulseFrame += 1;
  		setWorkingPulseFrame(this.pulseFrame);
@@ -94,15 +111,18 @@ index 5474ed0..1116b20 100644
  		this.ui.requestRender();
  	}
  
-@@ -5892,7 +5928,10 @@ export class InteractiveMode {
+@@ -5892,8 +5929,13 @@
  				break;
  
  			case "message_end":
 -				if (event.message.role === "user") break;
 +				if (event.message.role === "user") {
++					this.turnErrored = false;
 +					if (!this.firstUserMessage) this.setFirstUserMessage([event.message]);
 +					break;
 +				}
  				if (event.message.role === "assistant") {
++					this.turnErrored = event.message.stopReason === "error";
  					this.streamingMessage = event.message;
  					let errorMessage: string | undefined;
+ 					if (this.streamingMessage.stopReason === "aborted") {
