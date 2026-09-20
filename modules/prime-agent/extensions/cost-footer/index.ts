@@ -325,7 +325,6 @@ export default function (pi: ExtensionAPI) {
 
   const costLine = (
     usage: { input: number; output: number; cost: number },
-    model: string,
     free: boolean,
     metered: boolean,
   ) => {
@@ -353,7 +352,6 @@ export default function (pi: ExtensionAPI) {
     } else if (tpsCell) {
       parts.push(tpsCell);
     }
-    parts.push(dim(model));
     return parts.join(" ");
   };
 
@@ -382,17 +380,9 @@ export default function (pi: ExtensionAPI) {
       return;
     }
     const { input, output, cost } = usage(ctx);
-    const model = ctx.model?.provider
-      ? `${ctx.model.provider}/${ctx.model.id}`
-      : ctx.model?.id || "no-model";
     const metered = meteringEnabled() && isMetered(ctx);
     const lines = [
-      costLine(
-        { input, output, cost },
-        model,
-        isFreeModel(ctx.model),
-        metered,
-      ),
+      costLine({ input, output, cost }, isFreeModel(ctx.model), metered),
     ];
 
     const m = ctx.model;
