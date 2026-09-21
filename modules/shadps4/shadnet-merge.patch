@@ -1,5 +1,5 @@
 diff --git a/.github/workflows/build.yml b/.github/workflows/build.yml
-index dc02f3ef..e6376891 100644
+index 5f4a824f..1861ab68 100644
 --- a/.github/workflows/build.yml
 +++ b/.github/workflows/build.yml
 @@ -350,9 +350,11 @@ jobs:
@@ -118,7 +118,7 @@ index 7ace5e4f..fd2043b8 100644
 +
 +externals/aacdec/fdk-aac.
 diff --git a/CMakeLists.txt b/CMakeLists.txt
-index a2b96a7d..5880018b 100644
+index 207c457e..7be00b0e 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
 @@ -958,6 +958,8 @@ set(CORE src/core/aerolib/stubs.cpp
@@ -9829,7 +9829,7 @@ index 10489b4c..73728ca1 100644
      void SetControllerPort(u32 user_id, int port);
      std::vector<User> GetValidUsers() const;
 diff --git a/src/main.cpp b/src/main.cpp
-index 0b5de062..cfe65e44 100644
+index b0c4395c..7b9dd28c 100644
 --- a/src/main.cpp
 +++ b/src/main.cpp
 @@ -53,7 +53,9 @@ int main(int argc, char* argv[]) {
@@ -9840,9 +9840,9 @@ index 0b5de062..cfe65e44 100644
      std::optional<int> waitPid;
 +    std::optional<u32> userId;
      bool waitForDebugger = false;
+     bool userfaultfd = false;
  
-     std::optional<std::string> fullscreenStr;
-@@ -85,9 +87,12 @@ int main(int argc, char* argv[]) {
+@@ -86,6 +88,8 @@ int main(int argc, char* argv[]) {
      app.add_option("-f,--fullscreen", fullscreenStr, "Fullscreen mode (true|false)");
  
      app.add_option("--override-root", overrideRoot)->check(CLI::ExistingDirectory);
@@ -9851,11 +9851,15 @@ index 0b5de062..cfe65e44 100644
  
      app.add_flag("--wait-for-debugger", waitForDebugger);
      app.add_option("--wait-for-pid", waitPid);
+@@ -93,6 +97,7 @@ int main(int argc, char* argv[]) {
+     app.add_flag("--userfaultfd", userfaultfd,
+                  "Enable userfaultfd for tracking memory (Linux only)");
+ #endif
 +    app.add_option("--user-id", userId, "Use a local user ID for this process only");
  
      app.add_flag("--show-fps", showFps);
      app.add_flag("--config-clean", configClean);
-@@ -149,6 +154,13 @@ int main(int argc, char* argv[]) {
+@@ -154,6 +159,13 @@ int main(int argc, char* argv[]) {
      auto emu_state = std::make_shared<EmulatorState>();
      EmulatorState::SetInstance(emu_state);
      UserSettings.Load();
@@ -9869,16 +9873,15 @@ index 0b5de062..cfe65e44 100644
  
      // Initialize key manager
      auto key_manager = KeyManager::GetInstance();
-@@ -219,6 +231,9 @@ int main(int argc, char* argv[]) {
-     if (configGlobal)
-         EmulatorSettings.SetConfigMode(ConfigMode::Global);
- 
+@@ -227,6 +239,8 @@ int main(int argc, char* argv[]) {
+     if (userfaultfd) {
+         EmulatorSettings.SetUserfaultfdTracking(true);
+     }
 +    if (cacheDir)
 +        Common::FS::SetUserPath(Common::FS::PathType::CacheDir, *cacheDir);
-+
+ 
      // ---- Resolve game path or ID ----
      std::filesystem::path ebootPath(*gamePath);
-     const auto archive_component_exists = [](const std::filesystem::path& p) -> bool {
 diff --git a/tests/CMakeLists.txt b/tests/CMakeLists.txt
 index d5275d6e..e05935c9 100644
 --- a/tests/CMakeLists.txt
