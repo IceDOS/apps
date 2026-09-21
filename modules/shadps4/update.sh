@@ -220,26 +220,39 @@ gen_merge_patch() {
   # Fetch the prerelease base with enough history to reach the merge-base.
   git -C "$work/fork" fetch -q --depth=2000 \
     https://github.com/shadps4-emu/shadPS4.git "$pre_rev"
-  local base
-  base=$(git -C "$work/fork" merge-base "$fork_rev" "$pre_rev")
-  git -C "$work/fork" diff "$base" "$fork_rev" > "$work/delta.patch"
   git -C "$work/fork" worktree add -f "$work/wt" "$pre_rev" >/dev/null
 
-  # git apply --3way exits nonzero on conflict - that is expected (README.md is
-  # the one known conflict). The verification below is what makes it safe: every
-  # unmerged path other than README.md is fatal, and an empty result is fatal.
-  (cd "$work/wt" && git apply --3way "$work/delta.patch") || true
+  # 3-way merge the fork onto the prerelease base. A real merge (not diff+apply)
+  # also folds upstream's concurrent edits into the fork's delta.
+  # src/main.cpp carries additive, independent flag additions from both sides
+  # (upstream's --userfaultfd, the fork's --user-id/--cache-dir), so it is
+  # union-merged: git keeps both halves of every conflict. The attribute is
+  # untracked in the worktree (read by the merge machinery, absent from the
+  # shipped patch) and handles any conflict-marker style. If the two sides ever
+  # edit the same line, union duplicates that line and the build gate rejects
+  # the PR, but the update run itself still completes and shows the patch.
+  # The CI runner has no git identity until the commit step configures the
+  # bot, and git merge requires one even with --no-commit. Without it the
+  # merge fails with 'unable to auto-detect email address' and patch
+  # generation aborts as empty. Scope it to the throwaway fork worktree.
+  git -C "$work/wt" config user.name "Icedos module updater"
+  git -C "$work/wt" config user.email "modules-update@icedos.local"
+  echo 'src/main.cpp merge=union' > "$work/wt/.gitattributes"
+  (cd "$work/wt" && git merge --no-commit --no-ff "$fork_rev") || true
+  rm -f "$work/wt/.gitattributes"
   (
     cd "$work/wt"
     local unmerged
     unmerged=$(git ls-files -u | cut -f2 | sort -u)
-    if [ -n "$unmerged" ] && [ "$unmerged" != "README.md" ]; then
-      echo "ERROR: unresolved conflicts other than README.md after 3-way apply:" >&2
-      git status --porcelain | grep -E '^(UU|AA|DD)' >&2
-      exit 1
-    fi
-    if [ "$unmerged" = "README.md" ]; then
-      # The one tolerated conflict: README.md is a doc, take the fork side.
+    if [ -n "$unmerged" ]; then
+      # Tolerated conflict: README.md is a doc, the fork side wins. Any other
+      # conflict means upstream and the fork changed the same code in ways only
+      # a human can merge, so it is fatal and the CI run shows the paths.
+      if printf '%s\n' "$unmerged" | grep -qvx 'README.md'; then
+        echo "ERROR: unresolved conflicts other than README.md after merge:" >&2
+        git status --porcelain | grep -E '^(UU|AA|DD)' >&2
+        exit 1
+      fi
       git checkout --theirs README.md
       git add README.md
     fi
