@@ -28,10 +28,8 @@
           inherit (config.icedos.applications.spotube) nightly;
         in
         {
-          # Upstream replaces one rolling `nightly` release in place, so the URL never
-          # moves and only the hash does; update.sh / the update-spotube workflow keep
-          # source.json fresh. The overlay lives in nightly.nix because the nightly is a
-          # wholesale repackage rather than a version bump — see the note there.
+          # Upstream re-uploads one rolling nightly release: only the hash moves; update.sh
+          # keeps source.json fresh. The repackage overlay lives in nightly.nix, not here.
           nixpkgs.overlays = mkIf nightly (import ./nightly.nix).nixpkgs.overlays;
 
           environment.systemPackages = [ pkgs.spotube ];

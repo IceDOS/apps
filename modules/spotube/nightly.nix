@@ -1,10 +1,3 @@
-# The nightly channel is a different application from the stable release: upstream
-# rewrote spotube from Flutter to Compose Multiplatform, so its .deb is a jpackage bundle
-# — bundled JRE, Skiko for rendering, vlcj for playback — laid out under /opt rather than
-# /usr. Every part of nixpkgs' derivation that is specific to the Flutter build (the
-# `cp -r usr/*` install, the GTK/webkitgtk deps, the mpv wrapper) therefore has to be
-# replaced. All of them are plain attributes, so `overrideAttrs` still covers it and the
-# pin in ./source.json stays the only thing ./update.sh has to touch.
 {
   nixpkgs.overlays = [
     (
@@ -42,34 +35,45 @@
               --replace-fail "Categories=Utility;" "Categories=AudioVideo;Audio;Player;" \
               --replace-fail "Exec=/opt/dev.krtirtho.spotube/dev.krtirtho.spotube" "Exec=spotube"
 
+
             runHook postInstall
           '';
 
-          # Replaces nixpkgs' GTK/webkitgtk set: this build draws through Skiko (X11 + GL).
-          # The bundled JRE's own libraries are patched against these too.
+          # Replaces nixpkgs' GTK/webkitgtk set: Skiko draws (X11 + GL), but the bundled
+          # WebKitGTK webview (plugin login) keeps webkitgtk_4_1 and libsoup_3; the JRE uses them too.
           buildInputs = with final; [
             alsa-lib
             fontconfig
             freetype
+            glib-networking
             gtk3
             libGL
+            libsoup_3
             libX11
             libxkbcommon
-            xorg.libXext
-            xorg.libXi
-            xorg.libXrender
-            xorg.libXtst
+            webkitgtk_4_1
+            libxext
+            libxi
+            libxrender
+            libxtst
             zlib
           ];
 
-          # Playback is vlcj, not mpv, and it dlopen()s libvlc by soname through JNA — so
-          # libvlc has to be on LD_LIBRARY_PATH, and its plugin tree found explicitly.
-          # `libvlc` rather than `vlc` keeps the Qt GUI out of the closure.
-          # Nucleus extracts its natives (tao windowing, media control) from jars into
-          # ~/.cache at runtime, so autoPatchelf never sees them; their linked and dlopen()ed
-          # deps (GTK, EGL/GL, X11, Wayland) go here too.
+          # vlcj dlopen()s libvlc by soname through JNA, so libvlc and its plugin tree join
+          # LD_LIBRARY_PATH (`libvlc`, not `vlc`, keeps the Qt GUI out of the closure).
+
+          # Nucleus extracts its natives (tao windowing, media, the GTK webview) into ~/.cache
+          # at runtime, so autoPatchelf misses them; their linked/dlopen()ed deps go here too.
+
+          # WebKitGTK uses libsoup3, whose GIO TLS module comes from glib-networking (blank
+          # login webview otherwise); --prefix keeps the session's GIO_EXTRA_MODULES (gvfs, dconf).
+
+          # $out/bin/spotube is the launcher the overlay installs (Exec=spotube in the .desktop);
+          # makeWrapper writes it directly and folds every flag below into it.
           postFixup = ''
             makeWrapper $out/share/spotube/bin/dev.krtirtho.spotube $out/bin/spotube \
+              --prefix GIO_EXTRA_MODULES : ${final.glib-networking}/lib/gio/modules \
+              --set-default SSL_CERT_FILE /etc/ssl/certs/ca-certificates.crt \
               --prefix LD_LIBRARY_PATH : ${
                 lib.makeLibraryPath (
                   with final;
@@ -80,17 +84,25 @@
                     glib
                     gtk3
                     libGL
+                    libsoup_3
                     libvlc
                     libX11
                     stdenv.cc.cc.lib
                     wayland
-                    xorg.libXext
+                    webkitgtk_4_1
+                    libxext
                   ]
                 )
               } \
               --set-default VLC_PLUGIN_PATH ${final.libvlc}/lib/vlc/plugins \
-              --prefix PATH : ${lib.makeBinPath [ final.xdg-user-dirs ]}
+              --prefix PATH : ${
+                lib.makeBinPath [
+                  final.python3
+                  final.xdg-user-dirs
+                ]
+              }
           '';
+
         });
       }
     )
