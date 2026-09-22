@@ -1348,13 +1348,13 @@
               "Models running on your own graphics card are priced by the electricity they use."
             ]
             ++ lib.optionals prime-agent.extensions.meters.tps [
-              "The cost footer shows live generation tok/s; extensions.meters.tps = false hides it."
+              "The cost footer shows live generation tok/s; prime-agent.extensions.meters.tps = false hides it."
             ]
             ++ lib.optionals prime-agent.includeInIcedosGc [
               "icedos gc also clears out old prime-agent sessions and logs."
             ]
             ++ lib.optionals prime-agent.providers.ollama [
-              "prime-agent can call Ollama Cloud models; /login and pick Ollama to store an API key."
+              "prime-agent supports Ollama Cloud; type /login in its tui and pick Ollama to connect using an API key."
             ];
         }
       )
