@@ -96,7 +96,7 @@ let
       ''
       + lib.optionalString mangoApp ''
         substituteInPlace src/steamcompmgr.cpp \
-          --replace-fail 'gamescope::Rc<CVulkanTexture> pRGBTexture = s_pPipewireBuffer->texture->isYcbcr()' 'if ( global_focus_t *pMangoOverlayFocus = GetCurrentFocus() ) { if ( pMangoOverlayFocus->externalOverlayWindow && pMangoOverlayFocus->externalOverlayWindow->opacity ) paint_window( pMangoOverlayFocus->externalOverlayWindow, pMangoOverlayFocus->externalOverlayWindow, &frameInfo, nullptr, PaintWindowFlag::NoScale | PaintWindowFlag::NoFilter | ( cv_overlay_unmultiplied_alpha ? PaintWindowFlag::CoverageMode : 0 ) ); } gamescope::Rc<CVulkanTexture> pRGBTexture = s_pPipewireBuffer->texture->isYcbcr()' \
+          --replace-fail 'gamescope::Rc<CVulkanTexture> pRGBTexture = s_pPipewireBuffer->texture->isYcbcr()' 'if ( global_focus_t *pMangoOverlayFocus = GetCurrentFocus() ) { if ( pMangoOverlayFocus->externalOverlayWindow && pMangoOverlayFocus->externalOverlayWindow->opacity ) paint_window( pMangoOverlayFocus, pMangoOverlayFocus->externalOverlayWindow, pMangoOverlayFocus->externalOverlayWindow, &frameInfo, nullptr, PaintWindowFlag::NoScale | PaintWindowFlag::NoFilter | ( cv_overlay_unmultiplied_alpha ? PaintWindowFlag::CoverageMode : 0 ) ); } gamescope::Rc<CVulkanTexture> pRGBTexture = s_pPipewireBuffer->texture->isYcbcr()' \
           --replace-fail 'ulOverrideCommitId == s_ulLastOverrideCommitId &&' 'ulOverrideCommitId == s_ulLastOverrideCommitId && !( GetCurrentFocus() && GetCurrentFocus()->externalOverlayWindow && GetCurrentFocus()->externalOverlayWindow->opacity ) &&'
       '';
   });
