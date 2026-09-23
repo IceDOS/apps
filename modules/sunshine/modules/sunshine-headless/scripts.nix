@@ -845,8 +845,14 @@ let
 
             if [ -n "$client_w" ] && [ -n "$client_h" ] && [ -n "$client_fps" ] \
                 && { [ "$saved_w" != "$client_w" ] || [ "$saved_h" != "$client_h" ] || [ "$saved_fps" != "$client_fps" ] || [ "$saved_hdr" != "$client_hdr" ] || [ "$saved_bin" != "$(gamescope_marker_now)" ]; }; then
-              stop_gamescope
-              start_gamescope "$client_w" "$client_h" "$client_fps" "$client_hdr"
+              if streaming_active; then
+                # Never restart gamescope under a live stream: another client is
+                # capturing the current node, and stop_gamescope would kill it.
+                echo "start: keeping gamescope (stream active); app joins at the current geometry" >&2
+              else
+                stop_gamescope
+                start_gamescope "$client_w" "$client_h" "$client_fps" "$client_hdr"
+              fi
             fi
           elif [ -n "$client_w" ] && [ -n "$client_h" ] && [ -n "$client_fps" ]; then
             start_gamescope "$client_w" "$client_h" "$client_fps" "$client_hdr"
