@@ -124,6 +124,9 @@ in
     # still rebuilt (gamescopePkg's always-on overlay postPatch).
     preferDiscreteGpu = mkBoolOption { default = gamescope.preferDiscreteGpu; };
 
+    # Prefer DMA-BUF buffers for the capture stream (fallback to SHM when the consumer can't).
+    preferDmaBuf = mkBoolOption { default = gamescope.preferDmaBuf; };
+
     # HDR-capable gamescope (HDR/colorimetry patches); stream HDR follows the client per-stream.
     hdr = mkBoolOption { default = gamescope.hdr; };
 

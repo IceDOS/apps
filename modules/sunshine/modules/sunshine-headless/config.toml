@@ -20,6 +20,8 @@ mangoApp = true
 nativeWayland = true
 # Prefer the discrete GPU on hybrid rigs (stock picks the iGPU; upstream #2217). Inert on single GPU.
 preferDiscreteGpu = true
+# Prefer DMA-BUF buffers for the capture stream (fallback to SHM when the consumer can't).
+preferDmaBuf = true
 # Gamescope --rt (realtime SCHED_FIFO); off = only SetNice(-20).
 realtime = true
 # Seconds (2m) with no gamescope at all before the minimal 1x1x1 probe gamescope is rerun (needs the daemon up); 0 = never regrow.

@@ -1,0 +1,11 @@
+--- a/src/pipewire.cpp
++++ b/src/pipewire.cpp
+@@ -381,7 +381,7 @@
+ 	if (state->video_info.format == SPA_VIDEO_FORMAT_NV12) {
+ 		shm_size += ((state->video_info.size.height + 1) / 2) * state->shm_stride;
+ 	}
+-	int data_type = state->dmabuf ? (1 << SPA_DATA_DmaBuf) : (1 << SPA_DATA_MemFd);
++	int data_type = (1 << SPA_DATA_DmaBuf) | (1 << SPA_DATA_MemFd);
+ 
+ 	const struct spa_pod *buffers_param =
+ 		(const struct spa_pod *) spa_pod_builder_add_object(&builder,
