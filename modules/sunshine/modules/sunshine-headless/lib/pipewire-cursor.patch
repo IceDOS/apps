@@ -9,7 +9,7 @@
  std::atomic<uint32_t> g_unCurrentVRSceneAppId;
  std::atomic<uint64_t> g_FocusedVROverlayMouse;
  std::atomic<uint64_t> g_FocusedVROverlayKeyboard;
-@@ -2944,6 +2946,18 @@
+@@ -2944,6 +2946,24 @@
  
  	uint64_t ulFocusCommitId = window_last_done_commit_id( pFocus->focusWindow );
  	uint64_t ulOverrideCommitId = window_last_done_commit_id( pFocus->overrideWindow );
@@ -19,7 +19,13 @@
 +	global_focus_t *pCursorFocus = GetCurrentFocus();
 +	static int s_LastCursorX = -1, s_LastCursorY = -1;
 +	static bool s_LastCursorVisible = false;
-+	const bool cursorVisible = pCursorFocus && pCursorFocus->cursor && !pCursorFocus->cursor->isHidden();
++	// Undirty before the test, as the scanout path does, so the test and the
++	// paint below agree on ShouldDrawCursor()/hidden state.
++	if ( pCursorFocus && pCursorFocus->cursor )
++		pCursorFocus->cursor->undirty();
++	const bool cursorVisible = pCursorFocus && pCursorFocus->cursor &&
++		pCursorFocus->inputFocusWindow && !pCursorFocus->cursor->isHidden() &&
++		ShouldDrawCursor() && cv_paint_cursor_plane;
 +	const bool cursorChanged = cursorVisible != s_LastCursorVisible ||
 +		( cursorVisible && ( pCursorFocus->cursor->x() != s_LastCursorX || pCursorFocus->cursor->y() != s_LastCursorY ) );
 +	s_LastCursorX = pCursorFocus && pCursorFocus->cursor ? pCursorFocus->cursor->x() : s_LastCursorX;
@@ -28,7 +34,7 @@
  	// Combine the underlay and decoration commits so damage to any of them, or a change
  	// in the set itself, pushes a new frame.
  	uint64_t ulUnderlayCommitId = 0;
-@@ -2957,7 +2971,8 @@
+@@ -2957,7 +2977,8 @@
  	if ( ulFocusCommitId == s_ulLastFocusCommitId &&
  	     ulOverrideCommitId == s_ulLastOverrideCommitId &&
  	     ulUnderlayCommitId == s_ulLastUnderlayCommitId &&
@@ -38,17 +44,15 @@
  		return;
  
  	s_ulLastFocusCommitId = ulFocusCommitId;
-@@ -3008,6 +3023,18 @@
+@@ -3008,6 +3029,16 @@
  				( cv_overlay_unmultiplied_alpha ? PaintWindowFlag::CoverageMode : 0 )  );
  	}
  
 +	// Paint the cursor into the stream, same gating as the main output path.
-+	if ( pCursorFocus && pCursorFocus->cursor && pCursorFocus->inputFocusWindow &&
-+	     ShouldDrawCursor() && cv_paint_cursor_plane )
++	if ( cursorVisible )
 +	{
 +		steamcompmgr_win_t *input = pCursorFocus->inputFocusWindow;
 +		steamcompmgr_win_t *override = pCursorFocus->overrideWindow;
-+		pCursorFocus->cursor->undirty();
 +		pCursorFocus->cursor->paint(
 +			input, pCursorFocus->focusWindow == input ? override : nullptr,
 +			&frameInfo );
