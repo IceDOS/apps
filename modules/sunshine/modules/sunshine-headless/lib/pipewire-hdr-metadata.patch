@@ -1,10 +1,10 @@
---- a/src/pipewire.cpp	2026-07-10 06:34:27.536756039 +0300
-+++ b/src/pipewire.cpp	2026-07-10 06:34:28.496116030 +0300
-@@ -118,6 +118,11 @@
+--- a/src/pipewire.cpp
++++ b/src/pipewire.cpp
+@@ -123,6 +123,11 @@
  							SPA_VIDEO_COLOR_RANGE_16_235,
  							SPA_VIDEO_COLOR_RANGE_0_255),
  			0);
-+	} else if (g_bOutputHDREnabled && format == SPA_VIDEO_FORMAT_xBGR_210LE) {
++	} else if (g_bOutputHDREnabled && (format == SPA_VIDEO_FORMAT_xBGR_210LE || format == SPA_VIDEO_FORMAT_xRGB_210LE)) {
 +		spa_pod_builder_add(builder,
 +			SPA_FORMAT_VIDEO_colorPrimaries, SPA_POD_Id(SPA_VIDEO_COLOR_PRIMARIES_BT2020),
 +			SPA_FORMAT_VIDEO_transferFunction, SPA_POD_Id(SPA_VIDEO_TRANSFER_SMPTE2084),
@@ -12,11 +12,11 @@
  	}
  	spa_pod_builder_prop(builder, SPA_FORMAT_VIDEO_modifier, SPA_POD_PROP_FLAG_MANDATORY);
  	spa_pod_builder_push_choice(builder, &choice_frame, SPA_CHOICE_Enum, 0);
-@@ -147,6 +152,11 @@
+@@ -152,6 +157,11 @@
  							SPA_VIDEO_COLOR_RANGE_16_235,
  							SPA_VIDEO_COLOR_RANGE_0_255),
  			0);
-+	} else if (g_bOutputHDREnabled && format == SPA_VIDEO_FORMAT_xBGR_210LE) {
++	} else if (g_bOutputHDREnabled && (format == SPA_VIDEO_FORMAT_xBGR_210LE || format == SPA_VIDEO_FORMAT_xRGB_210LE)) {
 +		spa_pod_builder_add(builder,
 +			SPA_FORMAT_VIDEO_colorPrimaries, SPA_POD_Id(SPA_VIDEO_COLOR_PRIMARIES_BT2020),
 +			SPA_FORMAT_VIDEO_transferFunction, SPA_POD_Id(SPA_VIDEO_TRANSFER_SMPTE2084),
@@ -24,16 +24,19 @@
  	}
  	params.push_back((const struct spa_pod *) spa_pod_builder_pop(builder, &obj_frame));
  
-@@ -161,6 +171,8 @@
+@@ -166,6 +176,11 @@
  
  	build_format_params(builder, SPA_VIDEO_FORMAT_BGRx, params);
  	build_format_params(builder, SPA_VIDEO_FORMAT_NV12, params);
 +	if (g_bOutputHDREnabled)
++	{
 +		build_format_params(builder, SPA_VIDEO_FORMAT_xBGR_210LE, params);
++		build_format_params(builder, SPA_VIDEO_FORMAT_xRGB_210LE, params);
++	}
  
  	return params;
  }
-@@ -266,6 +278,7 @@
+@@ -271,6 +286,7 @@
  
  static void dispatch_nudge(struct pipewire_state *state, int fd)
  {
@@ -41,7 +44,7 @@
  	while (true) {
  		static char buf[1024];
  		if (read(fd, buf, sizeof(buf)) < 0) {
-@@ -280,7 +293,8 @@
+@@ -285,10 +301,11 @@
  		s_nOutputHeight = g_nOutputHeight;
  		calculate_capture_size();
  	}
@@ -50,21 +53,46 @@
 +		s_bLastHDREnabled = g_bOutputHDREnabled;
  		pwr_log.debugf("renegotiating stream params (size: %dx%d)", s_nCaptureWidth, s_nCaptureHeight);
  
- 		uint8_t buf[4096];
-@@ -445,6 +459,7 @@
+-		uint8_t buf[4096];
++		uint8_t buf[8192];
+ 		struct spa_pod_builder builder = SPA_POD_BUILDER_INIT(buf, sizeof(buf));
+ 		std::vector<const struct spa_pod *> format_params = build_format_params(&builder);
+ 		int ret = pw_stream_update_params(state->stream, format_params.data(), format_params.size());
+@@ -412,6 +429,10 @@
+ 		state->video_info.size.width, state->video_info.size.height,
+ 		s_nRequestedWidth, s_nRequestedHeight,
+ 		state->video_info.format, state->shm_stride, shm_size, state->dmabuf);
++	if (state->video_info.format == SPA_VIDEO_FORMAT_xBGR_210LE || state->video_info.format == SPA_VIDEO_FORMAT_xRGB_210LE)
++	{
++		pwr_log.infof("negotiated 10-bit stream (BT.2020 + PQ)");
++	}
+ }
+ 
+ static void randname(char *buf)
+@@ -450,6 +471,8 @@
  	switch (spa_format)
  	{
  		case SPA_VIDEO_FORMAT_NV12: return DRM_FORMAT_NV12;
++		case SPA_VIDEO_FORMAT_xRGB_210LE: return DRM_FORMAT_XRGB2101010;
 +		case SPA_VIDEO_FORMAT_xBGR_210LE: return DRM_FORMAT_XBGR2101010;
  		default:
  		case SPA_VIDEO_FORMAT_BGR: return DRM_FORMAT_XRGB8888;
  	}
-@@ -502,7 +517,7 @@
+@@ -507,7 +530,7 @@
  	screenshotImageFlags.bMappable = true;
  	screenshotImageFlags.bTransferDst = true;
  	screenshotImageFlags.bStorage = true;
 -	if (is_dmabuf || drmFormat == DRM_FORMAT_NV12)
-+	if (is_dmabuf || drmFormat == DRM_FORMAT_NV12 || drmFormat == DRM_FORMAT_XBGR2101010)
++	if (is_dmabuf || drmFormat == DRM_FORMAT_NV12 || drmFormat == DRM_FORMAT_XBGR2101010 || drmFormat == DRM_FORMAT_XRGB2101010)
  	{
  		screenshotImageFlags.bExportable = true;
  		screenshotImageFlags.bLinear = true; // TODO: support multi-planar DMA-BUF export via PipeWire
+@@ -715,7 +738,7 @@
+ 	s_nOutputHeight = g_nOutputHeight;
+ 	calculate_capture_size();
+ 
+-	uint8_t buf[4096];
++	uint8_t buf[8192];
+ 	struct spa_pod_builder builder = SPA_POD_BUILDER_INIT(buf, sizeof(buf));
+ 	std::vector<const struct spa_pod *> format_params = build_format_params(&builder);
+ 
