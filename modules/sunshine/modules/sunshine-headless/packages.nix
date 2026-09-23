@@ -21,6 +21,7 @@ let
   inputInjection = gamescope.inputInjection;
   mangoApp = gamescope.mangoApp;
   preferDiscreteGpu = gamescope.preferDiscreteGpu;
+  preferDmaBuf = gamescope.preferDmaBuf;
   sdrGamutWideness = gamescope.sdrGamutWideness;
   sdrContentNits = gamescope.sdrContentNits;
 
@@ -34,7 +35,12 @@ let
   # Every patch is gated by its own option (each forces a local rebuild). PR refs: #2271, #2217, #2270.
   # Bespoke native-wayland.patch has no upstream PR; gamescopePkg always adds a Steam-overlay postPatch.
   anyGamescopePatch =
-    preferDiscreteGpu || inputInjection || nativeWaylandSteamApp || hdr || colorManagement;
+    preferDiscreteGpu
+    || preferDmaBuf
+    || inputInjection
+    || nativeWaylandSteamApp
+    || hdr
+    || colorManagement;
 
   gamescopePatched = pkgs.gamescope.overrideAttrs (old: {
     patches =
@@ -43,6 +49,7 @@ let
       # nativeWayland: publish appIDs for native Wayland games. The patch only changes
       # steam-mode focus/baselayer behaviour, so it is inert without a steamMode app.
       ++ lib.optionals nativeWaylandSteamApp [ ./lib/native-wayland.patch ]
+      ++ lib.optionals preferDmaBuf [ ./lib/pipewire-prefer-dmabuf.patch ]
       ++ lib.optionals inputInjection [
         ./lib/pipewire-cursor.patch
         ./lib/headless-input.patch
