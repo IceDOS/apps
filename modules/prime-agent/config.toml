@@ -38,12 +38,10 @@ enable = false
 percent = 30
 
 [icedos.applications.prime-agent.extensions.meters]
-# Install the cost-footer extension: live session cost (USD) in the TUI bottom bar,
-# with token totals and the active model; /cost toggles it at runtime.
+# Install the cost-footer extension: live session cost (USD or € for metered
+# local models) in the TUI bottom bar, with token totals and the active model;
+# /cost toggles it at runtime. The tok/s readout is native (/speed).
 cost = true
-
-# Show live generation rate (tok/s) in the cost footer. Requires cost = true.
-tps = true
 
 [icedos.applications.prime-agent.extensions.meters.power]
 # Meter GPU electricity for locally-served models; the footer shows measured
@@ -98,6 +96,10 @@ shareTraces = false
 # Send product analytics (token usage, model/provider categories) to Prime Intellect.
 # Off by default; flips prime-agent's upstream `telemetry.enabled` (default true).
 telemetry = false
+
+# Start every session with the native /speed footer readout (output tok/s per
+# response + session average). /speed on|off still toggles it at runtime.
+speed = true
 
 # "provider/model-id" for refine, compaction and branch summaries. "" keeps the
 # session model (and any /settings choice).

@@ -1,4 +1,4 @@
-// Cost + opencode-go plan usage as a setWidget. A background collector per
+// Session cost + opencode plan usage as a setWidget. A background collector per
 // (provider, model) builds the shared state every window renders.
 
 import {
@@ -49,10 +49,6 @@ import {
   isMeteredProvider,
   meteringEnabled,
 } from "./power.ts";
-import { createTpsMeter } from "./tps.ts";
-
-// Build-time flag from prime-agent.extensions.meters.tps: false drops the tok/s cell.
-const tpsMeter = @tpsMeter@;
 
 export default function (pi: ExtensionAPI) {
   let enabled = true;
@@ -61,14 +57,9 @@ export default function (pi: ExtensionAPI) {
   const power = createPowerMeter(() => {
     if (lastCtx) refresh(lastCtx);
   });
-  // Generation rate from this window's own streamed deltas; not a power
-  // measurement, so it lives outside the electricity meter entirely.
-  const tps = tpsMeter ? createTpsMeter() : null;
   let sampler: ReturnType<typeof setInterval> | null = null;
   let repainter: ReturnType<typeof setTimeout> | null = null;
   let lastCtx: any = null;
-  let lastTpsPaint = 0;
-  let lastTpsValue = 0;
   let currentKey: string | null = null;
   // Reset time from this window's own 429, shown until the collector's next
   // publish. Keyed by pool: a 429 on any group-A model applies to the shared bucket.
@@ -337,20 +328,14 @@ export default function (pi: ExtensionAPI) {
       ? [sgr("33", "⚡")]
       : [sgr("36", "◆"), free ? dim("free") : sgr("1", fmtCost(usage.cost))];
     parts.push(`↑${fmtTokens(usage.input)}`, `↓${fmtTokens(usage.output)}`);
-    // tok/s is a rate from this window's own generation timer, so it renders
-    // for every provider, metered or not.
-    const tpsCell = tps && tps.tps > 0 ? `${tps.tps.toFixed(1)} tok/s` : null;
     if (p) {
       if (p.sampling) parts.push(`${p.watts.toFixed(0)}W`);
-      if (tpsCell) parts.push(tpsCell);
       if (p.windows.length) {
         parts.push(dim("·"));
         for (const [label, joules] of p.windows) {
           parts.push(`${dim(label)} ${fmtPower(costOf(joules))}`);
         }
       }
-    } else if (tpsCell) {
-      parts.push(tpsCell);
     }
     return parts.join(" ");
   };
@@ -458,27 +443,12 @@ export default function (pi: ExtensionAPI) {
         power.start(() => ctx?.isIdle?.() === true);
       }
     });
-  pi.on("message_update", (event: any, ctx: any) => {
-    // First streamed delta starts the generation timer for any provider.
-    const ev = event?.assistantMessageEvent;
-    if (!tps || !ev || typeof ev.delta !== "string") return;
-    tps.noteDelta(ev.partial?.usage?.output);
-    // Repaint at most 1 Hz while streaming so the live tok/s cell moves.
-    const now = Date.now();
-    if (ctx?.hasUI && now - lastTpsPaint >= 1000 && tps.tps !== lastTpsValue) {
-      lastTpsPaint = now;
-      lastTpsValue = tps.tps;
-      refresh(ctx);
-    }
-  });
   pi.on("message_end", (event: any, ctx: any) => {
     if (event?.message?.role !== "assistant") return;
-    tps?.noteGeneration(event?.message?.usage?.output);
     // Metering was started for a metered request, so only a metered reply may
     // release its claim; an unrelated cloud reply must not stop the sampler.
     if (isMeteredProvider(event?.message?.provider)) power.stop();
     refresh(ctx);
-    lastTpsValue = tps?.tps ?? 0;
   });
   pi.on("model_select", async (_e, ctx) => refresh(ctx));
   pi.on("session_before_switch", async (_e, ctx) => refresh(ctx));

@@ -82,11 +82,9 @@
         };
 
         meters = {
-          # Install the cost-footer extension: live session cost (USD) in the TUI bottom bar.
+          # Install the cost-footer extension: live session cost (USD, or € for
+          # metered local models) in the TUI bottom bar, with token totals.
           cost = mkBoolOption { default = extensions.meters.cost; };
-
-          # Show live generation rate (tok/s) in the cost footer.
-          tps = mkBoolOption { default = extensions.meters.tps; };
 
           power = {
             # Meter GPU electricity for locally-served models inside the cost footer.
@@ -313,6 +311,9 @@
         # Send product analytics (token usage, model/provider categories) to Prime
         # Intellect. Off by default (flips upstream's telemetry.enabled = true).
         telemetry = mkBoolOption { default = settings.telemetry; };
+
+        # Start every session with the native /speed footer readout (output tok/s), via terminal.speed.
+        speed = mkBoolOption { default = settings.speed; };
 
         # "provider/model-id" serving refine, compaction and branch summaries; "" keeps the session model.
         auxiliaryModel = mkStrOption { default = settings.auxiliaryModel; };
@@ -607,9 +608,6 @@
                       )
                     }
 
-                  substituteInPlace $out/index.ts \
-                    --replace-fail "@tpsMeter@" ${if prime-agent.extensions.meters.tps then "true" else "false"}
-
                   # substituteInPlace only fails on a marker it was told about, so
                   # a newly added one would ship as a literal and break the load.
                   if ${pkgs.gnugrep}/bin/grep -rqE '@[a-zA-Z_][0-9A-Za-z_-]*@' $out; then
@@ -734,7 +732,9 @@
                       (
                         srv:
                         # Default per-server timeout; a server config setting callTimeoutMs wins.
-                        { callTimeoutMs = prime-agent.settings.mcpCallTimeout * 1000; }
+                        {
+                          callTimeoutMs = prime-agent.settings.mcpCallTimeout * 1000;
+                        }
                         // srv
                         // {
                           type = "http";
@@ -787,6 +787,7 @@
                     agentTraces.enabled = prime-agent.settings.shareTraces;
                     # Upstream defaults this to true; expose it so a user can flip it on.
                     telemetry.enabled = prime-agent.settings.telemetry;
+                    terminal.speed = prime-agent.settings.speed;
                   };
 
                 # ---- per-server skill files ----
@@ -1250,15 +1251,6 @@
                     '';
                   }
                   {
-                    # The tok/s rate renders inside the cost footer.
-                    assertion = prime-agent.extensions.meters.cost || !prime-agent.extensions.meters.tps;
-                    message = ''
-                      icedos.applications.prime-agent.extensions.meters.tps needs
-                      meters.cost = true: the tok/s rate is rendered as part of
-                      the cost footer.
-                    '';
-                  }
-                  {
                     # Both load a "cost-footer" extension and would double-render.
                     assertion = !prime-agent.extensions.meters.cost || !(prime-agent.extensions.inline ? "cost-footer");
                     message = ''
@@ -1317,7 +1309,7 @@
                       };
                     })
 
-                    # Live session cost (USD) + token totals in the TUI bottom bar.
+                    # Live session cost (USD, or € for metered local models) in the TUI bottom bar.
                     (mkIf prime-agent.extensions.meters.cost {
                       "${relDataDir}/extensions/cost-footer".source = costFooterSrc;
                     })
@@ -1360,8 +1352,8 @@
             ++ lib.optionals prime-agent.extensions.meters.power.enable [
               "Models running on your own graphics card are priced by the electricity they use."
             ]
-            ++ lib.optionals prime-agent.extensions.meters.tps [
-              "The cost footer shows live generation tok/s; prime-agent.extensions.meters.tps = false hides it."
+            ++ lib.optionals prime-agent.settings.speed [
+              "The TUI footer shows output tok/s per response and a session average; /speed on/off toggles it."
             ]
             ++ lib.optionals prime-agent.includeInIcedosGc [
               "icedos gc also clears out old prime-agent sessions and logs."
