@@ -58,6 +58,10 @@
             (lib.cmakeBool "ENABLE_SYSTEM_LIBRARIES" true)
           ];
 
+          # Upstream forces ENABLE_GLSLANG_BINARIES on to compile host shaders, and
+          # glslang's standalone build needs a Python 3 interpreter.
+          nativeBuildInputs = (old.nativeBuildInputs or [ ]) ++ [ final.python3 ];
+
           # protobuf_LOCAL_DEPENDENCIES_ONLY kills its FetchContent fallback, so
           # find_package(absl) must hit — with clang, or the Cord symbols mangle wrong.
           buildInputs =
