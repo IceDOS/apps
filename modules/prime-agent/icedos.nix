@@ -469,7 +469,6 @@
             (final: _prev: {
               prime-agent = final.callPackage ./package.nix {
                 inherit (icedosLib.packaging) installDesktopEntry;
-                mcpCallTimeout = prime-agent.settings.mcpCallTimeout;
                 desktopEntry = prime-agent.desktopEntry;
                 defaultAgentDir = shellDataDir;
                 extraBuiltinSkills = prime-agent.skills.extraBuiltin;
@@ -728,7 +727,9 @@
                     extraTransforms = [
                       (
                         srv:
-                        srv
+                        # Default per-server timeout; a server config setting callTimeoutMs wins.
+                        { callTimeoutMs = prime-agent.settings.mcpCallTimeout * 1000; }
+                        // srv
                         // {
                           type = "http";
                           url = urlFor name srv;
