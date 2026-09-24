@@ -149,6 +149,10 @@ buildNpmPackage (finalAttrs: {
     # recap outlives the failure, so the title drops it once the agent moves on.
     ./patches/terminal-title-session-headline.patch
 
+    # /speed is a runtime-only session toggle; seed its default from terminal.speed
+    # in settings.json so a session starts with the footer readout on.
+    ./patches/speed-session-default.patch
+
     # opencode zen 403s a free-tier request whose tools omit bash, grep, glob and
     # read. Append stubs for the missing names so every zen request is accepted.
     ./patches/opencode-zen-tool-floor.patch
