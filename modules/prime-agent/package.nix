@@ -177,6 +177,10 @@ buildNpmPackage (finalAttrs: {
     # Ollama Cloud provider: bundled models (https://ollama.com/v1) + the /login
     # API-key flow (OLLAMA_API_KEY), upstream-style openai-completions integration.
     ./patches/ollama-cloud-provider.patch
+
+    # The upstream catalog has no Ollama entries, and only catalog-listed models reach
+    # the registry. Keep installed providers the catalog does not list.
+    ./patches/ollama-cloud-catalog-keep.patch
   ];
 
   npmDepsFetcherVersion = 2;
