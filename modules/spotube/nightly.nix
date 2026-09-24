@@ -85,11 +85,16 @@
           # WebKitGTK uses libsoup3, whose GIO TLS module comes from glib-networking (blank
           # login webview otherwise); --prefix keeps the session's GIO_EXTRA_MODULES (gvfs, dconf).
 
+          # JDK file dialog needs org.gtk.Settings.FileChooser; the glib env hook fills
+          # GSETTINGS_SCHEMAS_PATH (gtk3 + desktop schemas); --set-default keeps XDG fallback.
+
           # $out/bin/spotube is the launcher the overlay installs (Exec=spotube in the .desktop);
           # makeWrapper writes it directly and folds every flag below into it.
           postFixup = ''
             makeWrapper $out/share/spotube/bin/dev.krtirtho.spotube $out/bin/spotube \
               --prefix GIO_EXTRA_MODULES : ${final.glib-networking}/lib/gio/modules \
+              --set-default XDG_DATA_DIRS /usr/local/share/:/usr/share/ \
+              --prefix XDG_DATA_DIRS : "$GSETTINGS_SCHEMAS_PATH" \
               --set-default SSL_CERT_FILE /etc/ssl/certs/ca-certificates.crt \
               --prefix LD_LIBRARY_PATH : ${
                 lib.makeLibraryPath (
