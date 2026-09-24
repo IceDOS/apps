@@ -41,6 +41,14 @@ let
   # upstream tag-prefix change does not need a package edit.
   source = builtins.fromJSON (builtins.readFile ./source.json);
 
+  # Without it the sandboxed build ships the 4-model test fixture as the bundled catalog.
+  catalog = fetchFromGitHub {
+    owner = "PrimeIntellect-ai";
+    repo = "prime-agent-catalog";
+    rev = source.catalogRev;
+    hash = source.catalogHash;
+  };
+
   runtimePath = [
     nodejs
     bash
@@ -183,6 +191,9 @@ buildNpmPackage (finalAttrs: {
     runHook preBuild
 
     export PATH="$PWD/node_modules/.bin:$PATH"
+    mkdir -p packages/coding-agent/catalog
+    cp ${catalog}/models/catalog.v1.json packages/coding-agent/catalog/models.bundled.json
+    cp ${catalog}/plugins/catalog.v2.json packages/coding-agent/catalog/mcp-services.bundled.json
     npm --workspace packages/tui run build
     (cd packages/ai && tsgo -p tsconfig.build.json)
     npm --workspace packages/agent run build

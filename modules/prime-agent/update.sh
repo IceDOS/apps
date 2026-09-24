@@ -16,6 +16,7 @@ CORE="${ICEDOS_CORE:-$REPO_ROOT/.icedos-core}"
 
 PIN="$SCRIPT_DIR/source.json"
 REPO="PrimeIntellect-ai/prime-agent"
+CATALOG_REPO="PrimeIntellect-ai/prime-agent-catalog"
 
 main() {
   banner "prime-agent updater"
@@ -62,8 +63,15 @@ main() {
   require_nonempty prime-agent-npm "$version" "$tag" "$npmDepsHash"
   info "  npmDepsHash: $npmDepsHash"
 
+  info "  Pinning prime-agent-catalog HEAD..."
+  local catalogRev catalogHash
+  catalogRev=$(git ls-remote "https://github.com/$CATALOG_REPO.git" HEAD | cut -f1)
+  catalogHash=$(nix-prefetch-git --quiet "https://github.com/$CATALOG_REPO.git" "$catalogRev" | jq -r .hash)
+  require_nonempty prime-agent-catalog "$version" "$catalogRev" "$catalogHash"
+
   jq -n --arg version "$version" --arg rev "$tag" --arg hash "$hash" --arg npmDepsHash "$npmDepsHash" \
-    '{version: $version, rev: $rev, hash: $hash, npmDepsHash: $npmDepsHash}' | write_pin "$PIN"
+    --arg catalogRev "$catalogRev" --arg catalogHash "$catalogHash" \
+    '{version: $version, rev: $rev, hash: $hash, npmDepsHash: $npmDepsHash, catalogRev: $catalogRev, catalogHash: $catalogHash}' | write_pin "$PIN"
 
   info "  Updated: $version"
 }

@@ -2,5 +2,7 @@
   "version": "0.9.6",
   "rev": "v0.9.6",
   "hash": "sha256-++S2VAOM9c70lunDNbJqExbXr46ufxlQCtX5UXNrmDI=",
-  "npmDepsHash": "sha256-1sD5uK/DLIAx97xbiD6r/602BJ0LGakCITWTxQakD90="
+  "npmDepsHash": "sha256-1sD5uK/DLIAx97xbiD6r/602BJ0LGakCITWTxQakD90=",
+  "catalogRev": "d3f43ad14d87caa99662d7a62f0d658ab12afa86",
+  "catalogHash": "sha256-gNJ9UDaqcEzGcXrPd6XFU38eyZv+lko29ZdEmuZwRO8="
 }
