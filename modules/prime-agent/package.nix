@@ -157,6 +157,10 @@ buildNpmPackage (finalAttrs: {
     # prime treats as permanent and ends the turn. Retry it like a server error.
     ./patches/opencode-zen-upstream-retry.patch
 
+    # big-pickle ignores tool_choice "none" on stub-only requests and leaks DSML
+    # tool-call text, breaking JSON side calls. Tell it no tools, retry on leaked markup.
+    ./patches/opencode-zen-toolless-guard.patch
+
     # A child whose turn ends on a provider error (rate limit, quota) counts as done
     # and the parent gets a bare "no-reply" notice. Report it as child-failed with the
     # error, and show provider retries as progress notes in collect/list snapshots.
