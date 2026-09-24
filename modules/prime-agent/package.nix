@@ -161,6 +161,9 @@ buildNpmPackage (finalAttrs: {
     # tool-call text, breaking JSON side calls. Tell it no tools, retry on leaked markup.
     ./patches/opencode-zen-toolless-guard.patch
 
+    # Refine and auto-refine review fail outright on one malformed reply. Resend once.
+    ./patches/refinement-json-retry.patch
+
     # A child whose turn ends on a provider error (rate limit, quota) counts as done
     # and the parent gets a bare "no-reply" notice. Report it as child-failed with the
     # error, and show provider retries as progress notes in collect/list snapshots.
