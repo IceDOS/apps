@@ -313,6 +313,12 @@
         # Send product analytics (token usage, model/provider categories) to Prime
         # Intellect. Off by default (flips upstream's telemetry.enabled = true).
         telemetry = mkBoolOption { default = settings.telemetry; };
+
+        # "provider/model-id" serving refine, compaction and branch summaries; "" keeps the session model.
+        auxiliaryModel = mkStrOption { default = settings.auxiliaryModel; };
+
+        # "provider/model-id" serving turns that carry images when the session model is text-only.
+        imageModel = mkStrOption { default = settings.imageModel; };
       };
       users = mkSubmoduleAttrsOption { default = { }; } { };
     };
@@ -765,6 +771,12 @@
                   })
                   // (lib.optionalAttrs (prime-agent.default.model != "") {
                     defaultModel = prime-agent.default.model;
+                  })
+                  // (lib.optionalAttrs (prime-agent.settings.auxiliaryModel != "") {
+                    auxiliaryModel = prime-agent.settings.auxiliaryModel;
+                  })
+                  // (lib.optionalAttrs (prime-agent.settings.imageModel != "") {
+                    imageModel = prime-agent.settings.imageModel;
                   })
                   // (lib.optionalAttrs (prime-agent.skills.dirs != [ ]) {
                     skills = prime-agent.skills.dirs;
