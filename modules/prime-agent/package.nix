@@ -153,6 +153,11 @@ buildNpmPackage (finalAttrs: {
     # zen wraps flaky upstream rejections as 400 "Upstream request failed", which
     # prime treats as permanent and ends the turn. Retry it like a server error.
     ./patches/opencode-zen-upstream-retry.patch
+
+    # A child whose turn ends on a provider error (rate limit, quota) counts as done
+    # and the parent gets a bare "no-reply" notice. Report it as child-failed with the
+    # error, and show provider retries as progress notes in collect/list snapshots.
+    ./patches/rlm-child-provider-error-notice.patch
   ]
   ++ lib.optionals ollamaCloud [
     # Ollama Cloud provider: bundled models (https://ollama.com/v1) + the /login
