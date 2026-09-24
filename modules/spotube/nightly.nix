@@ -6,12 +6,17 @@
       let
         inherit (final) lib;
         source = builtins.fromJSON (builtins.readFile ./source.json);
+        # no-op libgdk shim: the bundled JDK arms GDK's thread lock and the app's
+        # GTK webview parks holding it, which deadlocks AWT URL opens (link clicks)
+        gdkShim = ./libgdk3-shim.c;
       in
       {
-        spotube = prev.spotube.overrideAttrs (_: {
+        spotube = prev.spotube.overrideAttrs (old: {
           inherit (source) version;
 
           src = final.fetchurl { inherit (source) url hash; };
+
+          nativeBuildInputs = (old.nativeBuildInputs or [ ]) ++ [ final.patchelf ];
 
           # jpackage resolves lib/app/<launcher>.cfg relative to the launcher in bin/, so
           # the bundle is copied wholesale and bin/ and lib/ stay siblings.
@@ -20,6 +25,18 @@
 
             mkdir -p $out/share/spotube
             cp -r opt/dev.krtirtho.spotube/. $out/share/spotube/
+
+            # The bundled JDK arms GDK's thread lock (gdk_threads_init) and the app's
+            # webview parks holding it, so AWT URL opens (gdk_threads_enter) block and
+            # KWin kills the app. Ship a no-op shim as the libgdk-3.so.0 every consumer
+            # resolves to; the real lib is linked in under a unique soname.
+            mkdir -p $out/lib
+            cp ${final.gtk3}/lib/libgdk-3.so.0 $out/lib/libgdk3-real.so.0
+            chmod u+w $out/lib/libgdk3-real.so.0
+            patchelf --set-soname libgdk3-real.so.0 $out/lib/libgdk3-real.so.0
+            $CC -shared -fPIC -O2 -Wall -Wl,-soname,libgdk-3.so.0 \
+              -Wl,--no-as-needed $out/lib/libgdk3-real.so.0 \
+              -o $out/lib/libgdk-3.so.0 "${gdkShim}"
 
             for icon in usr/share/icons/hicolor/*/apps/dev.krtirtho.spotube.png; do
               install -Dm644 "$icon" "$out/''${icon#usr/}"
@@ -76,8 +93,8 @@
               --set-default SSL_CERT_FILE /etc/ssl/certs/ca-certificates.crt \
               --prefix LD_LIBRARY_PATH : ${
                 lib.makeLibraryPath (
-                  with final;
-                  [
+                  [ "$out" ]
+                  ++ (with final; [
                     cairo
                     dbus
                     gdk-pixbuf
@@ -91,7 +108,7 @@
                     wayland
                     webkitgtk_4_1
                     libxext
-                  ]
+                  ])
                 )
               } \
               --set-default VLC_PLUGIN_PATH ${final.libvlc}/lib/vlc/plugins \
