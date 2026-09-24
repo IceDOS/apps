@@ -9,6 +9,8 @@
         # no-op libgdk shim: the bundled JDK arms GDK's thread lock and the app's
         # GTK webview parks holding it, which deadlocks AWT URL opens (link clicks)
         gdkShim = ./libgdk3-shim.c;
+        # drops AWT's GDK_BACKEND=x11 on Wayland so Tao stays native and the webview shows
+        gdkBackendShim = ./gdk-backend-shim.c;
       in
       {
         spotube = prev.spotube.overrideAttrs (old: {
@@ -37,6 +39,7 @@
             $CC -shared -fPIC -O2 -Wall -Wl,-soname,libgdk-3.so.0 \
               -Wl,--no-as-needed $out/lib/libgdk3-real.so.0 \
               -o $out/lib/libgdk-3.so.0 "${gdkShim}"
+            $CC -shared -fPIC -O2 -Wall -o $out/lib/libgdk-backend-shim.so "${gdkBackendShim}" -ldl
 
             for icon in usr/share/icons/hicolor/*/apps/dev.krtirtho.spotube.png; do
               install -Dm644 "$icon" "$out/''${icon#usr/}"
@@ -92,6 +95,7 @@
           # makeWrapper writes it directly and folds every flag below into it.
           postFixup = ''
             makeWrapper $out/share/spotube/bin/dev.krtirtho.spotube $out/bin/spotube \
+              --prefix LD_PRELOAD : $out/lib/libgdk-backend-shim.so \
               --prefix GIO_EXTRA_MODULES : ${final.glib-networking}/lib/gio/modules \
               --set-default XDG_DATA_DIRS /usr/local/share/:/usr/share/ \
               --prefix XDG_DATA_DIRS : "$GSETTINGS_SCHEMAS_PATH" \
