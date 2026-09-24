@@ -2,7 +2,6 @@
   lib,
   stdenv,
   buildNpmPackage,
-  mcpCallTimeout ? 900,
   # Shell-expandable default for PRIME_AGENT_CODING_AGENT_DIR, applied in the wrapper
   # so launches that never see the session variables still find the configured dir.
   # "" keeps upstream's ~/.prime/agent.
@@ -125,10 +124,6 @@ buildNpmPackage (finalAttrs: {
   };
 
   patches = [
-    # MCP tool-call timeout defaults to 60s, too short for heavy reviews.
-    # Make it configurable via PRIME_AGENT_MCP_CALL_TIMEOUT (seconds).
-    ./patches/mcp-call-timeout-env.patch
-
     # modelOverrides is only applied to built-in models; custom models from
     # models[] overwrite them, ignoring overrides like contextWindow.
     ./patches/model-registry-model-overrides.patch
@@ -248,7 +243,6 @@ buildNpmPackage (finalAttrs: {
       --set PI_SKIP_VERSION_CHECK 1 \
       --set UV_PYTHON_PREFERENCE system \
       --set UV_PYTHON_DOWNLOADS manual \
-      --set-default PRIME_AGENT_MCP_CALL_TIMEOUT ${toString mcpCallTimeout} \
       ${agentDirFlags}\
       --prefix PATH : ${lib.makeBinPath runtimePath} \
       ${lib.optionalString stdenv.hostPlatform.isLinux "--prefix LD_LIBRARY_PATH : ${

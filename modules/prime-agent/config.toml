@@ -80,7 +80,7 @@ ollama = true
 # "" means $XDG_CONFIG_HOME/prime-agent; $XDG_CONFIG_HOME / $XDG_DATA_HOME / $HOME / ~ expand per user.
 dataDir = ""
 
-# MCP tool-call timeout in seconds (60–3600). Heavy reviews may need more.
+# MCP tool-call timeout in seconds (60–3600), set as callTimeoutMs on each configured server. Heavy reviews may need more.
 mcpCallTimeout = 900
 
 # Per-provider overrides merged into models.json (partial merge).
