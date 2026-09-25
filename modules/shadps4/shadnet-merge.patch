@@ -118,10 +118,10 @@ index 7ace5e4f..fd2043b8 100644
 +
 +externals/aacdec/fdk-aac.
 diff --git a/CMakeLists.txt b/CMakeLists.txt
-index a13e8865..8ddf8dca 100644
+index 4d87f028..f6c2d8fa 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
-@@ -961,6 +961,8 @@ set(CORE src/core/aerolib/stubs.cpp
+@@ -960,6 +960,8 @@ set(CORE src/core/aerolib/stubs.cpp
  
  if (ARCHITECTURE STREQUAL "x86_64")
      set(CORE ${CORE}
