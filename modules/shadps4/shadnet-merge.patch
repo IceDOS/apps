@@ -8575,10 +8575,10 @@ index 79e3a1c5..37cb77d4 100644
                  return ORBIS_NET_ERROR_EBADF;
              }
 diff --git a/src/core/libraries/network/p2p_sockets.cpp b/src/core/libraries/network/p2p_sockets.cpp
-index 0eb3a462..54df194c 100644
+index 4f248510..e613781f 100644
 --- a/src/core/libraries/network/p2p_sockets.cpp
 +++ b/src/core/libraries/network/p2p_sockets.cpp
-@@ -1,128 +1,996 @@
+@@ -1,16 +1,549 @@
  // SPDX-FileCopyrightText: Copyright 2024 shadPS4 Emulator Project
  // SPDX-License-Identifier: GPL-2.0-or-later
  
@@ -9131,6 +9131,9 @@ index 0eb3a462..54df194c 100644
      return 0;
  }
  
+@@ -20,114 +553,449 @@ int P2PSocket::Shutdown(int how) {
+ }
+ 
  int P2PSocket::SetSocketOptions(int level, int optname, const void* optval, u32 optlen) {
 -    LOG_ERROR(Lib_Net, "(STUBBED) called");
 -    return 0;
@@ -9612,11 +9615,9 @@ index 0eb3a462..54df194c 100644
 +                                                    from_port);
  }
  
--} // namespace Libraries::Net
-\ No newline at end of file
-+} // namespace Libraries::Net
+ } // namespace Libraries::Net
 diff --git a/src/core/libraries/network/sockets.h b/src/core/libraries/network/sockets.h
-index 5c8b083d..35faa3fa 100644
+index 03ff1d0c..08bf57a9 100644
 --- a/src/core/libraries/network/sockets.h
 +++ b/src/core/libraries/network/sockets.h
 @@ -5,11 +5,13 @@
@@ -9648,7 +9649,7 @@ index 5c8b083d..35faa3fa 100644
  #include "net.h"
  
  namespace Libraries::Kernel {
-@@ -125,10 +130,18 @@ struct PosixSocket : public Socket {
+@@ -127,10 +132,18 @@ struct PosixSocket : public Socket {
      }
  };
  
@@ -9668,8 +9669,8 @@ index 5c8b083d..35faa3fa 100644
 +        return valid;
      }
      int Close() override;
-     int SetSocketOptions(int level, int optname, const void* optval, u32 optlen) override;
-@@ -146,8 +159,44 @@ struct P2PSocket : public Socket {
+     int Shutdown(int how) override;
+@@ -149,8 +162,44 @@ struct P2PSocket : public Socket {
      int GetPeerName(OrbisNetSockaddr* addr, u32* namelen) override;
      int fstat(Libraries::Kernel::OrbisKernelStat* stat) override;
      std::optional<net_socket> Native() override {
