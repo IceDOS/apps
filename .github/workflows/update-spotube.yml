@@ -1,4 +1,4 @@
-name: Update Spotube Nightly
+name: Update Spotube Nightly and Git
 
 # Thin wrapper: all logic lives in .github/workflows/module-update.yml. The
 # updater opens a PR and cache-server's external build gates the merge, so this
@@ -16,6 +16,9 @@ jobs:
     with:
       module: spotube
       paths: modules/spotube
+      # Updates both pins: the nightly deb (source.json) and the dev branch build
+      # (git.json + git-deps.json, whose refresh runs the full gradle build).
       command: nix-shell modules/spotube/update.sh
-      version-file: modules/spotube/source.json
+      title-command: >-
+        echo "nightly $(jq -r .version modules/spotube/source.json), git $(jq -r .version modules/spotube/git.json)"
     secrets: inherit

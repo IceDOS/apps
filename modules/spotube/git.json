@@ -1,0 +1,24 @@
+{
+  "version": "2026-09-25-78168d2",
+  "rev": "78168d269cca8a810d3fe9c11a93c77a0478659d",
+  "hash": "sha256-CSraL4Hb1uBk2WdqDnf2pRih0Tm0S6Uoy1QF0OoxoSc=",
+  "cargoHash": "sha256-U93ECB9G/qi8h8YQcEV/wSEWOwG+72/TVGcQ8ydcgEE=",
+  "androidPlatform": "37.0",
+  "gradle": {
+    "version": "9.4.0",
+    "hash": "sha256-YOpyM1bYEmPoAC/sD8+eKw7uDAhQx6PXqwpj8szGAfM="
+  },
+  "uniffiBindgen": {
+    "version": "0.3.7",
+    "hash": "sha256-2MQlSyVsCawddEYG2qp+39EDOXFdCn9qbmW974jTuk8=",
+    "cargoHash": "sha256-h6eYccB9/WSkTR9YAwijRbEgqZHlOU6uq1enlyLBRcs="
+  },
+  "gradlePlugin": {
+    "rev": "1aa3c1099fadeb8bccc8ae1e3564fd66fb1af2da",
+    "hash": "sha256-AKQ37Kb5J5+IgICqrwHVGBA/uptOw7czg/+SJZPEVfU="
+  },
+  "vlcjBundler": {
+    "rev": "f98e3b710eec44ae0472fa9535473b9251705ef0",
+    "hash": "sha256-RXDdIi/70Gjoko7KGWCacj4O1z47ThANOG+Kj/qHXW8="
+  }
+}
