@@ -6,10 +6,11 @@
       inherit (icedosLib) mkBoolOption;
       inherit (lib) importTOML;
 
-      inherit ((importTOML ./config.toml).icedos.applications.spotube) nightly;
+      inherit ((importTOML ./config.toml).icedos.applications.spotube) git nightly;
     in
     {
       nightly = mkBoolOption { default = nightly; };
+      git = mkBoolOption { default = git; };
     };
 
   outputs.nixosModules =
@@ -24,13 +25,22 @@
         }:
 
         let
-          inherit (lib) mkIf;
-          inherit (config.icedos.applications.spotube) nightly;
+          inherit (lib) optionals;
+          inherit (config.icedos.applications.spotube) git nightly;
         in
         {
-          # Upstream re-uploads one rolling nightly release: only the hash moves; update.sh
-          # keeps source.json fresh. The repackage overlay lives in nightly.nix, not here.
-          nixpkgs.overlays = mkIf nightly (import ./nightly.nix).nixpkgs.overlays;
+          assertions = [
+            {
+              assertion = !(git && nightly);
+              message = "icedos.applications.spotube: enable either nightly or git, not both.";
+            }
+          ];
+
+          # nightly repackages upstream's rolling nightly deb (source.json). git builds the
+          # pinned dev commit (git.json) into a deb and runs it through the same repackage.
+          nixpkgs.overlays =
+            optionals (nightly || git) (import ./nightly.nix).nixpkgs.overlays
+            ++ optionals git (import ./git.nix).nixpkgs.overlays;
 
           environment.systemPackages = [ pkgs.spotube ];
         }
