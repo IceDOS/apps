@@ -118,10 +118,10 @@ index 7ace5e4f..fd2043b8 100644
 +
 +externals/aacdec/fdk-aac.
 diff --git a/CMakeLists.txt b/CMakeLists.txt
-index f5327ac3..2423e9e5 100644
+index 4e664f01..20d45e56 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
-@@ -962,6 +962,8 @@ set(CORE src/core/aerolib/stubs.cpp
+@@ -963,6 +963,8 @@ set(CORE src/core/aerolib/stubs.cpp
  
  if (ARCHITECTURE STREQUAL "x86_64")
      set(CORE ${CORE}
@@ -3826,10 +3826,10 @@ index 00000000..69f964d1
 +SummonPoint[%d][%d] PlayRegionId:%d PointIndex:%d Pos(%.1f, %.1f, %.1f) (
 +SummonPoint[%d][%d] PlayRegionId:%d PointIndex:%d NotFound
 diff --git a/src/core/aerolib/stubs.cpp b/src/core/aerolib/stubs.cpp
-index d7f86dfa..2fba6c0a 100644
+index 391c76c3..901fcdba 100644
 --- a/src/core/aerolib/stubs.cpp
 +++ b/src/core/aerolib/stubs.cpp
-@@ -5,6 +5,8 @@
+@@ -7,6 +7,8 @@
  #include "core/aerolib/aerolib.h"
  #include "core/aerolib/stubs.h"
  
@@ -3838,7 +3838,7 @@ index d7f86dfa..2fba6c0a 100644
  namespace Core::AeroLib {
  
  // Helper to provide stub implementations for missing functions
-@@ -32,6 +34,12 @@ static std::string stub_nids_unknown[MAX_STUBS];
+@@ -34,6 +36,12 @@ static std::string stub_nids_unknown[MAX_STUBS];
  
  static u64 CommonStub(int stub_index, void* addr) {
      auto entry = stub_nids[stub_index];
@@ -7964,10 +7964,10 @@ index 00000000..279eb8f5
 +
 +} // namespace Core::Bloodborne
 diff --git a/src/core/cpu_patches.cpp b/src/core/cpu_patches.cpp
-index 4375f885..a36ac3ee 100644
+index 7a360c68..13612dbb 100644
 --- a/src/core/cpu_patches.cpp
 +++ b/src/core/cpu_patches.cpp
-@@ -2191,6 +2191,179 @@ void RegisterPatchModule(void* module_ptr, u64 module_size, void* trampoline_are
+@@ -2192,6 +2192,179 @@ void RegisterPatchModule(void* module_ptr, u64 module_size, void* trampoline_are
                                            trampoline_area_size));
  }
  
@@ -8204,7 +8204,7 @@ index a8ac368b..9407325c 100644
  void PrePatchInstructions(u64 segment_addr, u64 segment_size);
  
 diff --git a/src/core/libraries/network/http.cpp b/src/core/libraries/network/http.cpp
-index bd7c13b4..9289d4c3 100644
+index 36f45139..9b856165 100644
 --- a/src/core/libraries/network/http.cpp
 +++ b/src/core/libraries/network/http.cpp
 @@ -6,6 +6,7 @@
@@ -8215,7 +8215,7 @@ index bd7c13b4..9289d4c3 100644
  #include <cstring>
  #include <deque>
  #include <fstream>
-@@ -23,6 +24,8 @@
+@@ -24,6 +25,8 @@
  #include "common/elf_info.h"
  #include "common/logging/log.h"
  #include "common/path_util.h"
@@ -8224,7 +8224,7 @@ index bd7c13b4..9289d4c3 100644
  #include "core/emulator_settings.h"
  #include "core/libraries/error_codes.h"
  #include "core/libraries/kernel/kernel.h"
-@@ -220,14 +223,16 @@ static std::string HttpStatusLabel(int sc);
+@@ -221,14 +224,16 @@ static std::string HttpStatusLabel(int sc);
  //     "api.something.dev":                    "http://localhost:8080",
  //     "discovery.something.com:5300":         "http://localhost:8080",
  //     "https://api.example.com:443":          "http://localhost:8081",
@@ -8245,7 +8245,7 @@ index bd7c13b4..9289d4c3 100644
  //
  // Replacement value is a URL with scheme + host + optional port. When port is
  // omitted the default for the scheme is used (80 for http, 443 for https).
-@@ -242,7 +247,8 @@ struct HostOverrideTarget {
+@@ -243,7 +248,8 @@ struct HostOverrideTarget {
  std::unordered_map<std::string, HostOverrideTarget> ParseHostOverridesJson(
      const std::string& json_text);
  
@@ -8255,7 +8255,7 @@ index bd7c13b4..9289d4c3 100644
  
  // Populate a response object with the shape a transport-level failure produces:
  // no status line, no headers, no body. Used by the no-internet path.
-@@ -363,12 +369,14 @@ static const HostOverrideState& GetHostOverrideState() {
+@@ -364,12 +370,14 @@ static const HostOverrideState& GetHostOverrideState() {
      return s;
  }
  
@@ -8271,7 +8271,7 @@ index bd7c13b4..9289d4c3 100644
      //   "scheme://host:port"  - matches that exact endpoint
      //   "host:port"           - matches host+port on any scheme
      //   "host"                - matches host on any scheme/port
-@@ -376,7 +384,44 @@ bool ApplyHostOverride(std::string& scheme, std::string& host, u16& port, bool&
+@@ -377,7 +385,44 @@ bool ApplyHostOverride(std::string& scheme, std::string& host, u16& port, bool&
      const std::string full_key = scheme + "://" + host + ":" + std::to_string(port);
      const std::string host_port_key = host + ":" + std::to_string(port);
  
@@ -8317,7 +8317,7 @@ index bd7c13b4..9289d4c3 100644
      if (it == state.entries.end()) {
          it = state.entries.find(host_port_key);
      }
-@@ -649,6 +694,174 @@ bool IsFollowableRedirect(int status, s32 method) {
+@@ -650,6 +695,174 @@ bool IsFollowableRedirect(int status, s32 method) {
      return true;
  }
  
@@ -8492,7 +8492,7 @@ index bd7c13b4..9289d4c3 100644
  // 303 changes the new method to GET unless original was HEAD
  // Every other followable status preserves the original method.
  s32 MethodAfterRedirect(int status, s32 original_method) {
-@@ -1401,7 +1614,8 @@ int PS4_SYSV_ABI sceHttpCreateConnectionWithURL(int tmplId, const char* url, boo
+@@ -1402,7 +1615,8 @@ int PS4_SYSV_ABI sceHttpCreateConnectionWithURL(int tmplId, const char* url, boo
      scheme_str = is_secure ? "https" : "http";
      u16 port = parsed.port;
      std::string host_str = parsed.hostname;
@@ -8502,7 +8502,7 @@ index bd7c13b4..9289d4c3 100644
  
      std::lock_guard<std::mutex> lock(g_state.m_mutex);
      if (!g_state.inited) {
-@@ -1744,6 +1958,8 @@ int PS4_SYSV_ABI sceHttpSendRequest(int reqId, const void* postData, u64 size) {
+@@ -1745,6 +1959,8 @@ int PS4_SYSV_ABI sceHttpSendRequest(int reqId, const void* postData, u64 size) {
          }
      }
  
@@ -8511,7 +8511,7 @@ index bd7c13b4..9289d4c3 100644
      const bool online = EmulatorSettings.IsConnectedToNetwork();
      LOG_INFO(Lib_Http, "reqId={} dispatched to async worker [{} {} {}://{}:{}{}]", reqId,
               online ? "ONLINE" : "OFFLINE", HttpMethodName(plan.method), plan.scheme, plan.host,
-@@ -1761,6 +1977,19 @@ int PS4_SYSV_ABI sceHttpSendRequest(int reqId, const void* postData, u64 size) {
+@@ -1762,6 +1978,19 @@ int PS4_SYSV_ABI sceHttpSendRequest(int reqId, const void* postData, u64 size) {
              worker_errno = RunRealHttpRequest(plan, local_res, success_event_bits);
          }
  
@@ -9716,12 +9716,12 @@ index 03ff1d0c..08bf57a9 100644
  
  struct UnixSocket : public Socket {
 diff --git a/src/core/libraries/np/np_matching2/np_matching2.cpp b/src/core/libraries/np/np_matching2/np_matching2.cpp
-index 7e99f3cd..15324dc2 100644
+index bcc3800d..9148a91d 100644
 --- a/src/core/libraries/np/np_matching2/np_matching2.cpp
 +++ b/src/core/libraries/np/np_matching2/np_matching2.cpp
 @@ -6,6 +6,7 @@
  #include <memory>
- 
+ #include <fmt/format.h>
  #include "common/logging/log.h"
 +#include "core/bloodborne_re.h"
  #include "core/emulator_settings.h"
@@ -9770,10 +9770,10 @@ index ee8f3388..0246f570 100644
          peer.status == kMatching2ConnActive ? kMatching2ConnActive : kMatching2ConnPending;
      peer.handshake_started = true;
 diff --git a/src/core/module.cpp b/src/core/module.cpp
-index 369239bc..8af1bf09 100644
+index 4bd853c3..05bf4738 100644
 --- a/src/core/module.cpp
 +++ b/src/core/module.cpp
-@@ -9,6 +9,7 @@
+@@ -10,6 +10,7 @@
  #include "common/sha1.h"
  #include "common/string_util.h"
  #include "core/aerolib/aerolib.h"
@@ -9781,7 +9781,7 @@ index 369239bc..8af1bf09 100644
  #include "core/cpu_patches.h"
  #include "core/libraries/error_codes.h"
  #include "core/loader/dwarf.h"
-@@ -340,6 +341,10 @@ void Module::LoadModuleToMemory(u32& max_tls_index) {
+@@ -341,6 +342,10 @@ void Module::LoadModuleToMemory(u32& max_tls_index) {
              MemoryPatcher::g_eboot_address = base_virtual_addr;
              MemoryPatcher::g_eboot_image_size = base_size;
              MemoryPatcher::OnGameLoaded();
@@ -9830,10 +9830,10 @@ index 10489b4c..73728ca1 100644
      void SetControllerPort(u32 user_id, int port);
      std::vector<User> GetValidUsers() const;
 diff --git a/src/main.cpp b/src/main.cpp
-index b0c4395c..7b9dd28c 100644
+index 2d90d8bd..565a92a3 100644
 --- a/src/main.cpp
 +++ b/src/main.cpp
-@@ -53,7 +53,9 @@ int main(int argc, char* argv[]) {
+@@ -56,7 +56,9 @@ int main(int argc, char* argv[]) {
      std::optional<std::string> gamePath;
      std::vector<std::string> gameArgs;
      std::optional<std::filesystem::path> overrideRoot;
@@ -9843,7 +9843,7 @@ index b0c4395c..7b9dd28c 100644
      bool waitForDebugger = false;
      bool userfaultfd = false;
  
-@@ -86,6 +88,8 @@ int main(int argc, char* argv[]) {
+@@ -90,6 +92,8 @@ int main(int argc, char* argv[]) {
      app.add_option("-f,--fullscreen", fullscreenStr, "Fullscreen mode (true|false)");
  
      app.add_option("--override-root", overrideRoot)->check(CLI::ExistingDirectory);
@@ -9852,7 +9852,7 @@ index b0c4395c..7b9dd28c 100644
  
      app.add_flag("--wait-for-debugger", waitForDebugger);
      app.add_option("--wait-for-pid", waitPid);
-@@ -93,6 +97,7 @@ int main(int argc, char* argv[]) {
+@@ -97,6 +101,7 @@ int main(int argc, char* argv[]) {
      app.add_flag("--userfaultfd", userfaultfd,
                   "Enable userfaultfd for tracking memory (Linux only)");
  #endif
@@ -9860,7 +9860,7 @@ index b0c4395c..7b9dd28c 100644
  
      app.add_flag("--show-fps", showFps);
      app.add_flag("--config-clean", configClean);
-@@ -154,6 +159,13 @@ int main(int argc, char* argv[]) {
+@@ -158,6 +163,13 @@ int main(int argc, char* argv[]) {
      auto emu_state = std::make_shared<EmulatorState>();
      EmulatorState::SetInstance(emu_state);
      UserSettings.Load();
@@ -9874,7 +9874,7 @@ index b0c4395c..7b9dd28c 100644
  
      // Initialize key manager
      auto key_manager = KeyManager::GetInstance();
-@@ -227,6 +239,8 @@ int main(int argc, char* argv[]) {
+@@ -228,6 +240,8 @@ int main(int argc, char* argv[]) {
      if (userfaultfd) {
          EmulatorSettings.SetUserfaultfdTracking(true);
      }
@@ -9884,10 +9884,10 @@ index b0c4395c..7b9dd28c 100644
      // ---- Resolve game path or ID ----
      std::filesystem::path ebootPath(*gamePath);
 diff --git a/tests/CMakeLists.txt b/tests/CMakeLists.txt
-index d5275d6e..e05935c9 100644
+index d3ef5b95..cb13acfa 100644
 --- a/tests/CMakeLists.txt
 +++ b/tests/CMakeLists.txt
-@@ -276,6 +276,7 @@ set(HTTP_TEST_SOURCES
+@@ -280,6 +280,7 @@ set(HTTP_TEST_SOURCES
      stubs/signals_stub.cpp
      stubs/file_sys_stub.cpp
      stubs/kernel_stub.cpp
