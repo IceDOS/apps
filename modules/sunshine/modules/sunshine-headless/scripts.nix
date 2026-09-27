@@ -335,8 +335,6 @@ let
       app_log="$rt/sunshine-headless-app-$app_slug.log"
       # shellcheck disable=SC2034 # read by the session helper's start/stop verbs only
       app_active_file="$rt/sunshine-headless-app-$app_slug.active"
-      # Hooks match the app's processes by $HOME, so a coexisting desktop session is never touched.
-      sess_home="''${app_home:-$HOME}"
       # /etc/profiles is invisible in a Steam FHS bwrap (/etc is tmpfs); /run and /home are bound.
       # Append, so the session's own store dirs still win for its binaries.
       app_path="$PATH:/run/wrappers/bin:''${app_home:-$HOME}/.nix-profile/bin:/nix/var/nix/profiles/default/bin:/run/current-system/sw/bin"
@@ -346,7 +344,6 @@ let
     # Launch the app into the idle gamescope: optional scope (device policy, pause), then
     # setpriv (the caller is Sunshine, which holds cap_sys_admin) and the optional gid shim.
     launch_app() {
-      local i
       # A leftover file from a crash or a hook-owned stop would satisfy the wait below.
       rm -f "$app_pgid_file"
       local -a env_args=(
@@ -416,7 +413,7 @@ let
       fi
       # The app records its pgid as its first instruction; give it a moment so an immediate
       # `wait` never mistakes a missing file for an app that already exited.
-      for i in $(seq 1 50); do
+      for _ in $(seq 1 50); do
         [ -s "$app_pgid_file" ] && return 0
         sleep 0.1
       done

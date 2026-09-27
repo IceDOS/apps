@@ -186,6 +186,8 @@ in
     # One Steam client per $HOME: close the desktop client, wait for its singleton FIFO to
     # release, then start Big Picture on the idle gamescope.
     start = ''
+      # Resolve the session HOME at hook run time; app_setup sets app_home per app.
+      local sess_home="''${app_home:-''${HOME:-}}"
       if [ -z "$app_home" ]; then
         steam_stop
       fi

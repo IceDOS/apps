@@ -24,6 +24,9 @@ in
     enable = mkBoolOption { default = secondary.enable; };
 
     # HOME for the second session; REQUIRED when secondary.enable = true.
+    # Must be an absolute path without shell metacharacters, '.'/'..' segments or a
+    # trailing slash: it reaches the session shell (PATH components, the Steam
+    # singleton FIFO) and env HOME=. Spaces are fine, every use site quotes it.
     path = mkStrOption { default = secondary.path; };
   };
 

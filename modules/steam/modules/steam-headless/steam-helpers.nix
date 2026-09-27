@@ -1,10 +1,12 @@
 # Bash helpers shared by the session helper, the gamescope crash drain and
 # steamos-session-select. Pure bash so they work without sed/grep on PATH.
 ''
-  # steam_pids [KEY VALUE]: steam PIDs whose environ holds KEY=VALUE (default HOME=$sess_home).
+  # steam_pids [KEY VALUE]: steam PIDs whose environ holds KEY=VALUE (default HOME=$app_home).
   # shellcheck disable=SC2120 # KEY VALUE are optional; callers mostly use the HOME default
   steam_pids() {
-    local key="''${1:-HOME}" want="''${2-''${sess_home:-}}" p v kv
+    # Resolve the session HOME here, at call time: app_setup sets app_home per app.
+    local sess_home="''${app_home:-''${HOME:-}}"
+    local key="''${1:-HOME}" want="''${2-$sess_home}" p v kv
     [ -n "$want" ] || return 0
     for p in $(pgrep -x steam 2>/dev/null || true); do
       v=""
