@@ -52,11 +52,27 @@
           postPatch = old.postPatch + ''
             grep -q '^if (NOT TARGET absl::strings)' externals/CMakeLists.txt
             sed -i '/^if (NOT TARGET absl::strings)/,/^endif()/d' externals/CMakeLists.txt
+
+            # These call std::mem* but include neither <cstring> nor <string.h>; they only
+            # compile when some other header drags the declarations in. Keyed on the call
+            # so this turns into a no-op once upstream adds the include itself.
+            for f in src/video_core/amdgpu/regs.cpp src/video_core/amdgpu/resource.h; do
+              if grep -qE 'std::(memset|memcpy|memcmp|memmove)' "$f" &&
+                 ! grep -qE '^#include <cstring>' "$f"; then
+                sed -i '0,/^#include /s//#include <cstring>\n\n#include /' "$f"
+              fi
+            done
           '';
 
           cmakeFlags = (old.cmakeFlags or [ ]) ++ [
             (lib.cmakeBool "ENABLE_SYSTEM_LIBRARIES" true)
           ];
+
+          # elf.cpp includes <fmt/core.h> and calls fmt::format. Upstream's bundled
+          # ext-fmt makes core.h pull in format.h, but system fmt 12 gates that behind
+          # FMT_DEPRECATED_HEAVY_CORE, so the system build fails with "no member named
+          # 'format' in namespace 'fmt'".
+          NIX_CFLAGS_COMPILE = (old.NIX_CFLAGS_COMPILE or "") + " -DFMT_DEPRECATED_HEAVY_CORE";
 
           # Upstream forces ENABLE_GLSLANG_BINARIES on to compile host shaders, and
           # glslang's standalone build needs a Python 3 interpreter.
