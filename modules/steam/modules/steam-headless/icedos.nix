@@ -28,6 +28,13 @@
 
           steamOS = cfg.steamOS;
 
+          # secondary.path is the second session's HOME. It reaches the session shell
+          # (a PATH component, the Steam singleton FIFO) and env HOME=, so accept only a
+          # plain absolute path: no shell metacharacters, no '.'/'..' segments, no
+          # trailing slash. Spaces are allowed; every use site quotes it.
+          pathSeg = "(\\.[A-Za-z0-9+@ _-][A-Za-z0-9._+@ -]*|[A-Za-z0-9+@ _-][A-Za-z0-9._+@ -]*)";
+          pathRe = "^/(" + pathSeg + "/)*" + pathSeg + "$";
+
           steamPkg = ((import ../../lib/resolved-steam.nix) { inherit config pkgs; }).resolved;
 
           inherit (import ./packages.nix { inherit pkgs lib config; }) steamosSessionSelect steamCover;
@@ -121,6 +128,10 @@
             {
               assertion = !cfg.secondary.enable || cfg.secondary.path != "";
               message = "icedos.applications.steam.headless-session.secondary.path must be set (non-empty) when secondary.enable is true; it is the second session's HOME.";
+            }
+            {
+              assertion = cfg.secondary.path == "" || builtins.match pathRe cfg.secondary.path != null;
+              message = "icedos.applications.steam.headless-session.secondary.path must be an absolute path (e.g. /var/lib/steam/second-account) with no shell metacharacters, no '.'/'..' segments and no trailing slash; it is the second session's HOME and is interpolated into the session shell.";
             }
           ];
         }
