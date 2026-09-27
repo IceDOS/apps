@@ -55,7 +55,6 @@ let
       if [ -z "''${STEAMOS_SESSION_SELECT_DETACHED:-}" ]; then
         STEAMOS_SESSION_SELECT_DETACHED=1 exec setsid -f "$0" "$@"
       fi
-      sess_home="''${HOME:-}"
       ${import ./steam-helpers.nix}
       steam_stop
     '';
