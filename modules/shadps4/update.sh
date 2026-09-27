@@ -1,5 +1,5 @@
 #!/usr/bin/env nix-shell
-#! nix-shell -i bash -p curl jq nix git
+#! nix-shell -i bash -p curl jq nix git python3
 
 set -euo pipefail
 
@@ -15,22 +15,21 @@ GITHUB_API="https://api.github.com/repos/$OWNER/$REPO"
 # Upstream tags every prerelease Pre-release-shadPS4-<YYYY-MM-DD>-<40-char sha>.
 TAG_PREFIX="Pre-release-shadPS4-"
 
-# nixpkgs lib.fakeHash — valid but wrong SRI hash to provoke the mismatch that reveals the real one.
+# nixpkgs lib.fakeHash: valid but wrong, to provoke the mismatch that reveals the real one.
 FAKE_HASH="sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
 
 info()  { echo "==> $1"; }
 error() { echo "ERROR: $1" >&2; exit 1; }
 
-# SCRIPT_DIR is interpolated into a Nix --expr string — reject chars that could break it.
-# In a variable because bash 5.3 no longer parses the escaped quote inline.
+# Interpolated into a Nix --expr string, so reject chars that could break it. A variable
+# because bash 5.3 no longer parses the escaped quote inline.
 UNSAFE_SCRIPT_DIR_CHARS='[\\"{}[:cntrl:]]'
 if [[ "$SCRIPT_DIR" =~ $UNSAFE_SCRIPT_DIR_CHARS ]]; then
   error "unsafe SCRIPT_DIR: $SCRIPT_DIR"
 fi
 
-# Restore the original pins on failure. Each updater backs up its own pin to a
-# per-pin backup file and clears it on success, so the trap restores exactly
-# what was touched - no bash dynamic-scoping of the pin path.
+# Restore pins on failure. Each updater clears its own backup on success, so the
+# trap restores only what was touched, with no dynamic scoping of the pin path.
 restore_pin() {
   local pin="$1" backup="$2"
   if [ -f "$backup" ]; then
@@ -43,7 +42,6 @@ trap 'restore_pin "prerelease.json" "$TMP_DIR/pin-prerelease.bak"
       [ -n "${PIN_TMP:-}" ] && rm -f "$PIN_TMP"
       rm -rf "$TMP_DIR"' EXIT
 
-# --- GitHub API ---
 # Unauthenticated is 60 req/h per IP; CI passes GITHUB_TOKEN.
 gh_api() {
   if [ -n "${GITHUB_TOKEN:-}" ]; then
@@ -53,14 +51,13 @@ gh_api() {
   fi
 }
 
-# --- Write the {version, rev, hash} pin ---
-# Validates fields, writes atomically (temp + mv) so a crash can never leave a torn pin.
+# Writes the {version, rev, hash} pin atomically (temp + mv), so a crash cannot tear it.
 write_pin() {
   local pin_json="$1" version="$2" rev="$3" hash="$4"
   if [ -z "$version" ] || [ -z "$rev" ] || [ -z "$hash" ] || [ -z "$pin_json" ]; then
     error "refusing to write an incomplete pin (file='$pin_json' version='$version' rev='$rev' hash='$hash')"
   fi
-  # Require exact SRI shape so a mangled compute_hash capture fails here instead of at build time.
+  # Exact SRI shape, so a mangled compute_hash capture fails here, not at build time.
   if [[ ! "$hash" =~ ^sha256-[A-Za-z0-9+/]{43}=$ ]]; then
     error "refusing to write a malformed hash: '$hash'"
   fi
@@ -75,8 +72,8 @@ write_pin() {
   PIN_TMP=""
 }
 
-# Builds the overlay's own src (same expression the module uses) and reads the real
-# hash from the mismatch the placeholder provokes. Not prefetchable from a tarball.
+# Builds the overlay's own src and reads the real hash from the mismatch the placeholder
+# provokes. Not prefetchable from a tarball.
 compute_hash() {
   local overlay="${1:-}"
   [ -n "$overlay" ] || overlay="prerelease.nix"
@@ -86,17 +83,16 @@ compute_hash() {
       overlays = (import ./$overlay).nixpkgs.overlays;
     }).shadps4.src" 2>&1 || true)
 
-  # || true: under pipefail a grep miss would kill the caller with set -e before
-  # it can report anything. Empty hash -> dump the full nix output so the real
-  # error (e.g. a fetch failure, not just a hash mismatch) is visible in CI.
+  # || true: under pipefail a grep miss would kill the caller before it can report.
+  # Empty hash -> dump the full nix output so a real fetch failure is visible in CI.
   local hash
   hash=$(echo "$out" | grep -oP 'got:\s+\K\S+' | tail -1 || true)
   [ -n "$hash" ] || echo "$out" >&2
   echo "$hash"
 }
 
-# Update the shadnet fork pin (shadp2p = shadPS4 fork with the P2P client).
-# Kept separate from the upstream prerelease; matches the shadnet-p2p server pair.
+# shadp2p = shadPS4 fork with the P2P client. Kept separate from the upstream prerelease
+# to match the shadnet-p2p server pair.
 update_shadnet() {
   local force="$1"
   local OWNER="Wozzardman" REPO="shadp2p"
@@ -141,7 +137,6 @@ update_shadnet() {
   info "  shadnet fork updated: $version"
 }
 
-# --- Update the prerelease pin ---
 # force=1 re-pins on an unchanged rev: the hash covers the whole src expression, so a
 # prerelease.nix edit invalidates it while the rev stays put.
 update_prerelease() {
@@ -157,7 +152,7 @@ update_prerelease() {
   [ -z "$tag" ] && error "No prerelease found"
   info "  Latest prerelease: $tag"
 
-  # Pin the commit, not the tag — tags get replaced while the commit stays reachable.
+  # Pin the commit, not the tag: tags get replaced while the commit stays reachable.
   local rest="${tag#"$TAG_PREFIX"}"
   local rev="${rest##*-}"
   local date_part="${rest%-*}"
@@ -191,9 +186,66 @@ update_prerelease() {
 }
 
 
-# Rebuild shadnet-merge.patch = pinned prerelease tree + the fork's P2P delta
-# (a real 3-way merge). Done in CI/update so the merge tracks moving pins; the
-# patch is only used when BOTH prerelease and shadnet are enabled.
+# Upstream refactors the same files the fork touched, so these conflicts recur on
+# every later pin. Each entry re-applies the fork's delta onto upstream's new shape.
+resolve_known_conflicts() {
+  local unmerged
+  unmerged=$(git ls-files -u | cut -f2 | sort -u)
+  [ -n "$unmerged" ] || return 0
+
+  # stubs.cpp: upstream moved the nid lookup from the stub_nids[] table into
+  # CommonStub, so re-apply the fork's Bloodborne fire-and-forget NID there.
+  if printf '%s\n' "$unmerged" | grep -qx 'src/core/aerolib/stubs.cpp'; then
+    info "  resolving src/core/aerolib/stubs.cpp (upstream stub-table refactor)"
+    git checkout --ours src/core/aerolib/stubs.cpp
+    # Explicit if !: set -e is inert in a `||` left-operand subshell, so a failed
+    # resolver would be ignored and the patch would ship without the fork's delta.
+    if ! python3 - src/core/aerolib/stubs.cpp <<'PY'
+import sys
+
+path = sys.argv[1]
+src = open(path).read()
+
+def need(text, anchor, what):
+    # Not assert: PYTHONOPTIMIZE strips asserts, so a moved anchor would pass.
+    if text.count(anchor) != 1:
+        sys.exit(f'{what}: matched {text.count(anchor)} times, expected 1')
+
+inc_anchor = '#include "core/aerolib/stubs.h"\n'
+if '#include <string_view>' not in src:
+    need(src, inc_anchor, 'stubs.h include anchor')
+    src = src.replace(inc_anchor, inc_anchor + '\n#include <string_view>\n')
+
+anchor = """    if (e.nid) {
+        LOG_ERROR(Core, "Stub: {} (nid: {}) called, returning zero to {}", e.nid->name, e.nid->nid,"""
+nid_case = """    if (e.nid != nullptr && std::string_view{e.nid->nid} == "Gaxrp3EWY-M") {
+        // Bloodborne submits this fire-and-forget Plus notification every frame.
+        LOG_TRACE(Core, "Stub: {} (nid: {}) called, returning zero to {}", e.nid->name, e.nid->nid,
+                  __builtin_return_address(0));
+        return 0;
+    }
+"""
+# Keyed on the installed case, not the bare nid, which upstream may mention elsewhere.
+if nid_case not in src:
+    need(src, anchor, 'CommonStub nid anchor')
+    src = src.replace(anchor, nid_case + anchor)
+
+open(path, 'w').write(src)
+PY
+    then
+      error "stubs.cpp conflict resolution failed (anchor moved upstream?)"
+    fi
+    # Post-condition: the fork's case must really be in the file, not merely exit 0.
+    if ! grep -q 'e.nid != nullptr && std::string_view{e.nid->nid} == "Gaxrp3EWY-M"' \
+      src/core/aerolib/stubs.cpp; then
+      error "stubs.cpp resolution did not install the Gaxrp3EWY-M case"
+    fi
+    git add src/core/aerolib/stubs.cpp
+  fi
+}
+
+# Rebuild shadnet-merge.patch = pinned prerelease tree + the fork's P2P delta, by a real
+# 3-way merge so the delta tracks moving pins. Only used when both options are on.
 gen_merge_patch() {
   local pre_rev fork_rev base_rev fork_used
   pre_rev=$(jq -r '.rev // ""' "$SCRIPT_DIR/prerelease.json")
@@ -209,8 +261,8 @@ gen_merge_patch() {
   fi
 
   info "  regenerating shadnet-merge.patch (prerelease $pre_rev + fork $fork_rev)..."
-  # Work under $TMP_DIR so the EXIT trap cleans up even on error, and write the
-  # patch/metadata to temp files that only mv into place after a verified merge.
+  # Work under $TMP_DIR so the EXIT trap cleans up on error, and stage the outputs in
+  # temp files that only mv into place after a verified merge.
   local work="$TMP_DIR/merge"
   mkdir -p "$work"
   local patch_out="$TMP_DIR/shadnet-merge.patch.new"
@@ -222,19 +274,9 @@ gen_merge_patch() {
     https://github.com/shadps4-emu/shadPS4.git "$pre_rev"
   git -C "$work/fork" worktree add -f "$work/wt" "$pre_rev" >/dev/null
 
-  # 3-way merge the fork onto the prerelease base. A real merge (not diff+apply)
-  # also folds upstream's concurrent edits into the fork's delta.
-  # src/main.cpp carries additive, independent flag additions from both sides
-  # (upstream's --userfaultfd, the fork's --user-id/--cache-dir), so it is
-  # union-merged: git keeps both halves of every conflict. The attribute is
-  # untracked in the worktree (read by the merge machinery, absent from the
-  # shipped patch) and handles any conflict-marker style. If the two sides ever
-  # edit the same line, union duplicates that line and the build gate rejects
-  # the PR, but the update run itself still completes and shows the patch.
-  # The CI runner has no git identity until the commit step configures the
-  # bot, and git merge requires one even with --no-commit. Without it the
-  # merge fails with 'unable to auto-detect email address' and patch
-  # generation aborts as empty. Scope it to the throwaway fork worktree.
+  # Union-merge main.cpp, where both sides add independent flags: a same-line clash just
+  # duplicates it for the build gate to reject. The attr is untracked, so it never ships.
+  # The CI runner has no git identity yet, and git merge needs one even under --no-commit.
   git -C "$work/wt" config user.name "Icedos module updater"
   git -C "$work/wt" config user.email "modules-update@icedos.local"
   echo 'src/main.cpp merge=union' > "$work/wt/.gitattributes"
@@ -245,16 +287,21 @@ gen_merge_patch() {
     local unmerged
     unmerged=$(git ls-files -u | cut -f2 | sort -u)
     if [ -n "$unmerged" ]; then
-      # Tolerated conflict: README.md is a doc, the fork side wins. Any other
-      # conflict means upstream and the fork changed the same code in ways only
-      # a human can merge, so it is fatal and the CI run shows the paths.
-      if printf '%s\n' "$unmerged" | grep -qvx 'README.md'; then
-        echo "ERROR: unresolved conflicts other than README.md after merge:" >&2
-        git status --porcelain | grep -E '^(UU|AA|DD)' >&2
-        exit 1
+      # README.md is a doc, the fork side wins.
+      if printf '%s\n' "$unmerged" | grep -qx 'README.md'; then
+        git checkout --theirs README.md
+        git add README.md
       fi
-      git checkout --theirs README.md
-      git add README.md
+      unmerged=$(git ls-files -u | cut -f2 | sort -u)
+    fi
+    # Anything still unmerged has no known resolution, so a human must merge it.
+    resolve_known_conflicts
+    local still_unmerged
+    still_unmerged=$(git ls-files -u | cut -f2 | sort -u)
+    if [ -n "$still_unmerged" ]; then
+      echo "ERROR: unresolved conflicts with no known resolution after merge:" >&2
+      git status --porcelain | grep -E '^(UU|AA|DD)' >&2
+      exit 1
     fi
     git add -A
     git diff --binary "$pre_rev" -- . > "$work/merge.patch"
@@ -270,7 +317,6 @@ gen_merge_patch() {
   info "  wrote shadnet-merge.patch"
 }
 
-# --- Main ---
 main() {
   local force=0
 
