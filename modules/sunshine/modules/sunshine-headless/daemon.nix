@@ -4,7 +4,6 @@
   pkgs,
   lib,
   cfg, # icedos.applications.sunshine-headless
-  headlessSeat,
   # Use the shim wrapper only when icedos.nix builds the input bridge; else plain binary.
   bridgeNeeded,
   sessionApp,
@@ -112,8 +111,6 @@ let
       WAYLAND_DISPLAY = "gamescope-0";
       DBUS_SESSION_BUS_ADDRESS = "unix:path=%t/sunshine-portal/bus";
       XDG_CONFIG_HOME = "%h/.config/sunshine-headless";
-      # Non-seat0 seat: inputtino suffixes devices with it; udev rules never touch the primary's pads.
-      XDG_SEAT = headlessSeat;
     };
 
     # Gate on idle gamescope + portal: Sunshine's display probe never recovers (503).

@@ -25,9 +25,6 @@
           isolateVirtualControllers = cfg.session.controllers.isolateVirtual;
           port = cfg.session.sunshine.port;
 
-          # Non-seat0 seat: inputtino suffixes devices with it; udev rules stay scoped here.
-          headlessSeat = "seat-headless";
-
           # A per-app override uses null to mean "inherit the module-global value".
           pick = v: fallback: if v == null then fallback else v;
 
@@ -99,7 +96,6 @@
                 cfg
                 apps
                 ;
-              inherit headlessSeat;
 
               inherit (packages)
                 gamescopePkg
@@ -118,7 +114,6 @@
               pkgs
               lib
               cfg
-              headlessSeat
               bridgeNeeded
               sessionApp
               ;
@@ -166,18 +161,18 @@
         {
           # The whole block below is the HEADLESS session; the primary is untouched.
 
-          # Strip uaccess from the headless pads (seat-suffixed, priority 72): only a
+          # Strip uaccess from Sunshine's pads (priority 72; also hits the primary daemon's): only a
           # shim-promoted app can open them (group `input` has no human members).
           services.udev.packages =
             lib.optional isolateVirtualControllers (
               pkgs.writeTextDir "etc/udev/rules.d/72-sunshine-headless-no-uaccess.rules" ''
-                SUBSYSTEM=="input", ATTRS{name}=="Sunshine* (${headlessSeat})*", TAG-="uaccess", MODE="0660", RUN+="${pkgs.acl}/bin/setfacl -b $env{DEVNAME}"
+                SUBSYSTEM=="input", ATTRS{name}=="Sunshine *", TAG-="uaccess", MODE="0660", RUN+="${pkgs.acl}/bin/setfacl -b $env{DEVNAME}"
               ''
             )
-            # Same for inputInjection's passthrough devices (EVIOCGRAB alone leaks input).
+            # Same for inputInjection's keyboard/mouse devices (EVIOCGRAB alone leaks input).
             ++ lib.optional inputInjection (
               pkgs.writeTextDir "etc/udev/rules.d/72-sunshine-headless-input-no-uaccess.rules" ''
-                SUBSYSTEM=="input", ATTRS{name}=="*passthrough (${headlessSeat})*", TAG-="uaccess", MODE="0660", RUN+="${pkgs.acl}/bin/setfacl -b $env{DEVNAME}"
+                SUBSYSTEM=="input", ATTRS{name}=="libvirtualhid *", TAG-="uaccess", MODE="0660", RUN+="${pkgs.acl}/bin/setfacl -b $env{DEVNAME}"
               ''
             )
             # A DualSense pad comes from uhid, and /dev/uhid is root-only by default, so a
@@ -199,8 +194,8 @@
                 (lib.any (app: app.session.controllers.excludeHost || app.session.pauseOnDisconnect) apps)
                 (
                   pkgs.writeTextDir "etc/udev/rules.d/72-sunshine-headless-scope-refresh.rules" ''
-                    SUBSYSTEM=="input", ATTRS{name}=="Sunshine* (${headlessSeat})*", RUN+="${lib.getExe sessionApp} refresh"
-                    SUBSYSTEM=="input", ATTRS{name}=="*passthrough (${headlessSeat})*", RUN+="${lib.getExe sessionApp} refresh"
+                    SUBSYSTEM=="input", ATTRS{name}=="Sunshine *", RUN+="${lib.getExe sessionApp} refresh"
+                    SUBSYSTEM=="input", ATTRS{name}=="libvirtualhid *", RUN+="${lib.getExe sessionApp} refresh"
                     # A hidraw node has no ATTRS{name} (the HID device keeps the name in
                     # HID_NAME), so match on the subsystem and let refresh filter.
                     SUBSYSTEM=="hidraw", RUN+="${lib.getExe sessionApp} refresh"

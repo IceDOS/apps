@@ -13,6 +13,7 @@ fsrSharpness = 20
 # HDR-capable gamescope; stream HDR follows the client per-stream. false = always SDR.
 hdr = true
 # Forward Moonlight keyboard/mouse into the session; composites the cursor too (one feature).
+# Host devices never leak in; don't stream from the primary daemon concurrently (same device names).
 inputInjection = true
 # Gamescope --mangoapp; the app must also be told to render into it (see the steam app hooks).
 mangoApp = true
