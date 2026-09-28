@@ -49,6 +49,15 @@ let
       real_appid=0
       ;;
     esac
+    # Keep a tag Steam already set: the stand-in would hide the window from focus (EAC race).
+    if [ "$real_appid" = 0 ]; then
+      cur="$(DISPLAY=:2 xprop -id "$w" STEAM_GAME 2>/dev/null | sed -n 's/^.*= //p' || true)"
+      case "$cur" in "" | 0 | *[!0-9]* | "$wpid") ;; *)
+        game_appid="$cur"
+        continue
+        ;;
+      esac
+    fi
     ${tagWindow}
     if [ "$real_appid" = 1 ]; then
       game_appid="$a"
