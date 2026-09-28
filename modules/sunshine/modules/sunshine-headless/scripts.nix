@@ -5,7 +5,6 @@
   pkgs,
   lib,
   cfg,
-  headlessSeat,
   gamescopePkg,
   xnudge,
   # cfg.apps resolved by icedos.nix: slug, launcher and hooks merged per entry.
@@ -181,7 +180,7 @@ let
     sink_name="${sinkName}"
     # shellcheck disable=SC2034 # only the session helper reads this; the drain sources it too
     isolate_virt=${if isolateVirtualControllers then "1" else "0"}
-    # inputInjection: patched gamescope matches the seat-suffixed passthrough names (fail-closed).
+    # inputInjection: patched gamescope matches the libvirtualhid names (fail-closed).
     # shellcheck disable=SC2034 # only the session helper reads this; the drain sources it too
     input_inject=${if inputInjection then "1" else "0"}
 
@@ -522,14 +521,13 @@ let
         *1*) bridge_needed=1 ;;
       esac
 
-      # The session's own input devices carry the seat marker (XDG_SEAT, see icedos.nix);
-      # a host pad is virtual too when it is Bluetooth (uhid), so the marker is what tells
-      # them apart. hidraw carries its name in HID_NAME instead of a name attribute.
+      # Sunshine's devices carry its name prefixes; a host pad is virtual too when it is
+      # Bluetooth (uhid), so the prefix is what tells them apart. hidraw uses HID_NAME.
       is_session_input() {
         local nm
         nm="$(cat "$1/device/name" 2>/dev/null || sed -n 's/^HID_NAME=//p' "$1/device/uevent" 2>/dev/null | head -n1)"
         case "$nm" in
-          *"(${headlessSeat})"*) return 0 ;;
+          Sunshine\ * | libvirtualhid\ *) return 0 ;;
         esac
         return 1
       }
@@ -570,8 +568,8 @@ let
         return 0
       }
 
-      # Virtual streaming devices must carry the seat marker and, with isolation on, be
-      # uaccess-stripped so nobody opens them without the shim. Warns once, never blocks.
+      # With isolation on, virtual streaming devices must be uaccess-stripped so nobody
+      # opens them without the shim. Warns, never blocks.
       verify_input_isolation() {
         [ "$bridge_needed" = 1 ] || return 0
         local user name node leaked=0 node_dev
@@ -580,25 +578,12 @@ let
           [ -e "$node/device/name" ] || continue
           name="$(cat "$node/device/name" 2>/dev/null || true)"
           case "$name" in
-            *Sunshine* | *passthrough*) ;;
+            Sunshine\ * | libvirtualhid\ *) ;;
             *) continue ;;
-          esac
-          # Every virtual device from this daemon carries the seat marker (XDG_SEAT).
-          case "$name" in
-            *"(${headlessSeat})"*) ;;
-            *)
-              # Only meaningful where a uaccess-stripping rule is actually installed.
-              if { [ "$isolate_virt" = 1 ] || [ "$input_inject" = 1 ]; } && [ "''${seat_warned:-0}" != 1 ]; then
-                # Primary daemon's pads legitimately lack the marker: warn once, never latch leaked.
-                echo "sunshine-headless: virtual input device '$name' lacks the headless seat marker (${headlessSeat}); it may collide with the primary daemon and evade uaccess stripping" >&2
-                seat_warned=1
-              fi
-              continue
-              ;;
           esac
           # uaccess-strip applies only to the class whose udev rule is installed.
           case "$name" in
-            *passthrough*) [ "$input_inject" = 1 ] || continue ;;
+            libvirtualhid\ *) [ "$input_inject" = 1 ] || continue ;;
             *) [ "$isolate_virt" = 1 ] || continue ;;
           esac
           node_dev="/dev/input/''${node##*/}"
@@ -688,15 +673,17 @@ let
         fi
         rt_args=()
         [ "''${app_g[realtime]:-${if realtime then "1" else "0"}}" = 1 ] && rt_args=(--rt)
-        # The gid shim is what turns the passthrough pads into this session's input devices.
+        # The gid shim is what turns the libvirtualhid devices into this session's input devices.
         gscope_wrap=()
         input_args=()
         if [ "''${app_g[input_inject]:-${if inputInjection then "1" else "0"}}" = 1 ]; then
           gscope_wrap=(/run/wrappers/bin/sunshine-headless-gid)
+          # Exact name match, so host devices are never grabbed; the primary daemon's
+          # libvirtualhid devices share these names and would be grabbed if it streams concurrently.
           input_args=(
-            --setenv=HEADLESS_INPUT_KEYBOARD="Keyboard passthrough (${headlessSeat})"
-            --setenv=HEADLESS_INPUT_MOUSE="Mouse passthrough (${headlessSeat})"
-            --setenv=HEADLESS_INPUT_MOUSE_ABS="Mouse passthrough (${headlessSeat}) (absolute)"
+            --setenv=HEADLESS_INPUT_KEYBOARD="libvirtualhid Keyboard"
+            --setenv=HEADLESS_INPUT_MOUSE="libvirtualhid Mouse"
+            --setenv=HEADLESS_INPUT_MOUSE_ABS="libvirtualhid Mouse (Absolute)"
           )
         fi
         # Plain apps do not need (and are not gated by) --steam; the mangoapp overlay is
@@ -868,7 +855,6 @@ let
           last_default="$(cat "$rt/sunshine-headless-default-sink" 2>/dev/null || true)"
           iso_tick=0
           iso_warned=0
-          seat_warned=0
 
           # Block while the app lives (apps that re-exec report liveness themselves).
           for _ in $(seq 1 60); do

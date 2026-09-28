@@ -133,8 +133,8 @@ in
     # Render Proton Wayland games natively (instead of via Xwayland).
     nativeWayland = mkBoolOption { default = gamescope.nativeWayland; };
 
-    # Forward Moonlight keyboard/mouse via inputtino passthrough + composite the X cursor
-    # into the stream (the capture never composites it otherwise). One feature, one option.
+    # Forward Moonlight keyboard/mouse (Sunshine's libvirtualhid devices) and composite the X cursor into
+    # the stream. Host devices never leak in; don't stream from the primary daemon concurrently (same names).
     inputInjection = mkBoolOption { default = gamescope.inputInjection; };
 
     # Color management: Steam's Display color controls.
