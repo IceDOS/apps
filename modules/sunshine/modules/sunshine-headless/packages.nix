@@ -177,8 +177,8 @@ let
     ''}
   '';
 
-  # lib/sunshine-headless-xnudge.c: create+destroy a window on the game Xwayland, the
-  # only stimulus that makes gamescope reconsider a game window it left unfocusable.
+  # lib/sunshine-headless-xnudge.c: create+destroy a window and resend ConfigureNotifies on
+  # the game Xwayland, so gamescope reconsiders a game window it left unfocusable.
   xnudge = pkgs.runCommandCC "sunshine-headless-xnudge" { buildInputs = [ pkgs.libX11 ]; } ''
     mkdir -p $out/bin
     $CC -O2 -Wall ${./lib/sunshine-headless-xnudge.c} -lX11 -o $out/bin/sunshine-headless-xnudge
