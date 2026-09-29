@@ -172,6 +172,10 @@ buildNpmPackage (finalAttrs: {
     # and the parent gets a bare "no-reply" notice. Report it as child-failed with the
     # error, and show provider retries as progress notes in collect/list snapshots.
     ./patches/rlm-child-provider-error-notice.patch
+
+    # Extensions run in the daemon, which forwards only string widgets, so none can reach
+    # the editor. Route the reserved "prompt-suggest" widget into it as ghost text; Tab inserts it.
+    ./patches/prompt-suggestion-ghost-text.patch
   ]
   ++ lib.optionals ollamaCloud [
     # Ollama Cloud provider: bundled models (https://ollama.com/v1) + the /login

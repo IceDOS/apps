@@ -81,6 +81,14 @@
           } 1 100;
         };
 
+        prompt-suggestions = {
+          # Install the prompt-suggest extension: predicted next prompt as ghost text, Tab accepts.
+          enable = mkBoolOption { default = extensions.prompt-suggestions.enable; };
+
+          # "provider/model-id" making the prediction; "" uses the session model.
+          model = mkStrOption { default = extensions.prompt-suggestions.model; };
+        };
+
         meters = {
           # Install the cost-footer extension: live session cost (USD, or € for
           # metered local models) in the TUI bottom bar, with token totals.
@@ -1241,6 +1249,18 @@
                     '';
                   }
                   {
+                    # Substituted into a JS string literal, so it must be a plain id.
+                    assertion =
+                      prime-agent.extensions.prompt-suggestions.model == ""
+                      ||
+                        builtins.match "[A-Za-z0-9._-]+/[A-Za-z0-9._:/@-]+" prime-agent.extensions.prompt-suggestions.model
+                        != null;
+                    message = ''
+                      icedos.applications.prime-agent.extensions.prompt-suggestions.model must be
+                      "" or "provider/model-id" (got "${prime-agent.extensions.prompt-suggestions.model}").
+                    '';
+                  }
+                  {
                     # The meter renders inside the cost footer, so it has
                     # nowhere to appear without it.
                     assertion = prime-agent.extensions.meters.cost || !prime-agent.extensions.meters.power.enable;
@@ -1328,6 +1348,15 @@
                     # Caps model context windows at extensions.context-window-cap.percent of native.
                     (mkIf prime-agent.extensions.context-window-cap.enable {
                       "${relDataDir}/extensions/context-cap.ts".source = contextCapSrc;
+                    })
+
+                    # Predicted next prompt as ghost text in the empty editor; Tab accepts.
+                    (mkIf prime-agent.extensions.prompt-suggestions.enable {
+                      "${relDataDir}/extensions/prompt-suggest.ts".source =
+                        pkgs.replaceVars ./extensions/prompt-suggest.ts
+                          {
+                            suggestModel = prime-agent.extensions.prompt-suggestions.model;
+                          };
                     })
                   ]
                 );
