@@ -210,6 +210,21 @@ in
         fi
         sleep 0.25
       done
+      ${optionalString steamOS ''
+        # -steamos3 Steam applies its saved Bluetooth toggle to the host adapter at launch,
+        # so a stale "0" (e.g. saved while the adapter was missing) powers off host Bluetooth.
+        vdf="$sess_home/.steam/steam/config/config.vdf"
+        if [ -f "$vdf" ] && awk '
+          /^[[:space:]]*"Bluetooth"[[:space:]]*$/ { bt = 1 }
+          bt && /^[[:space:]]*}/ { bt = 0 }
+          bt && /^[[:space:]]*"Enabled"[[:space:]]+"0"/ { sub(/"0"/, "\"1\""); hit = 1 }
+          { print }
+          END { exit !hit }' "$vdf" >"$vdf.icedos-tmp"; then
+          mv -f "$vdf.icedos-tmp" "$vdf"
+        else
+          rm -f "$vdf.icedos-tmp"
+        fi
+      ''}
       app_cmd=(steam -gamepadui)
       ${optionalString steamOS "app_cmd+=(-steamos3)"}
       ${steamEnv}
