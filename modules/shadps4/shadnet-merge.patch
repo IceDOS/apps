@@ -9770,7 +9770,7 @@ index ee8f3388..0246f570 100644
          peer.status == kMatching2ConnActive ? kMatching2ConnActive : kMatching2ConnPending;
      peer.handshake_started = true;
 diff --git a/src/core/module.cpp b/src/core/module.cpp
-index 839c20ed..79a4d9e8 100644
+index 7dec0994..0c258e72 100644
 --- a/src/core/module.cpp
 +++ b/src/core/module.cpp
 @@ -10,6 +10,7 @@
@@ -9781,9 +9781,9 @@ index 839c20ed..79a4d9e8 100644
  #include "core/cpu_patches.h"
  #include "core/libraries/error_codes.h"
  #include "core/loader/dwarf.h"
-@@ -341,6 +342,10 @@ void Module::LoadModuleToMemory(u32& max_tls_index) {
-             MemoryPatcher::g_eboot_address = base_virtual_addr;
+@@ -346,6 +347,10 @@ void Module::LoadModuleToMemory(u32& max_tls_index) {
              MemoryPatcher::g_eboot_image_size = base_size;
+             MemoryPatcher::g_eboot_name = name;
              MemoryPatcher::OnGameLoaded();
 +#ifdef ARCH_X86_64
 +            Bloodborne::InstallSeamlessCoopPatches();
