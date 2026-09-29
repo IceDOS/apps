@@ -87,6 +87,9 @@ jobs:
       - name: Run update script
         env:
           GITHUB_TOKEN: ${{ github.token }}
+          # Gradle fetch-deps runs nix-shell in bwrap with /nix read-only, which needs a
+          # nix daemon; this single-user install has none. bwrap there is optional.
+          USE_BWRAP: "0"
         run: ${{ inputs.command }}
 
       - name: Commit update on top of latest main
