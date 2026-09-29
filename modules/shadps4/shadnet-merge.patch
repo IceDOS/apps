@@ -9888,10 +9888,10 @@ index 552cb734..bf895b88 100644
      // ---- Resolve game path or ID ----
      std::filesystem::path ebootPath(*gamePath);
 diff --git a/tests/CMakeLists.txt b/tests/CMakeLists.txt
-index d3ef5b95..cb13acfa 100644
+index 9f1fa583..9bc9e967 100644
 --- a/tests/CMakeLists.txt
 +++ b/tests/CMakeLists.txt
-@@ -280,6 +280,7 @@ set(HTTP_TEST_SOURCES
+@@ -278,6 +278,7 @@ set(HTTP_TEST_SOURCES
      stubs/signals_stub.cpp
      stubs/file_sys_stub.cpp
      stubs/kernel_stub.cpp
