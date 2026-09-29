@@ -1,7 +1,7 @@
 {
-  "version": "2026-09-25-78168d2",
-  "rev": "78168d269cca8a810d3fe9c11a93c77a0478659d",
-  "hash": "sha256-CSraL4Hb1uBk2WdqDnf2pRih0Tm0S6Uoy1QF0OoxoSc=",
+  "version": "2026-09-25-3a85ad0",
+  "rev": "3a85ad08961cc38a4a2e9665f6e3c3b17304161e",
+  "hash": "sha256-onCoCGKZg6fAek2Sr0oxEjG/Yi0zIz94pmfx4WdaQ6E=",
   "cargoHash": "sha256-U93ECB9G/qi8h8YQcEV/wSEWOwG+72/TVGcQ8ydcgEE=",
   "androidPlatform": "37.0",
   "gradle": {
