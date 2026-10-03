@@ -1,4 +1,9 @@
-{ icedosLib, lib, ... }:
+{
+  config,
+  icedosLib,
+  lib,
+  ...
+}:
 
 {
   options.icedos.applications.sunshine-headless = import ./options.nix {
@@ -160,6 +165,16 @@
         in
         {
           # The whole block below is the HEADLESS session; the primary is untouched.
+
+          # xpadneo binds Sunshine's emulated pad whenever it advertises an Xbox VID/PID (every
+          # uhid pad type here does), and its hidraw node then reports nothing, so hidraw-only
+          # games see no input. hid-generic cannot take the device once xpadneo is gone, so with
+          # xpadneo loaded the only working pad is `generic`, which stays on uinput and never
+          # reaches the HID bus. mkDefault, so an explicit gamepad in config.toml still wins.
+          icedos.applications.sunshine-headless.session.sunshine.gamepad = lib.mkIf (
+            config.hardware.xpadneo.enable
+            || lib.any (mod: lib.hasPrefix "hid_xpadneo" mod) config.boot.kernelModules
+          ) (lib.mkDefault "generic");
 
           # Strip uaccess from Sunshine's pads (priority 72; also hits the primary daemon's): only a
           # shim-promoted app can open them (group `input` has no human members).
