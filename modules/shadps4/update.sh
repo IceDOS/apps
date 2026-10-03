@@ -4,7 +4,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-PIN_JSON="$SCRIPT_DIR/prerelease.json"
+PIN_JSON="$SCRIPT_DIR/prerelease/prerelease.json"
 TMP_DIR=$(mktemp -d)
 PIN_TMP=""
 
@@ -37,8 +37,8 @@ restore_pin() {
     echo "  Restored previous $pin" >&2
   fi
 }
-trap 'restore_pin "prerelease.json" "$TMP_DIR/pin-prerelease.bak"
-      restore_pin "shadnet.json" "$TMP_DIR/pin-shadnet.bak"
+trap 'restore_pin "prerelease/prerelease.json" "$TMP_DIR/pin-prerelease.bak"
+      restore_pin "shadnet/shadnet.json" "$TMP_DIR/pin-shadnet.bak"
       [ -n "${PIN_TMP:-}" ] && rm -f "$PIN_TMP"
       rm -rf "$TMP_DIR"' EXIT
 
@@ -76,7 +76,7 @@ write_pin() {
 # provokes. Not prefetchable from a tarball.
 compute_hash() {
   local overlay="${1:-}"
-  [ -n "$overlay" ] || overlay="prerelease.nix"
+  [ -n "$overlay" ] || overlay="prerelease/prerelease.nix"
   local out
   out=$(cd "$SCRIPT_DIR" && nix build --impure --no-link --expr "
     (import <nixpkgs> {
@@ -98,7 +98,7 @@ update_shadnet() {
   local OWNER="Wozzardman" REPO="shadp2p"
   local GITHUB_API="https://api.github.com/repos/$OWNER/$REPO"
   local TAG_PREFIX="Pre-release-shadPS4-"
-  local PIN_JSON="$SCRIPT_DIR/shadnet.json"
+  local PIN_JSON="$SCRIPT_DIR/shadnet/shadnet.json"
 
   info "Finding latest $OWNER/$REPO fork prerelease..."
   local tag
@@ -128,7 +128,7 @@ update_shadnet() {
   write_pin "$PIN_JSON" "$version" "$rev" "$FAKE_HASH"
 
   local hash
-  hash=$(compute_hash shadnet.nix)
+  hash=$(compute_hash shadnet/shadnet.nix)
   [ -z "$hash" ] && error "Could not determine source hash for $rev"
   info "  Hash: $hash"
 
@@ -244,14 +244,37 @@ PY
   fi
 }
 
+# The union merge keeps upstream's later UserSettings.Load() next to the fork's early
+# one, and that reload drops the in-memory --user-id override. Remove the later loads.
+fix_union_main() {
+  if ! python3 - src/main.cpp <<'PY'
+import sys
+
+path = sys.argv[1]
+src = open(path).read()
+override = 'UserManagement.SetDefaultUserForProcess('
+load = '    UserSettings.Load();\n'
+
+if src.count(override) != 1:
+    sys.exit(f'--user-id override: matched {src.count(override)} times, expected 1')
+head, tail = src.split(override)
+if load not in head:
+    sys.exit('no UserSettings.Load() before the --user-id override')
+open(path, 'w').write(head + override + tail.replace(load, ''))
+PY
+  then
+    error "main.cpp union fix-up failed (override moved upstream?)"
+  fi
+}
+
 # Rebuild shadnet-merge.patch = pinned prerelease tree + the fork's P2P delta, by a real
 # 3-way merge so the delta tracks moving pins. Only used when both options are on.
 gen_merge_patch() {
   local pre_rev fork_rev base_rev fork_used
-  pre_rev=$(jq -r '.rev // ""' "$SCRIPT_DIR/prerelease.json")
-  fork_rev=$(jq -r '.rev // ""' "$SCRIPT_DIR/shadnet.json")
+  pre_rev=$(jq -r '.rev // ""' "$SCRIPT_DIR/prerelease/prerelease.json")
+  fork_rev=$(jq -r '.rev // ""' "$SCRIPT_DIR/shadnet/shadnet.json")
   [ -n "$pre_rev" ] && [ -n "$fork_rev" ] || return 0
-  local meta="$SCRIPT_DIR/shadnet-merge.json"
+  local meta="$SCRIPT_DIR/shadnet/shadnet-merge.json"
   base_rev=$(jq -r '.baseRev // ""' "$meta" 2>/dev/null || echo "")
   fork_used=$(jq -r '.forkRev // ""' "$meta" 2>/dev/null || echo "")
 
@@ -303,8 +326,10 @@ gen_merge_patch() {
       git status --porcelain | grep -E '^(UU|AA|DD)' >&2
       exit 1
     fi
+    fix_union_main
     git add -A
-    git diff --binary "$pre_rev" -- . > "$work/merge.patch"
+    # Only what gets compiled; docs, CI, tests and RE scripts stay out.
+    git diff --binary "$pre_rev" -- src CMakeLists.txt > "$work/merge.patch"
   ) || error "shadnet merge worktree step failed"
 
   if [ ! -s "$work/merge.patch" ]; then
@@ -312,7 +337,7 @@ gen_merge_patch() {
   fi
   mv "$work/merge.patch" "$patch_out"
   jq -n --arg b "$pre_rev" --arg f "$fork_rev" '{baseRev: $b, forkRev: $f}' > "$meta_out"
-  mv "$patch_out" "$SCRIPT_DIR/shadnet-merge.patch"
+  mv "$patch_out" "$SCRIPT_DIR/patches/shadnet-merge.patch"
   mv "$meta_out" "$meta"
   info "  wrote shadnet-merge.patch"
 }

@@ -8,7 +8,7 @@
   nixpkgs.overlays =
     let
       mergeMeta = builtins.fromJSON (builtins.readFile ./shadnet-merge.json);
-      pre = builtins.fromJSON (builtins.readFile ./prerelease.json);
+      pre = builtins.fromJSON (builtins.readFile ../prerelease/prerelease.json);
       fork = builtins.fromJSON (builtins.readFile ./shadnet.json);
     in
     assert mergeMeta.baseRev == pre.rev;
@@ -20,7 +20,7 @@
           # src is intentionally left as the prerelease source; only the label changes.
           __intentionallyOverridingVersion = true;
           version = "${old.version}-shadnet";
-          patches = old.patches ++ [ ./shadnet-merge.patch ];
+          patches = old.patches ++ [ ../patches/shadnet-merge.patch ];
           # Same seamless-co-op env as the standalone shadnet build, on the merged binary.
           postInstall = (old.postInstall or "") + ''
             wrapProgram $out/bin/shadps4 --set SHADPS4_BLOODBORNE_SEAMLESS_COOP 1
