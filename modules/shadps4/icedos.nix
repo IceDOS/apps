@@ -54,9 +54,9 @@
           #   prerelease=false, shadnet=true  -> shadnet fork build
           #   prerelease=true,  shadnet=true  -> prerelease base + P2P delta (merge)
           nixpkgs.overlays =
-            (lib.optionals prerelease (import ./prerelease.nix).nixpkgs.overlays)
-            ++ (lib.optionals (shadnet && (!prerelease)) (import ./shadnet.nix).nixpkgs.overlays)
-            ++ (lib.optionals (shadnet && prerelease) (import ./shadnet-merge.nix).nixpkgs.overlays);
+            (lib.optionals prerelease (import ./prerelease/prerelease.nix).nixpkgs.overlays)
+            ++ (lib.optionals (shadnet && (!prerelease)) (import ./shadnet/shadnet.nix).nixpkgs.overlays)
+            ++ (lib.optionals (shadnet && prerelease) (import ./shadnet/shadnet-merge.nix).nixpkgs.overlays);
 
           icedos.system.tips.list =
             lib.optionals prerelease [

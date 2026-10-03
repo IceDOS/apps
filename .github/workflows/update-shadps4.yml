@@ -17,5 +17,5 @@ jobs:
       module: shadps4
       paths: modules/shadps4
       command: nix-shell modules/shadps4/update.sh
-      version-file: modules/shadps4/prerelease.json
+      version-file: modules/shadps4/prerelease/prerelease.json
     secrets: inherit
