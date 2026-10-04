@@ -1,0 +1,21 @@
+name: Update Steam Cloud File Manager
+
+# Thin wrapper: all logic lives in .github/workflows/module-update.yml. The
+# updater opens a PR and cache-server's external build gates the merge, so this
+# repo's main only advances after a green build.
+on:
+  schedule:
+    # GitHub may delay or skip scheduled runs, and they only run on the default branch.
+    - cron: "10 11 * * *"
+  workflow_dispatch:
+permissions: {}
+
+jobs:
+  update:
+    uses: ./.github/workflows/module-update.yml
+    with:
+      module: steam-cloud-file-manager
+      paths: modules/steam-cloud-file-manager
+      command: nix-shell modules/steam-cloud-file-manager/update.sh
+      version-file: modules/steam-cloud-file-manager/source.json
+    secrets: inherit
