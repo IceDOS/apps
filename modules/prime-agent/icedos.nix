@@ -81,6 +81,22 @@
           } 1 100;
         };
 
+        context-language-models = {
+          # Install the pi-clm extension (Context Language Models).
+          enable = mkBoolOption { default = extensions.context-language-models.enable; };
+          budget = mkStrOption { default = extensions.context-language-models.budget or ""; };
+          reserve = mkStrOption { default = extensions.context-language-models.reserve or ""; };
+          remindAt = mkStrOption { default = extensions.context-language-models.remindAt or ""; };
+          observationCap = mkStrOption { default = extensions.context-language-models.observationCap or ""; };
+          steering = mkStrOption { default = extensions.context-language-models.steering or ""; };
+          overflow = mkStrOption { default = extensions.context-language-models.overflow; };
+          estimateFactor = mkStrOption { default = extensions.context-language-models.estimateFactor or ""; };
+          oneToolPerTurn = mkBoolOption { default = extensions.context-language-models.oneToolPerTurn; };
+          sizeTrailer = mkBoolOption { default = extensions.context-language-models.sizeTrailer; };
+          nativeCompaction = mkStrOption { default = extensions.context-language-models.nativeCompaction; };
+          compactPrompt = mkStrOption { default = extensions.context-language-models.compactPrompt or ""; };
+        };
+
         prompt-suggestions = {
           # Install the prompt-suggest extension: predicted next prompt as ghost text, Tab accepts.
           enable = mkBoolOption { default = extensions.prompt-suggestions.enable; };
@@ -1045,6 +1061,9 @@
                   contextWindowPercent = prime-agent.extensions.context-window-cap.percent;
                 };
 
+                # Context Language Models (pi-clm) extension.
+                clmDeriv = pkgs.callPackage ./extensions/pi-clm.nix { };
+                clmSrc = clmDeriv;
                 # modelOverrides stays as-is for partial merge; models[] merges in
                 # custom models (adds unknown ids, replaces known ones).
                 userProvidersConverted = lib.mapAttrs (
@@ -1127,11 +1146,85 @@
                   "$JQ" -n --slurpfile a "$AUTH" --slurpfile k "${remoteCredKeysFile}" 'reduce $k[0][] as $key ($a[0]; if .[$key] == {"type":"api_key","key":"dummy"} then del(.[$key]) else . end)' > "$AUTH.tmp" && commit_json "$AUTH.tmp" "$AUTH" 0600 || { rm -f "$AUTH.tmp"; echo "prime-agent: failed to retract seeded MCP credentials from $AUTH" >&2; }
                 '';
 
-                primeEnv = {
-                  PRIME_AGENT_CODING_AGENT_DIR = dataDir;
-                  PRIME_AGENT_KERNEL_VENV = "${dataDir}/kernel-venv";
-                  RLM_MAX_DEPTH = toString prime-agent.settings.rlmMaxDepth;
-                };
+                primeEnv = lib.mkMerge [
+                  {
+                    PRIME_AGENT_CODING_AGENT_DIR = dataDir;
+                    PRIME_AGENT_KERNEL_VENV = "${dataDir}/kernel-venv";
+                    RLM_MAX_DEPTH = toString prime-agent.settings.rlmMaxDepth;
+                  }
+                  (lib.mkIf prime-agent.extensions.context-language-models.enable {
+                    PI_CLM_NATIVE_COMPACTION =
+                      prime-agent.extensions.context-language-models.nativeCompaction or "auto";
+                    PI_CLM_OVERFLOW = prime-agent.extensions.context-language-models.overflow or "withhold";
+                    PI_CLM_ONE_TOOL_PER_TURN =
+                      if prime-agent.extensions.context-language-models.oneToolPerTurn then "1" else "0";
+                    PI_CLM_SIZE_TRAILER =
+                      if prime-agent.extensions.context-language-models.sizeTrailer then "1" else "0";
+                  })
+                  (lib.mkIf
+                    (
+                      prime-agent.extensions.context-language-models.enable
+                      && prime-agent.extensions.context-language-models.budget != ""
+                    )
+                    {
+                      PI_CLM_BUDGET = prime-agent.extensions.context-language-models.budget;
+                    }
+                  )
+                  (lib.mkIf
+                    (
+                      prime-agent.extensions.context-language-models.enable
+                      && prime-agent.extensions.context-language-models.reserve != ""
+                    )
+                    {
+                      PI_CLM_RESERVE = prime-agent.extensions.context-language-models.reserve;
+                    }
+                  )
+                  (lib.mkIf
+                    (
+                      prime-agent.extensions.context-language-models.enable
+                      && prime-agent.extensions.context-language-models.remindAt != ""
+                    )
+                    {
+                      PI_CLM_REMIND_AT = prime-agent.extensions.context-language-models.remindAt;
+                    }
+                  )
+                  (lib.mkIf
+                    (
+                      prime-agent.extensions.context-language-models.enable
+                      && prime-agent.extensions.context-language-models.observationCap != ""
+                    )
+                    {
+                      PI_CLM_OBSERVATION_CAP = prime-agent.extensions.context-language-models.observationCap;
+                    }
+                  )
+                  (lib.mkIf
+                    (
+                      prime-agent.extensions.context-language-models.enable
+                      && prime-agent.extensions.context-language-models.steering != ""
+                    )
+                    {
+                      PI_CLM_STEERING = prime-agent.extensions.context-language-models.steering;
+                    }
+                  )
+                  (lib.mkIf
+                    (
+                      prime-agent.extensions.context-language-models.enable
+                      && prime-agent.extensions.context-language-models.estimateFactor != ""
+                    )
+                    {
+                      PI_CLM_ESTIMATE_FACTOR = prime-agent.extensions.context-language-models.estimateFactor;
+                    }
+                  )
+                  (lib.mkIf
+                    (
+                      prime-agent.extensions.context-language-models.enable
+                      && prime-agent.extensions.context-language-models.compactPrompt != ""
+                    )
+                    {
+                      PI_CLM_COMPACT_PROMPT = prime-agent.extensions.context-language-models.compactPrompt;
+                    }
+                  )
+                ];
 
                 # Mirror requested built-in examples into the auto-load dir.
                 upstreamExtDir = "${pkgs.prime-agent}/lib/prime-agent/examples/extensions";
