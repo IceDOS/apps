@@ -17,6 +17,14 @@
   # Ship the bundled Ollama Cloud provider (24 models + /login API-key flow with
   # OLLAMA_API_KEY). Disable to keep the built-in catalog Ollama-free.
   ollamaCloud ? true,
+  # Terminal title status glyphs, set as wrapper defaults; all should share one width.
+  titleIdleGlyph ? "❄",
+  titleWorkingGlyphs ? [
+    "❅"
+    "❅"
+    "❆"
+    "❆"
+  ],
   fetchFromGitHub,
   autoPatchelfHook,
   bash,
@@ -273,6 +281,8 @@ buildNpmPackage (finalAttrs: {
       --set PI_SKIP_VERSION_CHECK 1 \
       --set UV_PYTHON_PREFERENCE system \
       --set UV_PYTHON_DOWNLOADS manual \
+      --set-default PRIME_AGENT_TITLE_IDLE_GLYPH ${lib.escapeShellArg titleIdleGlyph} \
+      --set-default PRIME_AGENT_TITLE_WORKING_GLYPHS ${lib.escapeShellArg (lib.concatStringsSep " " titleWorkingGlyphs)} \
       ${agentDirFlags}\
       --prefix PATH : ${lib.makeBinPath runtimePath} \
       ${lib.optionalString stdenv.hostPlatform.isLinux "--prefix LD_LIBRARY_PATH : ${

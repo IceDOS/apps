@@ -15,6 +15,13 @@ includeInIcedosGc = false
 # GC retention: prune sessions/logs older than this many days.
 sessionRetentionDays = 30
 
+# Status glyph ahead of the terminal title (Zed terminal threads show it as a
+# status marker). Working frames cycle per pulse tick; repeat one to hold it
+# longer. Use glyphs of one width in the title font, or the title text shifts.
+[icedos.applications.prime-agent.terminalTitle]
+idleGlyph = "❄"
+workingGlyphs = ["❅", "❅", "❆", "❆"]
+
 # Seeded defaultProvider/defaultModel in settings.json; empty keeps the TUI's choice.
 [icedos.applications.prime-agent.default]
 model = ""
