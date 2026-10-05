@@ -155,6 +155,13 @@ update_git() {
   require_nonempty "spotube versions" "$bindgen_version" "$sdk"
   platform=$(android_platform "$sdk")
 
+  # Upstream points compose-webview at an unpublished SNAPSHOT built from the library's
+  # head; its latest release on Maven Central stands in for it (see git.nix postPatch).
+  local webview_version
+  webview_version=$(curl -sf "https://repo1.maven.org/maven2/dev/nucleusframework/composewebview/maven-metadata.xml" \
+    | grep -oP '<release>\K[^<]+' || true)
+  require_nonempty "composewebview version" "$webview_version"
+
   local wrapper gradle_version gradle_hash
   wrapper=$(curl -sf "https://raw.githubusercontent.com/$REPO/$rev/gradle/wrapper/gradle-wrapper.properties") \
     || error "could not read gradle-wrapper.properties at $rev"
@@ -190,6 +197,7 @@ update_git() {
     --arg bindgenVersion "$bindgen_version" --arg bindgenHash "$bindgen_hash" \
     --arg bindgenCargoHash "$bindgen_cargo_hash" \
     --arg gradleVersion "$gradle_version" --arg gradleHash "$gradle_hash" \
+    --arg composeWebview "$webview_version" \
     --argjson gradlePlugin "$gradle_plugin" --argjson vlcjBundler "$vlcj_bundler" \
     '{
       version: $version,
@@ -197,6 +205,7 @@ update_git() {
       hash: $hash,
       cargoHash: $cargoHash,
       androidPlatform: $androidPlatform,
+      composeWebview: $composeWebview,
       gradle: {version: $gradleVersion, hash: $gradleHash},
       uniffiBindgen: {version: $bindgenVersion, hash: $bindgenHash, cargoHash: $bindgenCargoHash},
       gradlePlugin: $gradlePlugin,

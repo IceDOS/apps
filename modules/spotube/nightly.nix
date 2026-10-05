@@ -113,6 +113,7 @@
                     libsoup_3
                     libvlc
                     libX11
+                    pango
                     stdenv.cc.cc.lib
                     wayland
                     webkitgtk_4_1
