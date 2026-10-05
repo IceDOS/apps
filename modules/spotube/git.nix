@@ -126,6 +126,21 @@
           postPatch = ''
             rm gradle/gradle-daemon-jvm.properties
             substituteInPlace settings.gradle.kts --replace-fail 'include(":js_plugin_example")' ""
+          ''
+          # The SNAPSHOT upstream names is never published; the pinned release has the same code.
+          + lib.optionalString (source ? composeWebview) ''
+            sed -i -E 's/^(compose-webview = ")[^"]*-SNAPSHOT"/\1${source.composeWebview}"/' gradle/libs.versions.toml
+          ''
+          + ''
+            # Nucleus pulls compose 1.12, whose skiko dropped a method filekit's unused
+            # ImageBitmap encoder references; ProGuard otherwise refuses the build.
+            printf '\n-dontwarn io.github.vinceglb.filekit.dialogs.compose.util.**\n' >> composeApp/proguard-rules.pro
+            # Return type specialization on compose 1.12 emits a SkiaParagraph method that
+            # returns Paragraph, which the JVM rejects at startup with a VerifyError.
+            printf -- '-optimizations !method/specialization/returntype\n' >> composeApp/proguard-rules.pro
+            # dbus-java proxies these interfaces reflectively; stripped, filekit's portal check
+            # fails and its AWT GTK fallback races Tao's GTK loop and segfaults.
+            printf -- '-keep class org.freedesktop.dbus.** { *; }\n-keep class io.github.vinceglb.filekit.dialogs.platform.xdg.** { *; }\n' >> composeApp/proguard-rules.pro
 
             cat >> composeApp/build.gradle.kts <<'EOF'
 
