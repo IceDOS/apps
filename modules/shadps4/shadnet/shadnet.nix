@@ -32,7 +32,14 @@
             # postCheckout picks fetchgit over fetchzip; without it src is a tarball
             # with an empty externals/ and a stale hash.
             # imgui is dear_imgui until the fork rebases past upstream's rename.
+            # HTTP/1.1 dodges GitHub's JA4 throttle, which answers with 401 and fails
+            # the clone. Same reason and same env form as prerelease/prerelease.nix.
             postCheckout = ''
+              export GIT_CONFIG_COUNT=1
+              export GIT_CONFIG_KEY_0=http.version
+              export GIT_CONFIG_VALUE_0=HTTP/1.1
+            ''
+            + ''
               if grep -qE '^[[:space:]]*path[[:space:]]*=[[:space:]]*externals/imgui[[:space:]]*$' "$out/.gitmodules"; then
                 imgui=imgui
               else

@@ -27,10 +27,18 @@
 
             inherit (source) rev hash;
 
-            # Passing postCheckout is what picks fetchgit over fetchzip; drop it and src
-            # becomes a tarball with an empty externals/, no COMMIT, and a stale hash.
-            # imgui is dear_imgui before upstream's rename.
+            # GitHub throttles unauthenticated git clones by TLS fingerprint (JA4) and
+            # answers the blocked ones with 401 + x-github-edge-protection:
+            # ja4-campaign-git-error, which git reports as "could not read Username".
+            # HTTP/1.1 has a different fingerprint and is not blocked. Env rather than
+            # `git config`, so it covers the git calls baked into old.src.postCheckout
+            # too, and no git config file is written into the read-only sandbox HOME.
             postCheckout = ''
+              export GIT_CONFIG_COUNT=1
+              export GIT_CONFIG_KEY_0=http.version
+              export GIT_CONFIG_VALUE_0=HTTP/1.1
+            ''
+            + ''
               if grep -qE '^[[:space:]]*path[[:space:]]*=[[:space:]]*externals/imgui[[:space:]]*$' "$out/.gitmodules"; then
                 imgui=imgui
               else
