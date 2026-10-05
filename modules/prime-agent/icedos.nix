@@ -20,6 +20,7 @@
         includeInIcedosGc
         providers
         sessionRetentionDays
+        terminalTitle
         zedAgentPanelTerminal
         ;
 
@@ -57,6 +58,13 @@
       # Spawn this agent in a new Zed agent-panel terminal (agent.terminal_init_command
       # = "prime-agent", ctrl-n in the agent panel) instead of using ACP.
       zedAgentPanelTerminal = mkBoolOption { default = zedAgentPanelTerminal; };
+
+      # Status glyph ahead of the terminal title. Working frames cycle per pulse tick
+      # (repeat one to hold it longer); give every glyph the same width in the title font.
+      terminalTitle = {
+        idleGlyph = mkStrOption { default = terminalTitle.idleGlyph; };
+        workingGlyphs = mkStrListOption { default = terminalTitle.workingGlyphs; };
+      };
 
       extensions = {
         # Built-in example extensions to load (names under examples/extensions/).
@@ -506,6 +514,8 @@
                 codeIntelligence = prime-agent.skills.code.intelligence;
                 codeReview = prime-agent.skills.code.review;
                 ollamaCloud = prime-agent.providers.ollama;
+                titleIdleGlyph = prime-agent.terminalTitle.idleGlyph;
+                titleWorkingGlyphs = prime-agent.terminalTitle.workingGlyphs;
               };
             })
           ];
