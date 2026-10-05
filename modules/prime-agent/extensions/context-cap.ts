@@ -9,7 +9,8 @@ import type {
   ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
 
-const PERCENT = Number("@contextWindowPercent@");
+const PERCENT_RAW = "@contextWindowPercent@";
+const PERCENT = PERCENT_RAW.startsWith("@") ? 30 : Number(PERCENT_RAW);
 const EXCLUDED_PROVIDERS = ["llamacpp"];
 // Native context per provider/id. Rebuilds clone model objects (new
 // identities), so key by provider/id, never by object identity. Lives on
@@ -71,16 +72,43 @@ function nativeFor(
   return native;
 }
 
-function capModel(model: Capped | undefined, pinned: Set<string>): void {
-  if (!model) return;
-  if (EXCLUDED_PROVIDERS.includes(model.provider)) return;
-  if (pinned.has(`${model.provider}/${model.id}`)) return;
+function capValue(model: Capped, pinned: Set<string>): number | undefined {
+  if (EXCLUDED_PROVIDERS.includes(model.provider)) return undefined;
+  if (pinned.has(`${model.provider}/${model.id}`)) return undefined;
   const current = model.contextWindow;
-  if (typeof current !== "number" || current <= 0) return;
+  if (typeof current !== "number" || current <= 0) return undefined;
   const native = nativeFor(model.provider, model.id, current);
   const cap = Math.round((PERCENT / 100) * native);
-  if (cap >= native) return;
-  if (cap <= 0) return;
+  if (cap <= 0 || cap >= native) return undefined;
+  return cap;
+}
+
+// Prime-agent 0.9.8 deep-freezes part of the bundled catalog (the ollama
+// models), so writing contextWindow throws on those. Replace frozen or
+// non-writable entries with a shallow clone instead; the registry array itself
+// stays writable.
+function capRegistryEntry(models: Capped[], index: number, cap: number): void {
+  const model = models[index];
+  if (!model) return;
+  const writable =
+    !Object.isFrozen(model) &&
+    Object.getOwnPropertyDescriptor(model, "contextWindow")?.writable !== false;
+  if (writable) {
+    model.contextWindow = cap;
+    return;
+  }
+  models[index] = { ...model, contextWindow: cap };
+}
+
+// ctx.model and event.model are getter-only, so a frozen session model cannot
+// be replaced. Cap it in place when writable and otherwise leave it alone; the
+// registry entry with the same provider/id is capped either way.
+function capModel(model: Capped | undefined, pinned: Set<string>): void {
+  if (!model) return;
+  const cap = capValue(model, pinned);
+  if (cap === undefined) return;
+  if (Object.isFrozen(model)) return;
+  if (Object.getOwnPropertyDescriptor(model, "contextWindow")?.writable === false) return;
   model.contextWindow = cap;
 }
 
@@ -92,7 +120,12 @@ function capContexts(ctx: ExtensionContext, selected?: Capped): void {
     modelsJsonPath?: string;
   };
   const pinned = pinnedModelIds(registry.modelsJsonPath);
-  for (const model of registry.models) capModel(model, pinned);
+  for (let index = 0; index < registry.models.length; index++) {
+    const model = registry.models[index];
+    const cap = capValue(model, pinned);
+    if (cap === undefined) continue;
+    capRegistryEntry(registry.models, index, cap);
+  }
   capModel(ctx.model as Capped | undefined, pinned);
   capModel(selected, pinned);
 }
