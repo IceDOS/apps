@@ -78,10 +78,28 @@ compute_hash() {
   local overlay="${1:-}"
   [ -n "$overlay" ] || overlay="prerelease/prerelease.nix"
   local out
-  out=$(cd "$SCRIPT_DIR" && nix build --impure --no-link --expr "
-    (import <nixpkgs> {
-      overlays = (import ./$overlay).nixpkgs.overlays;
-    }).shadps4.src" 2>&1 || true)
+
+  # GitHub throttles unauthenticated git traffic per IP and answers a blocked clone with
+  # HTTP 401, which git reports as "could not read Username for 'https://github.com'".
+  # The overlays pin http.version=HTTP/1.1, which is not throttled, but the fetcher
+  # itself can still be refused, so retry with a growing delay before giving up.
+  local attempt delay=30
+  for attempt in 1 2 3 4; do
+    out=$(cd "$SCRIPT_DIR" && nix build --impure --no-link --expr "
+      (import <nixpkgs> {
+        overlays = (import ./$overlay).nixpkgs.overlays;
+      }).shadps4.src" 2>&1) && break
+    # Only a transport failure is worth retrying; a build or eval error will not heal.
+    if ! grep -q "could not read Username" <<<"$out"; then
+      break
+    fi
+    if [ "$attempt" -lt 4 ]; then
+      echo "  git transport refused by GitHub, retrying in ${delay}s ($attempt/4)" >&2
+      sleep "$delay"
+      delay=$((delay * 2))
+    fi
+  done
+  out="${out:-}"
 
   # || true: under pipefail a grep miss would kill the caller before it can report.
   # Empty hash -> dump the full nix output so a real fetch failure is visible in CI.
@@ -241,6 +259,51 @@ PY
       error "stubs.cpp resolution did not install the Gaxrp3EWY-M case"
     fi
     git add src/core/aerolib/stubs.cpp
+  fi
+
+  # module.cpp: upstream moved the eboot detection above the static-patching block and
+  # widened it to any .elf, so the fork's Bloodborne calls land in a rewritten function.
+  if printf '%s\n' "$unmerged" | grep -qx 'src/core/module.cpp'; then
+    info "  resolving src/core/module.cpp (upstream moved the eboot detection)"
+    git checkout --ours src/core/module.cpp
+    if ! python3 - src/core/module.cpp <<'PY'
+import sys
+
+path = sys.argv[1]
+src = open(path).read()
+
+def need(text, anchor, what):
+    # Not assert: PYTHONOPTIMIZE strips asserts, so a moved anchor would pass.
+    if text.count(anchor) != 1:
+        sys.exit(f'{what}: matched {text.count(anchor)} times, expected 1')
+
+inc_anchor = '#include "core/aerolib/aerolib.h"\n'
+if '#include "core/bloodborne_re.h"' not in src:
+    need(src, inc_anchor, 'aerolib.h include anchor')
+    src = src.replace(inc_anchor, inc_anchor + '#include "core/bloodborne_re.h"\n')
+
+anchor = """            MemoryPatcher::g_eboot_name = name;
+            MemoryPatcher::OnGameLoaded();
+"""
+nid_case = """#ifdef ARCH_X86_64
+            // Bloodborne submits this fire-and-forget Plus notification every frame.
+            Bloodborne::InstallSeamlessCoopPatches();
+            Bloodborne::InstallReverseEngineeringTrace();
+#endif
+"""
+if nid_case not in src:
+    need(src, anchor, 'OnGameLoaded anchor')
+    src = src.replace(anchor, anchor + nid_case)
+
+open(path, 'w').write(src)
+PY
+    then
+      error "module.cpp conflict resolution failed (anchor moved upstream?)"
+    fi
+    if ! grep -q 'Bloodborne::InstallSeamlessCoopPatches();' src/core/module.cpp; then
+      error "module.cpp resolution did not install the Bloodborne patches"
+    fi
+    git add src/core/module.cpp
   fi
 }
 
