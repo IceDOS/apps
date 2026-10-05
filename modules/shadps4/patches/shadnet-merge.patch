@@ -1,8 +1,8 @@
 diff --git a/CMakeLists.txt b/CMakeLists.txt
-index 279ce11..324a5ff 100644
+index 98ee1dd7..7cd07c93 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
-@@ -969,6 +969,8 @@ set(CORE src/core/aerolib/stubs.cpp
+@@ -976,6 +976,8 @@ set(CORE src/core/aerolib/stubs.cpp
  
  if (ARCHITECTURE STREQUAL "x86_64")
      set(CORE ${CORE}
@@ -12,7 +12,7 @@ index 279ce11..324a5ff 100644
               src/core/cpu_patches.h
               ${FIBER_LIB})
 diff --git a/src/core/aerolib/stubs.cpp b/src/core/aerolib/stubs.cpp
-index abcef8d..22426fe 100644
+index abcef8d6..22426fe5 100644
 --- a/src/core/aerolib/stubs.cpp
 +++ b/src/core/aerolib/stubs.cpp
 @@ -12,6 +12,8 @@
@@ -39,7 +39,7 @@ index abcef8d..22426fe 100644
                    __builtin_return_address(0));
 diff --git a/src/core/bloodborne_re.cpp b/src/core/bloodborne_re.cpp
 new file mode 100644
-index 0000000..a2c34cb
+index 00000000..a2c34cbf
 --- /dev/null
 +++ b/src/core/bloodborne_re.cpp
 @@ -0,0 +1,4080 @@
@@ -4125,7 +4125,7 @@ index 0000000..a2c34cb
 +} // namespace Core::Bloodborne
 diff --git a/src/core/bloodborne_re.h b/src/core/bloodborne_re.h
 new file mode 100644
-index 0000000..279eb8f
+index 00000000..279eb8f5
 --- /dev/null
 +++ b/src/core/bloodborne_re.h
 @@ -0,0 +1,20 @@
@@ -4150,10 +4150,10 @@ index 0000000..279eb8f
 +
 +} // namespace Core::Bloodborne
 diff --git a/src/core/cpu_patches.cpp b/src/core/cpu_patches.cpp
-index 7a360c6..13612db 100644
+index 1920916b..3758a99e 100644
 --- a/src/core/cpu_patches.cpp
 +++ b/src/core/cpu_patches.cpp
-@@ -2192,6 +2192,179 @@ void RegisterPatchModule(void* module_ptr, u64 module_size, void* trampoline_are
+@@ -2275,6 +2275,179 @@ void RegisterPatchModule(void* module_ptr, u64 module_size, void* trampoline_are
                                            trampoline_area_size));
  }
  
@@ -4334,7 +4334,7 @@ index 7a360c6..13612db 100644
  #if !defined(_WIN32) && !defined(__APPLE__)
      // Linux and others have an FS segment pointing to valid memory, so continue to do full
 diff --git a/src/core/cpu_patches.h b/src/core/cpu_patches.h
-index a8ac368..9407325 100644
+index 1af2eab0..b7c7f0f3 100644
 --- a/src/core/cpu_patches.h
 +++ b/src/core/cpu_patches.h
 @@ -3,6 +3,7 @@
@@ -4376,7 +4376,7 @@ index a8ac368..9407325 100644
  // Windows static guest red-zone protection
  struct RedZonePatchResult {
      u64 function_count{};
-@@ -51,6 +76,12 @@ struct RedZonePatchResult {
+@@ -76,6 +101,12 @@ struct RedZonePatchResult {
  void RegisterPatchModule(void* module_ptr, u64 module_size, void* trampoline_area_ptr,
                           u64 trampoline_area_size);
  
@@ -4390,7 +4390,7 @@ index a8ac368..9407325 100644
  void PrePatchInstructions(u64 segment_addr, u64 segment_size);
  
 diff --git a/src/core/libraries/network/http.cpp b/src/core/libraries/network/http.cpp
-index 36f4513..9b85616 100644
+index 36f45139..9b856165 100644
 --- a/src/core/libraries/network/http.cpp
 +++ b/src/core/libraries/network/http.cpp
 @@ -6,6 +6,7 @@
@@ -4718,7 +4718,7 @@ index 36f4513..9b85616 100644
          if (g_state.shutting_down.load() || req_ptr->deleted ||
              req_ptr->state == HttpRequestState::Aborted) {
 diff --git a/src/core/libraries/network/net.cpp b/src/core/libraries/network/net.cpp
-index 79e3a1c..37cb77d 100644
+index 79e3a1c5..37cb77d4 100644
 --- a/src/core/libraries/network/net.cpp
 +++ b/src/core/libraries/network/net.cpp
 @@ -794,7 +794,7 @@ int PS4_SYSV_ABI sceNetDuplicateIpStop() {
@@ -4761,7 +4761,7 @@ index 79e3a1c..37cb77d 100644
                  return ORBIS_NET_ERROR_EBADF;
              }
 diff --git a/src/core/libraries/network/p2p_sockets.cpp b/src/core/libraries/network/p2p_sockets.cpp
-index 4f24851..e613781 100644
+index 4f248510..e613781f 100644
 --- a/src/core/libraries/network/p2p_sockets.cpp
 +++ b/src/core/libraries/network/p2p_sockets.cpp
 @@ -1,16 +1,549 @@
@@ -5803,7 +5803,7 @@ index 4f24851..e613781 100644
  
  } // namespace Libraries::Net
 diff --git a/src/core/libraries/network/sockets.h b/src/core/libraries/network/sockets.h
-index 03ff1d0..08bf57a 100644
+index 03ff1d0c..08bf57a9 100644
 --- a/src/core/libraries/network/sockets.h
 +++ b/src/core/libraries/network/sockets.h
 @@ -5,11 +5,13 @@
@@ -5902,7 +5902,7 @@ index 03ff1d0..08bf57a 100644
  
  struct UnixSocket : public Socket {
 diff --git a/src/core/libraries/np/np_matching2/np_matching2.cpp b/src/core/libraries/np/np_matching2/np_matching2.cpp
-index bcc3800..9148a91 100644
+index bcc3800d..9148a91d 100644
 --- a/src/core/libraries/np/np_matching2/np_matching2.cpp
 +++ b/src/core/libraries/np/np_matching2/np_matching2.cpp
 @@ -6,6 +6,7 @@
@@ -5938,7 +5938,7 @@ index bcc3800..9148a91 100644
      if (!ctx) {
          LOG_ERROR(Lib_NpMatching2, "invalid context id");
 diff --git a/src/core/libraries/np/np_matching2/np_matching2_signaling.cpp b/src/core/libraries/np/np_matching2/np_matching2_signaling.cpp
-index ee8f338..0246f57 100644
+index ee8f3388..0246f570 100644
 --- a/src/core/libraries/np/np_matching2/np_matching2_signaling.cpp
 +++ b/src/core/libraries/np/np_matching2/np_matching2_signaling.cpp
 @@ -232,8 +232,11 @@ void HandleMatching2HandshakePacket(u32 from_addr, u16 from_port,
@@ -5956,7 +5956,7 @@ index ee8f338..0246f57 100644
          peer.status == kMatching2ConnActive ? kMatching2ConnActive : kMatching2ConnPending;
      peer.handshake_started = true;
 diff --git a/src/core/module.cpp b/src/core/module.cpp
-index 7dec099..0c258e7 100644
+index db0a50d8..3a5594a2 100644
 --- a/src/core/module.cpp
 +++ b/src/core/module.cpp
 @@ -10,6 +10,7 @@
@@ -5967,19 +5967,20 @@ index 7dec099..0c258e7 100644
  #include "core/cpu_patches.h"
  #include "core/libraries/error_codes.h"
  #include "core/loader/dwarf.h"
-@@ -346,6 +347,10 @@ void Module::LoadModuleToMemory(u32& max_tls_index) {
+@@ -293,6 +294,11 @@ void Module::LoadModuleToMemory(u32& max_tls_index) {
              MemoryPatcher::g_eboot_image_size = base_size;
              MemoryPatcher::g_eboot_name = name;
              MemoryPatcher::OnGameLoaded();
 +#ifdef ARCH_X86_64
++            // Bloodborne submits this fire-and-forget Plus notification every frame.
 +            Bloodborne::InstallSeamlessCoopPatches();
 +            Bloodborne::InstallReverseEngineeringTrace();
 +#endif
          }
      }
- }
+ 
 diff --git a/src/core/user_manager.cpp b/src/core/user_manager.cpp
-index 069df97..63019a6 100644
+index 069df972..63019a6c 100644
 --- a/src/core/user_manager.cpp
 +++ b/src/core/user_manager.cpp
 @@ -317,6 +317,20 @@ bool UserManager::SetDefaultUser(u32 user_id) {
@@ -6004,7 +6005,7 @@ index 069df97..63019a6 100644
      return *GetUserByPlayerIndex(1);
  }
 diff --git a/src/core/user_manager.h b/src/core/user_manager.h
-index 10489b4..73728ca 100644
+index 10489b4c..73728ca1 100644
 --- a/src/core/user_manager.h
 +++ b/src/core/user_manager.h
 @@ -51,6 +51,7 @@ public:
@@ -6016,7 +6017,7 @@ index 10489b4..73728ca 100644
      void SetControllerPort(u32 user_id, int port);
      std::vector<User> GetValidUsers() const;
 diff --git a/src/main.cpp b/src/main.cpp
-index 552cb73..16c2e5f 100644
+index 61b45b2c..a8a8c6ff 100644
 --- a/src/main.cpp
 +++ b/src/main.cpp
 @@ -56,7 +56,9 @@ int main(int argc, char* argv[]) {
