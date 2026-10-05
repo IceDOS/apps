@@ -14,6 +14,7 @@
       inherit ((importTOML ./config.toml).icedos.applications.protonvpn-cli)
         connect
         desktop-entry
+        kde
         settings
         ;
     in
@@ -30,6 +31,14 @@
       desktop-entry = {
         enable = mkBoolOption { default = desktop-entry.enable; };
         countries = mkStrListOption { default = desktop-entry.countries; };
+      };
+
+      kde = {
+        # Plasma 6 applet, installed only with Plasma; its favorite buttons reuse desktop-entry.countries.
+        widget = mkBoolOption { default = kde.widget; };
+
+        # Show the widget in the system tray by default. It stays listed in tray settings either way.
+        tray = mkBoolOption { default = kde.tray; };
       };
 
       settings = {
@@ -68,7 +77,12 @@
             settings
             ;
 
+          inherit (icedos.applications.protonvpn-cli.kde) tray;
+
           inherit (icedosLib) validate;
+
+          widget =
+            icedos.applications.protonvpn-cli.kde.widget && config.services.desktopManager.plasma6.enable;
 
           inherit (lib)
             concatStringsSep
@@ -188,10 +202,34 @@
           '';
 
           launcherBin = pkgs.writeShellScriptBin "protonvpn-launcher" launcherScript;
+
+          protonvpnPlasmoid = pkgs.stdenvNoCC.mkDerivation {
+            pname = "protonvpn-plasmoid";
+            version = "0.1.0";
+            src = ./plasmoid;
+            dontConfigure = true;
+            dontBuild = true;
+            installPhase = ''
+              runHook preInstall
+              dst="$out/share/plasma/plasmoids/org.icedos.protonvpn"
+              mkdir -p "$dst"
+              cp -r ./* "$dst/"
+              substituteInPlace "$dst/metadata.json" \
+                --replace-fail '@tray@' ${lib.boolToString tray}
+              substituteInPlace "$dst/contents/ui/main.qml" \
+                --replace-fail '@protonvpn@' '${pkgs.proton-vpn-cli}/bin/protonvpn' \
+                --replace-fail '@favorites@' ${escapeShellArg (builtins.toJSON desktop-entry.countries)}
+              runHook postInstall
+            '';
+            meta.description = "ProtonVPN KDE Plasma 6 widget";
+          };
         in
         {
           home-manager.sharedModules = [
             {
+              # Add via "Add Widgets", or pin "org.icedos.protonvpn" in icedos.desktop.kde.panel.widgets.
+              home.packages = optional widget protonvpnPlasmoid;
+
               systemd.user.services.protonvpn-cli = {
                 Unit = {
                   Description = "Proton VPN CLI";
@@ -241,6 +279,14 @@
             ]
             ++ lib.optionals desktop-entry.enable [
               "ProtonVPN controller entry is in your app menu."
+            ]
+            ++ lib.optionals widget [
+              (
+                if tray then
+                  "ProtonVPN sits in the Plasma system tray. You can also add it to a panel as a widget."
+                else
+                  "Add the ProtonVPN widget to a Plasma panel, or turn it on in the system tray settings."
+              )
             ];
         }
       )
