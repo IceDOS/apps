@@ -7,12 +7,12 @@ securecore = false
 tor = false
 
 [icedos.applications.protonvpn-cli.desktop-entry]
-enable = true
+enable = false
 countries = []
 
-[icedos.applications.protonvpn-cli.settings.netshield]
-malware = false
-full = false
+[icedos.applications.protonvpn-cli.kde]
+widget = true
+tray = true
 
 [icedos.applications.protonvpn-cli.settings]
 anonymousCrashReports = false
@@ -23,3 +23,7 @@ killSwitch = true # Kill-switch on by default: if the tunnel drops, no traffic l
 moderateNat = false
 portForwarding = false
 vpnAccelerator = true
+
+[icedos.applications.protonvpn-cli.settings.netshield]
+malware = false
+full = false
