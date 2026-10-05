@@ -73,6 +73,19 @@ main() {
     --arg catalogRev "$catalogRev" --arg catalogHash "$catalogHash" \
     '{version: $version, rev: $rev, hash: $hash, npmDepsHash: $npmDepsHash, catalogRev: $catalogRev, catalogHash: $catalogHash}' | write_pin "$PIN"
 
+  # Update pi-clm extension
+  info "Updating pi-clm extension..."
+  clm_pkg_json=$(curl -s "https://registry.npmjs.org/@lolipopshock/pi-clm/latest")
+  clm_version=$(echo "$clm_pkg_json" | jq -r ".version")
+  clm_tar="https://registry.npmjs.org/@lolipopshock/pi-clm/-/pi-clm-${clm_version}.tgz"
+  clm_hash=$(nix-prefetch-url --unpack "$clm_tar" 2>/dev/null | tail -1 || nix-prefetch-url "$clm_tar" 2>/dev/null)
+  if [ -f "$SCRIPT_DIR/extensions/pi-clm.nix" ]; then
+    sed -i "s/version = \"[^\"]*\";/version = \"$clm_version\";/" "$SCRIPT_DIR/extensions/pi-clm.nix" 2>/dev/null || true
+    sed -i "s|url = \"[^\"]*pi-clm[^\"]*\";|url = \"$clm_tar\";|" "$SCRIPT_DIR/extensions/pi-clm.nix" 2>/dev/null || true
+    sed -i "s/sha256 = \"[^\"]*\";/sha256 = \"$clm_hash\";/" "$SCRIPT_DIR/extensions/pi-clm.nix" 2>/dev/null || true
+  fi
+  info "  pi-clm: $clm_version"
+
   info "  Updated: $version"
 }
 

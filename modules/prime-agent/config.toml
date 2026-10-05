@@ -37,6 +37,13 @@ enable = false
 # context. Models with an explicit contextWindow override in models.json keep it.
 percent = 30
 
+[icedos.applications.prime-agent.extensions.context-language-models]
+enable = false
+overflow = "withhold"
+oneToolPerTurn = false
+sizeTrailer = false
+nativeCompaction = "auto"
+
 [icedos.applications.prime-agent.extensions.prompt-suggestions]
 # Install the prompt-suggest extension: after each reply, one extra model call
 # predicts your next message and shows it as dim text in the empty prompt; Tab
