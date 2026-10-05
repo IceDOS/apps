@@ -83,9 +83,21 @@ compute_hash() {
   # HTTP 401, which git reports as "could not read Username for 'https://github.com'".
   # The overlays pin http.version=HTTP/1.1, which is not throttled, but the fetcher
   # itself can still be refused, so retry with a growing delay before giving up.
+  #
+  # A token in access-tokens is the real fix when CI has one: it is used by nix's own
+  # fetcher only, never enters the derivation (the drv is byte-identical with and
+  # without it), and covers github.com without lifting the throttle. Overrides via
+  # nix_access_tokens so it can also be set in the environment instead.
+  local -a access_opts=()
+  local token="${nix_access_tokens:-${GITHUB_TOKEN:-}}"
+  if [ -n "$token" ]; then
+    access_opts=(--option access-tokens "github.com=$token")
+  fi
   local attempt delay=30
   for attempt in 1 2 3 4; do
-    out=$(cd "$SCRIPT_DIR" && nix build --impure --no-link --expr "
+    # ${access_opts[@]+...} rather than "${access_opts[@]}": an empty array under set -u
+    # is an unbound-variable error on bash 3.2, which macOS still ships.
+    out=$(cd "$SCRIPT_DIR" && nix build --impure --no-link ${access_opts[@]+"${access_opts[@]}"} --expr "
       (import <nixpkgs> {
         overlays = (import ./$overlay).nixpkgs.overlays;
       }).shadps4.src" 2>&1) && break
