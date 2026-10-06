@@ -6,7 +6,7 @@ name: Update shadPS4 Prerelease
 on:
   schedule:
     # GitHub may delay or skip scheduled runs, and they only run on the default branch.
-    - cron: "0 * * * *"
+    - cron: "10 2 * * *"
   workflow_dispatch:
 permissions: {}
 

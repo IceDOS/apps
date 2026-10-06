@@ -51,9 +51,12 @@ gh_api() {
   fi
 }
 
-# Writes the {version, rev, hash} pin atomically (temp + mv), so a crash cannot tear it.
+# Prerelease pins closer together than this (by upstream publish time) are skipped.
+MIN_BUMP_GAP=86400
+
+# Writes the {version, rev, hash[, published]} pin atomically (temp + mv), so a crash cannot tear it.
 write_pin() {
-  local pin_json="$1" version="$2" rev="$3" hash="$4"
+  local pin_json="$1" version="$2" rev="$3" hash="$4" published="${5:-}"
   if [ -z "$version" ] || [ -z "$rev" ] || [ -z "$hash" ] || [ -z "$pin_json" ]; then
     error "refusing to write an incomplete pin (file='$pin_json' version='$version' rev='$rev' hash='$hash')"
   fi
@@ -65,8 +68,9 @@ write_pin() {
   local tmp
   tmp=$(mktemp -p "$(dirname "$pin_json")")
   PIN_TMP="$tmp"
-  jq -n --arg version "$version" --arg rev "$rev" --arg hash "$hash" \
-    '{version: $version, rev: $rev, hash: $hash}' > "$tmp"
+  jq -n --arg version "$version" --arg rev "$rev" --arg hash "$hash" --arg published "$published" \
+    '{version: $version, rev: $rev, hash: $hash}
+     + (if $published != "" then {published: $published} else {} end)' > "$tmp"
   chmod 644 "$tmp"
   mv "$tmp" "$pin_json"
   PIN_TMP=""
@@ -174,13 +178,16 @@ update_prerelease() {
 
   info "Finding latest shadPS4 prerelease..."
 
-  local tag
-  tag=$(gh_api "$GITHUB_API/releases?per_page=20" \
-    | jq -r '[.[] | select(.prerelease and (.draft | not))] | first | .tag_name // ""') \
+  local release tag published
+  release=$(gh_api "$GITHUB_API/releases?per_page=20" \
+    | jq -c '[.[] | select(.prerelease and (.draft | not))] | first // {}') \
     || error "Failed to query GitHub releases"
+  tag=$(jq -r '.tag_name // ""' <<<"$release")
+  published=$(jq -r '.published_at // ""' <<<"$release")
 
   [ -z "$tag" ] && error "No prerelease found"
-  info "  Latest prerelease: $tag"
+  [ -z "$published" ] && error "Prerelease $tag has no published_at"
+  info "  Latest prerelease: $tag ($published)"
 
   # Pin the commit, not the tag: tags get replaced while the commit stays reachable.
   local rest="${tag#"$TAG_PREFIX"}"
@@ -199,6 +206,20 @@ update_prerelease() {
     return
   fi
 
+  # Upstream publish time, not wall-clock, so a rerun reaches the same decision. Pins
+  # from before this gate lack published, so fall back to the date in their version.
+  if [ -n "$current_rev" ] && [ "$rev" != "$current_rev" ]; then
+    local current_published gap
+    current_published=$(jq -r '.published // (.version // "" | .[0:10])' "$PIN_JSON")
+    if [ -n "$current_published" ]; then
+      gap=$(( $(date -ud "$published" +%s) - $(date -ud "$current_published" +%s) ))
+      if [ "$gap" -lt "$MIN_BUMP_GAP" ]; then
+        info "  Skipping: only ${gap}s newer than the current pin (minimum ${MIN_BUMP_GAP}s)"
+        return
+      fi
+    fi
+  fi
+
   info "  Current: ${current_rev:-none}"
   info "  Computing hash (clones the repo + submodules, this takes a while)..."
 
@@ -210,7 +231,7 @@ update_prerelease() {
   [ -z "$hash" ] && error "Could not determine source hash for $rev"
   info "  Hash: $hash"
 
-  write_pin "$PIN_JSON" "$version" "$rev" "$hash"
+  write_pin "$PIN_JSON" "$version" "$rev" "$hash" "$published"
   rm -f "$TMP_DIR/pin-prerelease.bak"
   info "  Prerelease updated: $version"
 }
