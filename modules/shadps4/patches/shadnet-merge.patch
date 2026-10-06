@@ -1,8 +1,8 @@
 diff --git a/CMakeLists.txt b/CMakeLists.txt
-index 98ee1dd7..7cd07c93 100644
+index 180d2831..90e96e75 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
-@@ -976,6 +976,8 @@ set(CORE src/core/aerolib/stubs.cpp
+@@ -977,6 +977,8 @@ set(CORE src/core/aerolib/stubs.cpp
  
  if (ARCHITECTURE STREQUAL "x86_64")
      set(CORE ${CORE}
@@ -4150,10 +4150,10 @@ index 00000000..279eb8f5
 +
 +} // namespace Core::Bloodborne
 diff --git a/src/core/cpu_patches.cpp b/src/core/cpu_patches.cpp
-index 1920916b..3758a99e 100644
+index 605fcf36..27436f46 100644
 --- a/src/core/cpu_patches.cpp
 +++ b/src/core/cpu_patches.cpp
-@@ -2275,6 +2275,179 @@ void RegisterPatchModule(void* module_ptr, u64 module_size, void* trampoline_are
+@@ -2477,6 +2477,179 @@ void RegisterPatchModule(void* module_ptr, u64 module_size, void* trampoline_are
                                            trampoline_area_size));
  }
  
