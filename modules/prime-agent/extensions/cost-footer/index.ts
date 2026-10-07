@@ -42,8 +42,6 @@ import {
   type SharedState,
 } from "./shared.ts";
 import {
-  CURRENCY,
-  costOf,
   createPowerMeter,
   isMetered,
   isMeteredProvider,
@@ -311,8 +309,8 @@ export default function (pi: ExtensionAPI) {
     return parts.join("  ");
   };
 
-  const fmtPower = (n: number) =>
-    n > 0 && n < 0.01 ? `${CURRENCY}${n.toFixed(4)}` : `${CURRENCY}${n.toFixed(2)}`;
+  const fmtPower = (n: number, cur: string) =>
+    n > 0 && n < 0.01 ? `${cur}${n.toFixed(4)}` : `${cur}${n.toFixed(2)}`;
 
   const costLine = (
     usage: { input: number; output: number; cost: number },
@@ -332,8 +330,8 @@ export default function (pi: ExtensionAPI) {
       if (p.sampling) parts.push(`${p.watts.toFixed(0)}W`);
       if (p.windows.length) {
         parts.push(dim("·"));
-        for (const [label, joules] of p.windows) {
-          parts.push(`${dim(label)} ${fmtPower(costOf(joules))}`);
+        for (const [label, cost] of p.windows) {
+          parts.push(`${dim(label)} ${fmtPower(cost, p.currency)}`);
         }
       }
     }

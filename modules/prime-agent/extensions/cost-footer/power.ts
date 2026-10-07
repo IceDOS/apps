@@ -18,6 +18,7 @@ import {
 import { randomUUID } from "node:crypto";
 import { dirname, join } from "node:path";
 import { costDir, writeAtomic } from "./shared.ts";
+import { aiReading, LEASE_DIR, WATTMETER_NOW, type AiReading } from "./wattmeter.ts";
 
 // "" autodetects the first GPU exposing an average-power sensor.
 const CARD = "@powerCard@";
@@ -250,6 +251,22 @@ const readWatts = (): number | null => {
   }
 };
 
+// Fresh only while the wattmeter service runs; cached on mtime, freshness checked per call.
+let snapText = "";
+let snapMtime = -1;
+const wattmeterAi = (): AiReading | null => {
+  try {
+    const m = statSync(WATTMETER_NOW).mtimeMs;
+    if (m !== snapMtime) {
+      snapText = readFileSync(WATTMETER_NOW, "utf8");
+      snapMtime = m;
+    }
+  } catch {
+    return null;
+  }
+  return aiReading(snapText, Date.now());
+};
+
 // Cached against the file's mtime so repeated renders are free, while an
 // external write by another window is still picked up.
 let cache: State | null = null;
@@ -437,7 +454,7 @@ const windowJoules = (s: State, ms: number, months: number): number => {
 };
 
 // -- public surface ---------------------------------------------------------
-export const costOf = (joules: number) => (joules / 3.6e6) * RATE_PER_KWH;
+const costOf = (joules: number) => (joules / 3.6e6) * RATE_PER_KWH;
 
 // Exact, O(#providers): getAll() lists built-ins before custom models, so a
 // shared id would otherwise resolve to the wrong provider and disable metering.
@@ -458,12 +475,15 @@ export const isMeteredProvider = (provider?: unknown) =>
 export type PowerSnapshot = {
   watts: number;
   sampling: boolean;
+  currency: string;
+  // [label, cost]: wattmeter's figures while it runs, else this meter's own.
   windows: [string, number][];
 };
 
 // True when metering is configured at all: without it the footer would take
 // the electricity branch on a machine that merely has an AMD card.
-export const meteringEnabled = () => PROVIDERS.length > 0 && resolveSensor() !== null;
+export const meteringEnabled = () =>
+  PROVIDERS.length > 0 && (resolveSensor() !== null || wattmeterAi() !== null);
 
 export function createPowerMeter(onRepaint: () => void) {
   // Per meter, not per module evaluation: two meters sharing one evaluation
@@ -484,8 +504,37 @@ export function createPowerMeter(onRepaint: () => void) {
   let owned = false;
   let lastClaimRefresh = 0;
   let lastFlush = 0;
+  const lease = join(LEASE_DIR, INSTANCE.replace(/[^A-Za-z0-9]/g, ""));
+  let viaWattmeter = false;
+  const touchLease = () => {
+    const now = new Date();
+    try {
+      utimesSync(lease, now, now);
+    } catch {
+      try {
+        // Fails while the service is down, because systemd removes /run/wattmeter.
+        writeFileSync(lease, "");
+      } catch {
+      }
+    }
+  };
+  const dropLease = () => {
+    try {
+      unlinkSync(lease);
+    } catch {
+    }
+  };
 
   const sample = () => {
+    const ai = wattmeterAi();
+    viaWattmeter = ai !== null;
+    if (ai) {
+      // wattmeter integrates this energy; accruing it here as well would count it twice.
+      touchLease();
+      wattsNow = ai.watts;
+      lastSampleAt = Date.now();
+      return;
+    }
     if (!owned) return;
     const now2 = Date.now();
     if (now2 - lastClaimRefresh >= CLAIM_REFRESH_MS) {
@@ -518,6 +567,7 @@ export function createPowerMeter(onRepaint: () => void) {
     clearInterval(sampler);
     sampler = null;
     sample(); // bank the final partial interval
+    dropLease();
     wattsNow = 0;
     shownWatts = -1;
     if (flushEnergy(pendingJoules)) pendingJoules = 0;
@@ -536,7 +586,7 @@ export function createPowerMeter(onRepaint: () => void) {
       // Only the owner has anything that changes at this rate, and only when
       // the rounded figure actually moves.
       const rounded = Math.round(wattsNow);
-      if (owned && rounded !== shownWatts) {
+      if ((owned || viaWattmeter) && rounded !== shownWatts) {
         shownWatts = rounded;
         onRepaint();
       }
@@ -558,7 +608,7 @@ export function createPowerMeter(onRepaint: () => void) {
   return {
     start(isIdle: () => boolean) {
       inFlight += 1;
-      if (sampler || !resolveSensor()) return;
+      if (sampler || (!resolveSensor() && wattmeterAi() === null)) return;
       // Without the claim this session still renders, it just does not
       // double-count the card another session is already measuring.
       owned = takeClaim(INSTANCE);
@@ -579,14 +629,24 @@ export function createPowerMeter(onRepaint: () => void) {
       if (pendingJoules > 0 && flushEnergy(pendingJoules)) pendingJoules = 0;
     },
     snapshot(): PowerSnapshot {
+      const ai = wattmeterAi();
+      if (ai) {
+        return {
+          watts: sampler !== null ? ai.watts : 0,
+          sampling: sampler !== null,
+          currency: ai.currency,
+          windows: ai.windows,
+        };
+      }
       const s = readState();
       return {
         watts: wattsNow,
         sampling: sampler !== null && owned,
+        currency: CURRENCY,
         // Persisted only: adding this instance's unflushed joules would make
         // two windows disagree about a machine-wide number.
         windows: s
-          ? WINDOWS.map(([label, ms, months]) => [label, windowJoules(s, ms, months)] as [string, number])
+          ? WINDOWS.map(([label, ms, months]) => [label, costOf(windowJoules(s, ms, months))] as [string, number])
           : [],
       };
     },

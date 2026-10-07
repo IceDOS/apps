@@ -72,6 +72,10 @@ cost = true
 # electricity instead of "free". Requires meters.cost = true.
 enable = false
 
+# While the kde wattmeter service runs, the footer shows its local-AI watts and
+# costs (its tariff, windows and gpuIdleWatts) and this meter records nothing.
+# card, rateKwh, idleWatts, currency and windows apply whenever it is not running.
+
 # DRM card to read (e.g. "card1"); empty autodetects the first GPU exposing an
 # average-power sensor. Only amdgpu-style hwmon power1_average is supported.
 card = ""
