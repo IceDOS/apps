@@ -1,0 +1,10 @@
+{
+  "version": "0.2.16",
+  "rev": "v0.2.16",
+  "url": "https://github.com/droogie/bbhost/releases/download/v0.2.16/bbhost-linux-v0.2.16.tar.gz",
+  "hash": "sha256-dtzyhJaopPJt/PrOqs6NmGKr+XNKk7+Q0SQH16IlZy0=",
+  "icon": {
+    "url": "https://raw.githubusercontent.com/droogie/bbhost/v0.2.16/res/bbhost.ico",
+    "hash": "sha256-fpGk3XFauBV2OMXJ56qxIE3UiTp7Jx1NW8DPr40a4UA="
+  }
+}
