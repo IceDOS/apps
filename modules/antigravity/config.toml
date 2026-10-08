@@ -4,3 +4,9 @@
 # Whether to wire Home Manager's shared programs.mcp.servers registry
 # into ~/.gemini/config/mcp_config.json for Antigravity.
 enableMcpIntegration = true
+
+# Antigravity CLI bottom status bar (/statusline); configured via agy's own settings.json.
+statusLine = true
+
+# Render the bar below agy's built-in header instead of replacing it.
+statusLineStackWithDefault = false

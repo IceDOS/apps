@@ -12,6 +12,8 @@
       inherit ((importTOML ./config.toml).icedos.applications.antigravity)
         enableMcpIntegration
         extraMcpServers
+        statusLine
+        statusLineStackWithDefault
         ;
     in
     {
@@ -21,6 +23,12 @@
 
       # Additional MCP servers registered exclusively for Antigravity.
       extraMcpServers = mkAttrsOfOption { default = extraMcpServers; } lib.types.anything;
+
+      # Antigravity CLI bottom status bar (/statusline); configured via agy's own settings.json.
+      statusLine = mkBoolOption { default = statusLine; };
+
+      # Render the bar below agy's built-in header instead of replacing it.
+      statusLineStackWithDefault = mkBoolOption { default = statusLineStackWithDefault; };
     };
 
   outputs.nixosModules =
@@ -38,6 +46,8 @@
           inherit (config.icedos.applications.antigravity)
             enableMcpIntegration
             extraMcpServers
+            statusLine
+            statusLineStackWithDefault
             ;
           inherit (lib)
             filterAttrs
@@ -47,11 +57,19 @@
             ;
 
           jsonFormat = pkgs.formats.json { };
+
+          # Wrapper so activation and settings.json share one store path.
+          statusLinePkg = pkgs.writeShellApplication {
+            name = "antigravity-statusline";
+            text = ''
+              exec ${pkgs.python3}/bin/python3 ${./statusline.py} "$@"
+            '';
+          };
         in
         {
           home-manager.sharedModules = [
             (
-              { config, ... }:
+              { config, lib, ... }:
 
               let
                 # Pull every server from the shared programs.mcp.servers registry
@@ -104,6 +122,14 @@
                 home.file.".gemini/config/mcp_config.json" = mkIf (enabledServers != { }) {
                   source = jsonFormat.generate "antigravity-mcp-config.json" mcpConfig;
                 };
+
+                # agy owns ~/.gemini/antigravity-cli/settings.json (it writes on settings
+                # changes), so Home Manager only merges/removes its statusLine key.
+                home.activation.icedosAntigravityStatusLine = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+                  run ${statusLinePkg}/bin/antigravity-statusline --setup ${
+                    if statusLine then "on" else "off"
+                  } ${lib.escapeShellArg "${statusLinePkg}/bin/antigravity-statusline"}${lib.optionalString statusLineStackWithDefault " --stack"}
+                '';
               }
             )
           ];
