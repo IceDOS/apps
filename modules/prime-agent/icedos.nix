@@ -532,6 +532,15 @@
           # not mkIf: mkIf still resolves the option path, which fails without zed.
           // lib.optionalAttrs hasZed {
             zed.terminalInitCommand = mkIf prime-agent.zedAgentPanelTerminal (lib.mkDefault "prime-agent");
+            zed.agentBridge.agents.prime-agent = {
+              command = lib.mkDefault [ "prime-agent" ];
+              resumeArgs = lib.mkDefault [
+                "--resume"
+                "{id}"
+              ];
+              locator = lib.mkDefault "prime-agent";
+              label = lib.mkDefault "Prime Agent";
+            };
           };
 
           # `icedos gc` prunes stale prime-agent sessions per user (unshade-style).

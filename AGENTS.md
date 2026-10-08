@@ -79,3 +79,4 @@ checkout (`path:/abs/path/to/apps`), then `icedos rebuild --build` (no activatio
   prime-agent's `models[]` **merges** with the catalog — an unknown id is added (inheriting the
   built-in provider's api/baseUrl), a known id replaces the bundled definition. Use the model's
   real dot id (e.g. `glm-5.3-flash`, not `glm-5-3-flash`) and the same id in `modelOverrides`.
+- `zed` — `agentBridge` enables resuming agent sessions when reopening sidebar terminal threads. It relies on Zed's private `sidebar_terminal_threads` table (`~/.local/share/zed/db/0-stable/db.sqlite`), so verify table/schema compatibility after Zed updates.

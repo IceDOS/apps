@@ -15,9 +15,11 @@
         mkNumberOption
         mkStrListOption
         mkStrOption
+        mkSubmoduleAttrsOption
         ;
 
       inherit ((importTOML ./config.toml).icedos.applications.zed)
+        agentBridge
         autosave
         copySelectionLocation
         extensions
@@ -34,6 +36,33 @@
         ;
     in
     {
+      agentBridge =
+        let
+          inherit (agentBridge)
+            agents
+            defaultAgent
+            enable
+            remoteLookup
+            resolveTimeout
+            sshTarget
+            zedDb
+            ;
+        in
+        {
+          agents = mkSubmoduleAttrsOption { default = agents; } {
+            command = mkStrListOption { default = [ ]; };
+            resumeArgs = mkStrListOption { default = [ ]; };
+            locator = mkStrOption { default = ""; };
+            label = mkStrOption { default = ""; };
+          };
+          defaultAgent = mkStrOption { default = defaultAgent; };
+          enable = mkBoolOption { default = enable; };
+          remoteLookup = mkBoolOption { default = remoteLookup; };
+          resolveTimeout = mkNumberOption { default = resolveTimeout; };
+          sshTarget = mkStrOption { default = sshTarget; };
+          zedDb = mkStrOption { default = zedDb; };
+        };
+
       autosave = mkBoolOption { default = autosave; };
 
       copySelectionLocation = {
@@ -94,6 +123,7 @@
           inherit (applications) zed;
 
           inherit (zed)
+            agentBridge
             autosave
             copySelectionLocation
             extensions
@@ -112,11 +142,67 @@
           inherit (theme) dark light mode;
 
           inherit (lib)
+            mkDefault
             mkForce
             mkIf
+            mkOptionDefault
             ;
 
           inherit (pkgs) nil nixd zed-editor-fhs;
+
+          resolvedAgents = lib.mapAttrs (
+            n: a:
+            if n == "antigravity" && a.command == [ "agy" ] then
+              a // { command = [ "${pkgs.antigravity-cli}/bin/agy" ]; }
+            else
+              a
+          ) agentBridge.agents;
+
+          bridgeDefaultAgent =
+            if agentBridge.defaultAgent != "" then
+              agentBridge.defaultAgent
+            else
+              lib.findFirst (
+                n:
+                (
+                  resolvedAgents.${n}.command != [ ]
+                  && builtins.head resolvedAgents.${n}.command == terminalInitCommand
+                )
+                || (
+                  agentBridge.agents.${n}.command != [ ]
+                  && builtins.head agentBridge.agents.${n}.command == terminalInitCommand
+                )
+              ) "" (builtins.attrNames agentBridge.agents);
+
+          bridgeConfig = pkgs.writeText "zed-agent-bridge.json" (
+            builtins.toJSON {
+              inherit (agentBridge)
+                remoteLookup
+                resolveTimeout
+                sshTarget
+                zedDb
+                ;
+              agents = resolvedAgents;
+              defaultAgent = bridgeDefaultAgent;
+            }
+          );
+
+          # python3, not python3Minimal: the bridge needs the sqlite3 module.
+          bridgePkgs = [
+            (pkgs.writeShellScriptBin "zed-agent-bridge" ''
+              export PATH=${
+                lib.makeBinPath [
+                  pkgs.openssh
+                  pkgs.fzf
+                ]
+              }"''${PATH:+:$PATH}"
+              exec ${pkgs.python3}/bin/python3 ${./lib/zed_agent_bridge.py} --config ${bridgeConfig} "$@"
+            '')
+            # Zed's terminal_init_command takes a bare program name.
+            (pkgs.writeShellScriptBin "zed-agent-launch" ''
+              exec zed-agent-bridge launch
+            '')
+          ];
 
           fontNameFallback = "JetBrainsMono Nerd Font";
           fontSizeFallback = 14;
@@ -124,6 +210,16 @@
           themeLightFallback = "One Light";
         in
         {
+          icedos.applications.zed.agentBridge.agents.claude = {
+            command = mkOptionDefault [ "claude" ];
+            resumeArgs = mkOptionDefault [
+              "--resume"
+              "{id}"
+            ];
+            locator = mkOptionDefault "claude";
+            label = mkDefault "Claude Code";
+          };
+
           environment.variables.EDITOR = mkIf (
             desktop.applications.editor.name == "dev.zed.Zed.desktop"
           ) "zeditor -n -w";
@@ -221,7 +317,8 @@
                       font_size = overrideUnmanaged font.size 0 config.stylix.fonts.sizes.terminal fontSizeFallback;
                     };
 
-                    agent.terminal_init_command = terminalInitCommand;
+                    agent.terminal_init_command =
+                      if agentBridge.enable then "zed-agent-launch" else terminalInitCommand;
                     vim_mode = vim;
 
                     buffer_font_family = overrideManaged font.name "" fontNameFallback;
@@ -322,7 +419,21 @@
                   ]
                   # The task runs bare `lazygit`; provide it so zed.lazygit.enable works
                   # without the core git module.
-                  ++ lib.optionals lazygit.enable [ pkgs.lazygit ];
+                  ++ lib.optionals lazygit.enable [ pkgs.lazygit ]
+                  ++ lib.optionals agentBridge.enable bridgePkgs;
+
+                programs.claude-code.settings.hooks.SessionStart =
+                  mkIf (agentBridge.enable && (config.programs.claude-code.enable or false))
+                    [
+                      {
+                        hooks = [
+                          {
+                            type = "command";
+                            command = "zed-agent-bridge claude-hook";
+                          }
+                        ];
+                      }
+                    ];
               }
             )
           ];
@@ -338,6 +449,9 @@
           ]
           ++ lib.optionals zed.lazygit.enable [
             "In Zed, ${zed.lazygit.keybind} opens lazygit in the terminal dock."
+          ]
+          ++ lib.optionals zed.agentBridge.enable [
+            "Reopening a terminal thread in Zed's agent panel resumes the agent session that ran in it."
           ];
         }
       )

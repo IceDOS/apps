@@ -32,13 +32,14 @@
     };
 
   outputs.nixosModules =
-    { ... }:
+    { repoUrl, ... }:
     [
       (
         {
           config,
           lib,
           pkgs,
+          icedosLib,
           ...
         }:
 
@@ -65,8 +66,25 @@
               exec ${pkgs.python3}/bin/python3 ${./statusline.py} "$@"
             '';
           };
+
+          hasZed = icedosLib.hasModule {
+            inherit config repoUrl;
+            name = "zed";
+          };
         in
         {
+          icedos.applications = lib.optionalAttrs hasZed {
+            zed.agentBridge.agents.antigravity = {
+              command = lib.mkDefault [ "agy" ];
+              resumeArgs = lib.mkDefault [
+                "--conversation"
+                "{id}"
+              ];
+              locator = lib.mkDefault "antigravity";
+              label = lib.mkDefault "Antigravity CLI";
+            };
+          };
+
           home-manager.sharedModules = [
             (
               { config, lib, ... }:

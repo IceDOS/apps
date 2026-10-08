@@ -27,3 +27,14 @@ enable = true
 keybind = "ctrl-alt-q" # Unbound in Zed, the vim keymap, and OS defaults we know of; fires everywhere.
 
 [icedos.applications.zed.lsp]
+
+[icedos.applications.zed.agentBridge]
+# Reopening a terminal thread resumes the agent session that ran in it.
+enable = false
+defaultAgent = "" # "" = prompt with selector, or match terminalInitCommand
+remoteLookup = true # SSH threads look up the thread ID on the Zed host over SSH
+sshTarget = "" # "" = $USER@<client IP from SSH_CONNECTION>
+resolveTimeout = 3 # seconds to wait for Zed to store the probe title
+zedDb = "~/.local/share/zed/db/0-stable/db.sqlite"
+
+[icedos.applications.zed.agentBridge.agents]
