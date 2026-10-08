@@ -26,6 +26,7 @@
         font
         formatOnSave
         languages
+        lazygit
         lsp
         theme
         terminalInitCommand
@@ -55,6 +56,12 @@
 
       formatOnSave = mkBoolOption { default = formatOnSave; };
       languages = mkAttrsOption { default = languages; };
+
+      lazygit = {
+        enable = mkBoolOption { default = lazygit.enable; };
+        keybind = mkStrOption { default = lazygit.keybind; };
+      };
+
       lsp = mkAttrsOption { default = lsp; };
 
       theme =
@@ -96,6 +103,7 @@
             formatOnSave
             theme
             languages
+            lazygit
             lsp
             terminalInitCommand
             vim
@@ -239,50 +247,82 @@
                       if stylixTarget then mkIf hasUserOverride (mkForce themeAttrs) else themeAttrs;
                   };
 
-                  userTasks = mkIf copySelectionLocation.enable [
-                    {
-                      # Selection via env, not argv: build_no_quote would dump raw code into zsh -c.
-                      label = "copy-location: copy selection";
-                      command = "copy-location";
-                      args = [ ];
-                      use_new_terminal = false;
-                      allow_concurrent_runs = true;
-                      reveal = "never";
-                      hide = "on_success";
-                    }
-                  ];
+                  userTasks =
+                    lib.optionals copySelectionLocation.enable [
+                      {
+                        # Selection via env, not argv: build_no_quote would dump raw code into zsh -c.
+                        label = "copy-location: copy selection";
+                        command = "copy-location";
+                        args = [ ];
+                        use_new_terminal = false;
+                        allow_concurrent_runs = true;
+                        reveal = "never";
+                        hide = "on_success";
+                      }
+                    ]
+                    ++ lib.optionals lazygit.enable [
+                      {
+                        label = "lazygit";
+                        command = "lazygit";
+                        args = [ ];
+                        use_new_terminal = true;
+                        allow_concurrent_runs = false;
+                        reveal = "always";
+                        reveal_target = "dock";
+                        hide = "never";
+                      }
+                    ];
 
-                  userKeymaps = mkIf copySelectionLocation.enable [
-                    {
-                      # Free in Zed's Linux default editor keymap (collides only in panel contexts).
-                      context = "Editor";
-                      bindings = {
-                        ${copySelectionLocation.keybind} = [
-                          "task::Spawn"
-                          {
-                            task_name = "copy-location: copy selection";
-                          }
-                        ];
-                      };
-                    }
-                  ];
+                  userKeymaps =
+                    lib.optionals copySelectionLocation.enable [
+                      {
+                        # Free in Zed's Linux default editor keymap (collides only in panel contexts).
+                        context = "Editor";
+                        bindings = {
+                          ${copySelectionLocation.keybind} = [
+                            "task::Spawn"
+                            {
+                              task_name = "copy-location: copy selection";
+                            }
+                          ];
+                        };
+                      }
+                    ]
+                    ++ lib.optionals lazygit.enable [
+                      {
+                        # ctrl-alt-q is unbound in the Linux defaults, overrides, and vim keymap.
+                        context = "Editor || Workspace";
+                        bindings = {
+                          ${lazygit.keybind} = [
+                            "task::Spawn"
+                            {
+                              task_name = "lazygit";
+                            }
+                          ];
+                        };
+                      }
+                    ];
                 };
 
-                # copy-location: copy selection's file path to clipboard
-                home.packages = mkIf copySelectionLocation.enable [
-                  (pkgs.writeShellScriptBin "copy-location" ''
-                    # wl-copy execs \`cat\`, so coreutils must be on PATH for the hermetic guarantee.
-                    export PATH=${
-                      lib.makeBinPath [
-                        pkgs.wl-clipboard
-                        pkgs.xclip
-                        pkgs.libnotify
-                        pkgs.coreutils
-                      ]
-                    }"''${PATH:+:$PATH}"
-                    exec ${pkgs.python3Minimal}/bin/python3 ${./lib/copy-location.py} "$@"
-                  '')
-                ];
+                home.packages =
+                  # copy-location: copy selection's file path to clipboard
+                  lib.optionals copySelectionLocation.enable [
+                    (pkgs.writeShellScriptBin "copy-location" ''
+                      # wl-copy execs \`cat\`, so coreutils must be on PATH for the hermetic guarantee.
+                      export PATH=${
+                        lib.makeBinPath [
+                          pkgs.wl-clipboard
+                          pkgs.xclip
+                          pkgs.libnotify
+                          pkgs.coreutils
+                        ]
+                      }"''${PATH:+:$PATH}"
+                      exec ${pkgs.python3Minimal}/bin/python3 ${./lib/copy-location.py} "$@"
+                    '')
+                  ]
+                  # The task runs bare `lazygit`; provide it so zed.lazygit.enable works
+                  # without the core git module.
+                  ++ lib.optionals lazygit.enable [ pkgs.lazygit ];
               }
             )
           ];
@@ -295,6 +335,9 @@
           ]
           ++ lib.optionals zed.copySelectionLocation.enable [
             "In Zed, ${zed.copySelectionLocation.keybind} copies the file and line you selected."
+          ]
+          ++ lib.optionals zed.lazygit.enable [
+            "In Zed, ${zed.lazygit.keybind} opens lazygit in the terminal dock."
           ];
         }
       )

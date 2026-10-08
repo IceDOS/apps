@@ -22,4 +22,8 @@ mode = "system" # Options: 'system', 'dark', 'light'
 
 [icedos.applications.zed.languages]
 
+[icedos.applications.zed.lazygit]
+enable = true
+keybind = "ctrl-alt-q" # Unbound in Zed, the vim keymap, and OS defaults we know of; fires everywhere.
+
 [icedos.applications.zed.lsp]
