@@ -1,0 +1,6 @@
+[icedos.applications.antigravity.extraMcpServers]
+
+[icedos.applications.antigravity]
+# Whether to wire Home Manager's shared programs.mcp.servers registry
+# into ~/.gemini/config/mcp_config.json for Antigravity.
+enableMcpIntegration = true
