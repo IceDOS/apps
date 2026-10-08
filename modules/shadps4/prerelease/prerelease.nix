@@ -80,7 +80,10 @@
           # ext-fmt makes core.h pull in format.h, but system fmt 12 gates that behind
           # FMT_DEPRECATED_HEAVY_CORE, so the system build fails with "no member named
           # 'format' in namespace 'fmt'".
-          NIX_CFLAGS_COMPILE = (old.NIX_CFLAGS_COMPILE or "") + " -DFMT_DEPRECATED_HEAVY_CORE";
+          # fmt 12.2 deprecates a conversion every LOG_* macro hits; the warning chain was
+          # ~120k log lines per build and the CI runner dropped mid-build.
+          NIX_CFLAGS_COMPILE =
+            (old.NIX_CFLAGS_COMPILE or "") + " -DFMT_DEPRECATED_HEAVY_CORE -Wno-deprecated-declarations";
 
           # Upstream forces ENABLE_GLSLANG_BINARIES on to compile host shaders, and
           # glslang's standalone build needs a Python 3 interpreter.
