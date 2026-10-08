@@ -1,5 +1,9 @@
 [icedos.applications.antigravity.extraMcpServers]
 
+# Global rules, name = markdown, written to ~/.gemini/config/rules/<name>.md.
+# Text without frontmatter gets `trigger: always_on`. agy truncates a file past 24,000 bytes.
+[icedos.applications.antigravity.rules]
+
 [icedos.applications.antigravity]
 # Whether to wire Home Manager's shared programs.mcp.servers registry
 # into ~/.gemini/config/mcp_config.json for Antigravity.

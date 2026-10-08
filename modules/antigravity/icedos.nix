@@ -12,6 +12,7 @@
       inherit ((importTOML ./config.toml).icedos.applications.antigravity)
         enableMcpIntegration
         extraMcpServers
+        rules
         statusLine
         statusLineStackWithDefault
         ;
@@ -23,6 +24,9 @@
 
       # Additional MCP servers registered exclusively for Antigravity.
       extraMcpServers = mkAttrsOfOption { default = extraMcpServers; } lib.types.anything;
+
+      # Global rules, written to ~/.gemini/config/rules/<name>.md (agy reads that folder's top level only).
+      rules = mkAttrsOfOption { default = rules; } lib.types.lines;
 
       # Antigravity CLI bottom status bar (/statusline); configured via agy's own settings.json.
       statusLine = mkBoolOption { default = statusLine; };
@@ -47,17 +51,25 @@
           inherit (config.icedos.applications.antigravity)
             enableMcpIntegration
             extraMcpServers
+            rules
             statusLine
             statusLineStackWithDefault
             ;
           inherit (lib)
             filterAttrs
+            hasPrefix
             mapAttrs
+            mapAttrs'
             mkIf
+            nameValuePair
             optionalAttrs
             ;
 
           jsonFormat = pkgs.formats.json { };
+
+          # agy drops a rules/*.md file without a trigger, so plain text becomes always_on.
+          withTrigger =
+            text: if hasPrefix "---\n" text then text else "---\ntrigger: always_on\n---\n\n${text}";
 
           # Wrapper so activation and settings.json share one store path.
           statusLinePkg = pkgs.writeShellApplication {
@@ -137,9 +149,14 @@
                 };
               in
               {
-                home.file.".gemini/config/mcp_config.json" = mkIf (enabledServers != { }) {
-                  source = jsonFormat.generate "antigravity-mcp-config.json" mcpConfig;
-                };
+                home.file = {
+                  ".gemini/config/mcp_config.json" = mkIf (enabledServers != { }) {
+                    source = jsonFormat.generate "antigravity-mcp-config.json" mcpConfig;
+                  };
+                }
+                // mapAttrs' (
+                  name: text: nameValuePair ".gemini/config/rules/${name}.md" { text = withTrigger text; }
+                ) rules;
 
                 # agy owns ~/.gemini/antigravity-cli/settings.json (it writes on settings
                 # changes), so Home Manager only merges/removes its statusLine key.
