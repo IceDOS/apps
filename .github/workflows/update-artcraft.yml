@@ -1,0 +1,31 @@
+name: Update ArtCraft apps
+
+# Thin wrapper: all logic lives in .github/workflows/module-update.yml. Each app gets
+# its own update/<app> PR, and cache-server's external build gates each merge.
+on:
+  schedule:
+    # GitHub may delay or skip scheduled runs, and they only run on the default branch.
+    - cron: "10 12 * * *"
+  workflow_dispatch:
+permissions: {}
+
+jobs:
+  update:
+    strategy:
+      fail-fast: false
+      matrix:
+        app:
+          - designcraft
+          - effectcraft
+          - filmcraft
+          - lightcraft
+          - pdfcraft
+          - photocraft
+          - vectorcraft
+    uses: ./.github/workflows/module-update.yml
+    with:
+      module: ${{ matrix.app }}
+      paths: modules/artcraft/${{ matrix.app }}
+      command: nix-shell modules/artcraft/lib/update.sh ${{ matrix.app }}
+      version-file: modules/artcraft/${{ matrix.app }}/source.json
+    secrets: inherit
