@@ -224,80 +224,25 @@ def watch_once(tid, agent, latest, cwd, since, current):
     return current
 
 
-def pick_agent(cfg: dict) -> str | None:
-    agents = cfg.get("agents", {})
-    if not agents:
-        return "claude"
-    if len(agents) == 1:
-        return next(iter(agents.keys()))
-    if not sys.stdin.isatty():
-        return cfg.get("defaultAgent") or "claude"
-
-    labels = {}
-    default_labels = {
-        "prime-agent": "Prime Agent",
-        "claude": "Claude Code",
-        "antigravity": "Antigravity CLI",
-    }
-    for name, data in agents.items():
-        lbl = data.get("label") or default_labels.get(name, name.replace("-", " ").title())
-        labels[lbl] = name
-
-    try:
-        proc = subprocess.run(
-            ["fzf", "--height=60%", "--layout=reverse", "--border", "--prompt=agent> "],
-            input="\n".join(labels.keys()),
-            text=True,
-            stdout=subprocess.PIPE,
-            check=False,
-        )
-        if proc.returncode == 0:
-            choice = proc.stdout.strip()
-            if choice in labels:
-                return labels[choice]
-        if proc.returncode in (1, 130):
-            return None
-    except FileNotFoundError:
-        pass
-    except Exception as e:  # noqa: BLE001
-        log(f"picker error: {e!r}")
-    return cfg.get("defaultAgent") or next(iter(agents.keys()))
+def agent_launch_choice() -> tuple[str | None, list[str] | None]:
+    proc = subprocess.run(["agent-launch", "--print"], text=True, stdout=subprocess.PIPE, check=False)
+    if proc.returncode != 0:
+        return None, None
+    choice = json.loads(proc.stdout)
+    return choice["agent"], choice["argv"]
 
 
-def _clean_cmd(cmd: list[str]) -> list[str]:
-    if len(cmd) > 1 and len(set(cmd)) == 1:
-        return [cmd[0]]
-    return cmd
-
-
-def _clean_args(args: list[str]) -> list[str]:
-    half = len(args) // 2
-    if len(args) > 1 and len(args) % 2 == 0 and args[:half] == args[half:]:
-        return args[:half]
-    return args
-
-
-def plan_launch(cfg, state, locators, picker=None):
+def plan_launch(cfg, state, locators, picker=agent_launch_choice):
     agents = cfg.get("agents", {})
     if state and state.get("agent") in agents:
         agent = agents[state["agent"]]
         locator = locators.get(agent.get("locator"))
         sid = state.get("session_id")
         if sid and locator and locator["exists"](sid):
-            cmd = _clean_cmd(list(agent.get("command", [])))
-            raw_args = _clean_args(list(agent.get("resumeArgs", [])))
-            resume = [arg.replace("{id}", sid) for arg in raw_args]
-            return state["agent"], cmd + resume, sid
-    default = cfg.get("defaultAgent", "")
-    if default and default not in ("", "agents", "selector") and default in agents:
-        name = default
-    else:
-        name = (picker or pick_agent)(cfg)
-    if name is None:
-        return None, None, None
-    if name in agents and agents[name].get("command"):
-        return name, _clean_cmd(list(agents[name]["command"])), None
-    return name, [name], None
+            resume = [arg.replace("{id}", sid) for arg in agent.get("resumeArgs", [])]
+            return state["agent"], list(agent.get("command", [])) + resume, sid
+    name, argv = picker()
+    return name, argv, None
 
 
 def _has_ancestor(pid: int, depth: int = 6) -> bool:
@@ -380,7 +325,11 @@ def cmd_launch(cfg: dict) -> int:
     except Exception as e:  # noqa: BLE001 - never block the agent
         log(f"resolve failed: {e!r}")
     tid = resolved[0] if resolved else None
-    name, argv, sid = plan_launch(cfg, read_state(tid) if tid else None, LOCATORS)
+    try:
+        name, argv, sid = plan_launch(cfg, read_state(tid) if tid else None, LOCATORS)
+    except (OSError, ValueError, KeyError) as e:
+        log(f"agent-launch failed: {e!r}")
+        return 1
     if not name or not argv:
         return 0
     log(f"launch tid={tid} agent={name} resume={sid}")

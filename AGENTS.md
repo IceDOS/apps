@@ -73,4 +73,4 @@ checkout (`path:/abs/path/to/apps`), then `icedos rebuild --build` (no activatio
   into the global package set. The only consumer of the NUR overlay today.
 - `prefixer`, `proton-launch` — Proton prefix tooling (protontricks is deprecated here;
   use `prefixer <APP_ID> run <exe>`).
-- `zed` — `agentBridge` enables resuming agent sessions when reopening sidebar terminal threads. It relies on Zed's private `sidebar_terminal_threads` table (`~/.local/share/zed/db/0-stable/db.sqlite`), so verify table/schema compatibility after Zed updates.
+- `zed` — `agentBridge` enables resuming agent sessions when reopening sidebar terminal threads. It extends ai-tools' `agent-launch` module: the agent registry and picker live there, and the bridge calls `agent-launch --print` for new threads. It relies on Zed's private `sidebar_terminal_threads` table (`~/.local/share/zed/db/0-stable/db.sqlite`), so verify table/schema compatibility after Zed updates.

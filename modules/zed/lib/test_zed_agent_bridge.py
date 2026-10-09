@@ -155,7 +155,6 @@ class LocatorTest(TmpHome):
 
 
 CFG = {
-    "defaultAgent": "claude",
     "agents": {
         "claude": {"command": ["claude"], "resumeArgs": ["--resume", "{id}"], "locator": "claude"},
         "prime-agent": {"command": ["prime-agent"], "resumeArgs": ["--resume", "{id}"], "locator": "prime-agent"},
@@ -165,69 +164,45 @@ FAKE_LOCATORS = {
     "claude": {"exists": lambda s: s == "alive", "latest": None},
     "prime-agent": {"exists": lambda s: s == "alive", "latest": None},
 }
+PICK_CLAUDE = lambda: ("claude", ["claude"])
 
 
 class LaunchTest(TmpHome):
-    def test_no_state_starts_default(self):
-        self.assertEqual(zab.plan_launch(CFG, None, FAKE_LOCATORS), ("claude", ["claude"], None))
-
-    def test_state_resumes_recorded_agent(self):
-        state = {"agent": "prime-agent", "session_id": "alive"}
-        self.assertEqual(
-            zab.plan_launch(CFG, state, FAKE_LOCATORS),
-            ("prime-agent", ["prime-agent", "--resume", "alive"], "alive"),
-        )
-
-    def test_deleted_session_starts_default(self):
-        state = {"agent": "prime-agent", "session_id": "gone"}
-        self.assertEqual(zab.plan_launch(CFG, state, FAKE_LOCATORS)[1], ["claude"])
-
-    def test_unknown_agent_starts_default(self):
-        state = {"agent": "removed", "session_id": "alive"}
-        self.assertEqual(zab.plan_launch(CFG, state, FAKE_LOCATORS)[1], ["claude"])
-
-    def test_missing_default_agent_starts_bare_command(self):
-        cfg = {"defaultAgent": "claude", "agents": {}}
-        self.assertEqual(zab.plan_launch(cfg, None, FAKE_LOCATORS), ("claude", ["claude"], None))
-
-    def test_no_state_and_empty_default_prompts_selector(self):
-        cfg = {"defaultAgent": "", "agents": CFG["agents"]}
-        picker = lambda c: "prime-agent"
-        self.assertEqual(
-            zab.plan_launch(cfg, None, FAKE_LOCATORS, picker=picker),
-            ("prime-agent", ["prime-agent"], None),
-        )
-
-    def test_no_state_and_agents_default_prompts_selector(self):
-        cfg = {"defaultAgent": "agents", "agents": CFG["agents"]}
-        picker = lambda c: "prime-agent"
-        self.assertEqual(
-            zab.plan_launch(cfg, None, FAKE_LOCATORS, picker=picker),
-            ("prime-agent", ["prime-agent"], None),
-        )
-
-    def test_selector_cancelled_returns_none(self):
-        cfg = {"defaultAgent": "", "agents": CFG["agents"]}
-        picker = lambda c: None
-        self.assertEqual(
-            zab.plan_launch(cfg, None, FAKE_LOCATORS, picker=picker),
-            (None, None, None),
-        )
+    def test_no_state_asks_agent_launch(self):
+        self.assertEqual(zab.plan_launch(CFG, None, FAKE_LOCATORS, PICK_CLAUDE), ("claude", ["claude"], None))
 
     def test_state_resumes_recorded_agent_without_picker(self):
-        cfg = {"defaultAgent": "", "agents": CFG["agents"]}
         state = {"agent": "prime-agent", "session_id": "alive"}
         picker = mock.Mock()
         self.assertEqual(
-            zab.plan_launch(cfg, state, FAKE_LOCATORS, picker=picker),
+            zab.plan_launch(CFG, state, FAKE_LOCATORS, picker),
             ("prime-agent", ["prime-agent", "--resume", "alive"], "alive"),
         )
         picker.assert_not_called()
 
-    def test_plan_launch_deduplicates_concatenated_command(self):
-        cfg = {"defaultAgent": "claude", "agents": {"claude": {"command": ["claude", "claude"]}}}
-        self.assertEqual(zab.plan_launch(cfg, None, FAKE_LOCATORS), ("claude", ["claude"], None))
+    def test_deleted_session_asks_agent_launch(self):
+        state = {"agent": "prime-agent", "session_id": "gone"}
+        self.assertEqual(zab.plan_launch(CFG, state, FAKE_LOCATORS, PICK_CLAUDE)[1], ["claude"])
 
+    def test_unknown_agent_asks_agent_launch(self):
+        state = {"agent": "removed", "session_id": "alive"}
+        self.assertEqual(zab.plan_launch(CFG, state, FAKE_LOCATORS, PICK_CLAUDE)[1], ["claude"])
+
+    def test_picker_cancelled_returns_none(self):
+        self.assertEqual(zab.plan_launch(CFG, None, FAKE_LOCATORS, lambda: (None, None)), (None, None, None))
+
+    def test_agent_launch_choice_reads_print_output(self):
+        out = mock.Mock(returncode=0, stdout=json.dumps({"agent": "claude", "argv": ["claude"]}))
+        with mock.patch.object(zab.subprocess, "run", return_value=out) as run:
+            self.assertEqual(zab.agent_launch_choice(), ("claude", ["claude"]))
+        self.assertEqual(run.call_args.args[0], ["agent-launch", "--print"])
+
+    def test_agent_launch_choice_cancelled(self):
+        with mock.patch.object(zab.subprocess, "run", return_value=mock.Mock(returncode=1, stdout="")):
+            self.assertEqual(zab.agent_launch_choice(), (None, None))
+
+
+class HookTest(TmpHome):
     def _hook(self, env):
         import io
         with mock.patch.dict(os.environ, env):
