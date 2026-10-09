@@ -39,11 +39,6 @@ checkout (`path:/abs/path/to/apps`), then `icedos rebuild --build` (no activatio
 `path:` inputs auto-refresh each build.
 
 ## Notable modules / gotchas
-- `peon-ping` — Warcraft-peon-style agent-event audio. **Standalone** module: owns
-  `icedos.applications.peon-ping.users.<name>` (self-materialised via `genDefaults`).
-  Claude Code integration is upstream's own `programs.peon-ping.claudeCodeIntegration`
-  (per-user opt-in, `claudeCodeIntegration = true`), and `opencode` consumes the user
-  settings for its own peon plugin. See core's *Per-user (`users`) options*.
 - `me3` — game mod loader (per-game profiles/natives/packages).
 - `sunshine` + `sunshine-headless` + `steam-headless` — game streaming, incl. headless
   HDR. The base `sunshine` module is always the primary, stock daemon (real desktop capture).
@@ -78,10 +73,4 @@ checkout (`path:/abs/path/to/apps`), then `icedos rebuild --build` (no activatio
   into the global package set. The only consumer of the NUR overlay today.
 - `prefixer`, `proton-launch` — Proton prefix tooling (protontricks is deprecated here;
   use `prefixer <APP_ID> run <exe>`).
-- `prime-agent` — mirrors the bundled models.dev catalog into `models.json`. Only models in
-  that snapshot show up today (it lags upstream). To add a newly released model without waiting
-  for a prime-agent bump, define it under `icedos.applications.prime-agent.settings.providers.<name>.models`:
-  prime-agent's `models[]` **merges** with the catalog — an unknown id is added (inheriting the
-  built-in provider's api/baseUrl), a known id replaces the bundled definition. Use the model's
-  real dot id (e.g. `glm-5.3-flash`, not `glm-5-3-flash`) and the same id in `modelOverrides`.
 - `zed` — `agentBridge` enables resuming agent sessions when reopening sidebar terminal threads. It relies on Zed's private `sidebar_terminal_threads` table (`~/.local/share/zed/db/0-stable/db.sqlite`), so verify table/schema compatibility after Zed updates.
