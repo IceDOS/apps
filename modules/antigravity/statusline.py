@@ -412,7 +412,17 @@ def main(argv):
         action = args[0] if args else "on"
         command = args[1] if len(args) > 1 else str(SETTINGS.parent / "statusline.sh")
         return setup(action, command, stack)
-    print(render(read_payload()))
+    payload = read_payload()
+    if "--title" in argv:
+        try:
+            import terminal_title
+
+            terminal_title.update(payload)
+        except Exception:  # noqa: BLE001, S110 - the title must never break the bar
+            pass
+    # --no-bar keeps agy's default bar (stacked) while the call still drives the title
+    if "--no-bar" not in argv:
+        print(render(payload))
     return 0
 
 

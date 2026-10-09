@@ -7,6 +7,8 @@
       inherit (icedosLib)
         mkAttrsOfOption
         mkBoolOption
+        mkStrListOption
+        mkStrOption
         ;
 
       inherit ((importTOML ./config.toml).icedos.applications.antigravity)
@@ -15,6 +17,7 @@
         rules
         statusLine
         statusLineStackWithDefault
+        terminalTitle
         ;
     in
     {
@@ -33,6 +36,14 @@
 
       # Render the bar below agy's built-in header instead of replacing it.
       statusLineStackWithDefault = mkBoolOption { default = statusLineStackWithDefault; };
+
+      # Terminal title "<status glyph> <conversation title>"; the status line command drives it.
+      # Give every glyph the same width in the title font.
+      terminalTitle = {
+        enable = mkBoolOption { default = terminalTitle.enable; };
+        idleGlyph = mkStrOption { default = terminalTitle.idleGlyph; };
+        workingGlyphs = mkStrListOption { default = terminalTitle.workingGlyphs; };
+      };
     };
 
   outputs.nixosModules =
@@ -54,6 +65,7 @@
             rules
             statusLine
             statusLineStackWithDefault
+            terminalTitle
             ;
           inherit (lib)
             filterAttrs
@@ -71,13 +83,30 @@
           withTrigger =
             text: if hasPrefix "---\n" text then text else "---\ntrigger: always_on\n---\n\n${text}";
 
+          # statusline.py imports terminal_title.py from its own directory.
+          statusLineScripts = pkgs.runCommand "antigravity-statusline-scripts" { } ''
+            mkdir -p $out
+            cp ${./statusline.py} $out/statusline.py
+            cp ${./terminal_title.py} $out/terminal_title.py
+          '';
+
           # Wrapper so activation and settings.json share one store path.
           statusLinePkg = pkgs.writeShellApplication {
             name = "antigravity-statusline";
             text = ''
-              exec ${pkgs.python3}/bin/python3 ${./statusline.py} "$@"
+              export ANTIGRAVITY_TITLE_IDLE_GLYPH=${lib.escapeShellArg terminalTitle.idleGlyph}
+              export ANTIGRAVITY_TITLE_WORKING_GLYPHS=${lib.escapeShellArg (lib.concatStringsSep " " terminalTitle.workingGlyphs)}
+              exec ${pkgs.python3}/bin/python3 ${statusLineScripts}/statusline.py "$@"
             '';
           };
+
+          # agy runs the status line on every agent state change, so the title rides on it;
+          # with the bar off, an empty custom line stacked on agy's default renders as the default.
+          statusLineCommand = lib.concatStringsSep " " (
+            [ "${statusLinePkg}/bin/antigravity-statusline" ]
+            ++ lib.optional terminalTitle.enable "--title"
+            ++ lib.optional (!statusLine) "--no-bar"
+          );
 
           hasZed = icedosLib.hasModule {
             inherit config repoUrl;
@@ -162,8 +191,10 @@
                 # changes), so Home Manager only merges/removes its statusLine key.
                 home.activation.icedosAntigravityStatusLine = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
                   run ${statusLinePkg}/bin/antigravity-statusline --setup ${
-                    if statusLine then "on" else "off"
-                  } ${lib.escapeShellArg "${statusLinePkg}/bin/antigravity-statusline"}${lib.optionalString statusLineStackWithDefault " --stack"}
+                    if statusLine || terminalTitle.enable then "on" else "off"
+                  } ${lib.escapeShellArg statusLineCommand}${
+                    lib.optionalString (statusLineStackWithDefault || !statusLine) " --stack"
+                  }
                 '';
               }
             )

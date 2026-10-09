@@ -14,3 +14,11 @@ statusLine = true
 
 # Render the bar below agy's built-in header instead of replacing it.
 statusLineStackWithDefault = false
+
+# Terminal title "<status glyph> <conversation title>", as Claude Code and prime-agent set it
+# (Zed terminal threads show the glyph as a status marker). The status line command drives it,
+# so it also works with statusLine = false. Use glyphs of one width in the title font.
+[icedos.applications.antigravity.terminalTitle]
+enable = true
+idleGlyph = "◉"
+workingGlyphs = ["◐", "◓", "◑", "◒"]
