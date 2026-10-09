@@ -29,12 +29,15 @@ keybind = "ctrl-alt-q" # Unbound in Zed, the vim keymap, and OS defaults we know
 [icedos.applications.zed.lsp]
 
 [icedos.applications.zed.agentBridge]
-# Reopening a terminal thread resumes the agent session that ran in it.
-enable = false
-defaultAgent = "" # "" = prompt with selector, or match terminalInitCommand
-remoteLookup = true # SSH threads look up the thread ID on the Zed host over SSH
-sshTarget = "" # "" = $USER@<client IP from SSH_CONNECTION>
+# Reopening a terminal thread resumes the agent session that ran in it; new threads
+# open the agent-launch picker. Needs the agent-launch module from github:icedos/ai-tools.
+enable = true
+# Zed's thread list is only on the machine running Zed. For a terminal opened over SSH,
+# the bridge SSHes back to that machine to read it, so it needs key login there.
+remoteLookup = true
+# Address for that SSH-back. "" finds it automatically: $USER@ the client IP that sshd puts
+# in SSH_CONNECTION. Set it only when that IP is unreachable (NAT, jump host), the
+# username differs, or you want a ~/.ssh/config alias, e.g. "ice@desktop".
+sshTarget = ""
 resolveTimeout = 3 # seconds to wait for Zed to store the probe title
 zedDb = "~/.local/share/zed/db/0-stable/db.sqlite"
-
-[icedos.applications.zed.agentBridge.agents]
