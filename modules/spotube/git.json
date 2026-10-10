@@ -1,7 +1,7 @@
 {
-  "version": "2026-10-02-fab6010",
-  "rev": "fab60107e33a1604578ee987d2d365b208fdf2e8",
-  "hash": "sha256-ytYCtV7GLhUdb6fi0JBtjlt1GDGniIcf8hiOfB2sar8=",
+  "version": "2026-10-09-963b360",
+  "rev": "963b360a81391fdbdfa15f8744c5873db2f34030",
+  "hash": "sha256-bx0gHk6v+IyFdnfArhWrQeKiv9pY74MmGF9qgvvz5t8=",
   "cargoHash": "sha256-U93ECB9G/qi8h8YQcEV/wSEWOwG+72/TVGcQ8ydcgEE=",
   "androidPlatform": "37.0",
   "composeWebview": "1.0.3",
