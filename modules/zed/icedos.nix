@@ -18,9 +18,9 @@
         ;
 
       inherit ((importTOML ./config.toml).icedos.applications.zed)
-        agentBridge
+        agent-bridge
         autosave
-        copySelectionLocation
+        copy-selection-location
         extensions
         extraPackages
         fhs
@@ -35,9 +35,9 @@
         ;
     in
     {
-      agentBridge =
+      agent-bridge =
         let
-          inherit (agentBridge)
+          inherit (agent-bridge)
             enable
             remoteLookup
             resolveTimeout
@@ -55,9 +55,9 @@
 
       autosave = mkBoolOption { default = autosave; };
 
-      copySelectionLocation = {
-        enable = mkBoolOption { default = copySelectionLocation.enable; };
-        keybind = mkStrOption { default = copySelectionLocation.keybind; };
+      copy-selection-location = {
+        enable = mkBoolOption { default = copy-selection-location.enable; };
+        keybind = mkStrOption { default = copy-selection-location.keybind; };
       };
 
       extensions = mkStrListOption { default = extensions; };
@@ -114,9 +114,9 @@
           inherit (applications) zed;
 
           inherit (zed)
-            agentBridge
+            agent-bridge
             autosave
-            copySelectionLocation
+            copy-selection-location
             extensions
             extraPackages
             fhs
@@ -146,11 +146,11 @@
             name = "agent-launch";
           };
 
-          bridgeEnabled = agentBridge.enable && hasAgentLaunch;
+          bridgeEnabled = agent-bridge.enable && hasAgentLaunch;
 
           bridgeConfig = pkgs.writeText "zed-agent-bridge.json" (
             builtins.toJSON {
-              inherit (agentBridge)
+              inherit (agent-bridge)
                 remoteLookup
                 resolveTimeout
                 sshTarget
@@ -182,8 +182,8 @@
         {
           assertions = [
             {
-              assertion = agentBridge.enable -> hasAgentLaunch;
-              message = "icedos.applications.zed.agentBridge needs the agent-launch module from github:icedos/ai-tools.";
+              assertion = agent-bridge.enable -> hasAgentLaunch;
+              message = "icedos.applications.zed.agent-bridge needs the agent-launch module from github:icedos/ai-tools.";
             }
           ];
 
@@ -284,8 +284,7 @@
                       font_size = overrideUnmanaged font.size 0 config.stylix.fonts.sizes.terminal fontSizeFallback;
                     };
 
-                    agent.terminal_init_command =
-                      if bridgeEnabled then "zed-agent-launch" else terminalInitCommand;
+                    agent.terminal_init_command = if bridgeEnabled then "zed-agent-launch" else terminalInitCommand;
                     vim_mode = vim;
 
                     buffer_font_family = overrideManaged font.name "" fontNameFallback;
@@ -312,7 +311,7 @@
                   };
 
                   userTasks =
-                    lib.optionals copySelectionLocation.enable [
+                    lib.optionals copy-selection-location.enable [
                       {
                         # Selection via env, not argv: build_no_quote would dump raw code into zsh -c.
                         label = "copy-location: copy selection";
@@ -338,12 +337,12 @@
                     ];
 
                   userKeymaps =
-                    lib.optionals copySelectionLocation.enable [
+                    lib.optionals copy-selection-location.enable [
                       {
                         # Free in Zed's Linux default editor keymap (collides only in panel contexts).
                         context = "Editor";
                         bindings = {
-                          ${copySelectionLocation.keybind} = [
+                          ${copy-selection-location.keybind} = [
                             "task::Spawn"
                             {
                               task_name = "copy-location: copy selection";
@@ -370,7 +369,7 @@
 
                 home.packages =
                   # copy-location: copy selection's file path to clipboard
-                  lib.optionals copySelectionLocation.enable [
+                  lib.optionals copy-selection-location.enable [
                     (pkgs.writeShellScriptBin "copy-location" ''
                       # wl-copy execs \`cat\`, so coreutils must be on PATH for the hermetic guarantee.
                       export PATH=${
@@ -411,8 +410,8 @@
           ++ lib.optionals zed.vim [
             "Vim keys are turned on in Zed."
           ]
-          ++ lib.optionals zed.copySelectionLocation.enable [
-            "In Zed, ${zed.copySelectionLocation.keybind} copies the file and line you selected."
+          ++ lib.optionals zed.copy-selection-location.enable [
+            "In Zed, ${zed.copy-selection-location.keybind} copies the file and line you selected."
           ]
           ++ lib.optionals zed.lazygit.enable [
             "In Zed, ${zed.lazygit.keybind} opens lazygit in the terminal dock."

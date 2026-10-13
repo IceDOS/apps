@@ -9,6 +9,7 @@
 - Build/test only via the `icedos` CLI — **never `sudo nixos-rebuild`**.
 - **Never** `git commit/stash/reset/pull` — the user manages git.
 - Every option uses a `validate.*`/`mk*Option` helper; **no untyped options**.
+- Option-path segments that hold other options are **kebab-case** (`agent-bridge`); only leaf value keys are camelCase (`remoteLookup`).
 - A module's `config.toml` defaults must mirror its `icedos.nix` defaults.
 - Format with `icedos nixf .` after editing any `.nix`.
 - If a repo or the config root you need isn't checked out locally, **ask the user** for
@@ -74,4 +75,4 @@ checkout (`path:/abs/path/to/apps`), then `icedos rebuild --build` (no activatio
   into the global package set. The only consumer of the NUR overlay today.
 - `prefixer`, `proton-launch` — Proton prefix tooling (protontricks is deprecated here;
   use `prefixer <APP_ID> run <exe>`).
-- `zed` — `agentBridge` enables resuming agent sessions when reopening sidebar terminal threads. It extends ai-tools' `agent-launch` module: the agent registry and picker live there, and the bridge calls `agent-launch --print` for new threads. It relies on Zed's private `sidebar_terminal_threads` table (`~/.local/share/zed/db/0-stable/db.sqlite`), so verify table/schema compatibility after Zed updates.
+- `zed` — `agent-bridge` enables resuming agent sessions when reopening sidebar terminal threads. It extends ai-tools' `agent-launch` module: the agent registry and picker live there, and the bridge calls `agent-launch --print` for new threads. It relies on Zed's private `sidebar_terminal_threads` table (`~/.local/share/zed/db/0-stable/db.sqlite`), so verify table/schema compatibility after Zed updates.

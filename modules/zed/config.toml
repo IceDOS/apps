@@ -7,7 +7,7 @@ fhs = false
 formatOnSave = false
 vim = false
 
-[icedos.applications.zed.copySelectionLocation]
+[icedos.applications.zed.copy-selection-location]
 enable = false
 keybind = "ctrl-alt-c"
 
@@ -28,7 +28,7 @@ keybind = "ctrl-alt-q" # Unbound in Zed, the vim keymap, and OS defaults we know
 
 [icedos.applications.zed.lsp]
 
-[icedos.applications.zed.agentBridge]
+[icedos.applications.zed.agent-bridge]
 # Reopening a terminal thread resumes the agent session that ran in it; new threads
 # open the agent-launch picker. Needs the agent-launch module from github:icedos/ai-tools.
 enable = false
