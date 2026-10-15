@@ -181,6 +181,7 @@
                 if [[ ${genHelpFlags { }} ]]; then
                   echo "Usage: proton-launch [OPTIONS] [--] <command> [args...]"
                   echo "Available options:"
+                  echo -e "> ${purpleString "--clean-preload"}: remove the steam overlay GL/X11 hook (gameoverlayrenderer.so) from LD_PRELOAD; pair with --no-steam-overlay to drop the overlay entirely"
                   echo -e "> ${purpleString "--deck"}: pretend to be a Steam Deck"
                   echo -e "> ${purpleString "--debug-logs"}: enable VKD3D/DXVK/Proton warn logging into \$XDG_RUNTIME_DIR and stop silencing output (off by default)"
                   ${conditionalGamemodeHelp}
@@ -207,7 +208,7 @@
                   echo -e "> ${purpleString "--no-rebar-upload"}: disable VRAM upload via Resizable BAR"
                   echo -e "> ${purpleString "--no-shader-cache"}: disable DXVK/VKD3D on-disk shader caches (diagnostic only: trades disk writes for much worse compilation stutter)"
                   echo -e "> ${purpleString "--shader-recording"}: enable steam's fossilize layer to record pipelines to disk while playing"
-                  echo -e "> ${purpleString "--no-steam-overlay"}: disable the steam overlay vulkan layer"
+                  echo -e "> ${purpleString "--no-steam-overlay"}: disable the steam overlay vulkan layer; pair with --clean-preload to drop the overlay entirely"
                   echo -e "> ${purpleString "--no-write-watch"}: drop wine's memory write watches (per-game hack: verify the game still works before using it)"
                   echo -e "> ${purpleString "--present-mode <mode>"}: force the Vulkan present mode (fifo, relaxed, mailbox, immediate)${
                     if presentMode != "" then " [default: ${presentMode}]" else ""
@@ -224,6 +225,7 @@
                 fi
 
                 BALOO_SUSPEND=1
+                CLEAN_PRELOAD=0
                 DEBUG_LOGS=0
                 DXVK_CONFIG_OPTS=""
                 DXVK_HDR="''${DXVK_HDR:-0}"
@@ -343,6 +345,10 @@
 
                 while [[ $# -gt 0 ]]; do
                   case "$1" in
+                    --clean-preload)
+                      CLEAN_PRELOAD=1
+                      shift
+                      ;;
                     --deck)
                       SteamDeck=1
                       shift
@@ -654,6 +660,28 @@
 
                 [ -n "$DXVK_CONFIG_OPTS" ] && DXVK_CONFIG="''${DXVK_CONFIG:+$DXVK_CONFIG;}$DXVK_CONFIG_OPTS"
                 [ -n "$VKD3D_CONFIG_OPTS" ] && VKD3D_CONFIG="''${VKD3D_CONFIG:+$VKD3D_CONFIG,}$VKD3D_CONFIG_OPTS"
+
+                if [ "$CLEAN_PRELOAD" = "1" ] && [ "$WAYLAND_STEAM_OVERLAY" = "1" ]; then
+                  echo "proton-launch: --clean-preload conflicts with --wayland-steam-overlay, keeping the overlay" >&2
+                  CLEAN_PRELOAD=0
+                fi
+
+                if [ "$CLEAN_PRELOAD" = "1" ] && [ -n "$LD_PRELOAD" ]; then
+                  NEW_PRELOAD=""
+                  # ld.so accepts both spaces and colons as separators.
+                  IFS=': ' read -ra PARTS <<< "$LD_PRELOAD"
+                  for part in "''${PARTS[@]}"; do
+                    case "$part" in
+                      *gameoverlayrenderer.so*) ;;
+                      *) NEW_PRELOAD="''${NEW_PRELOAD:+$NEW_PRELOAD:}$part" ;;
+                    esac
+                  done
+                  if [ -n "$NEW_PRELOAD" ]; then
+                    export LD_PRELOAD="$NEW_PRELOAD"
+                  else
+                    unset LD_PRELOAD
+                  fi
+                fi
 
                 # Shim for Protons predating proton-ge's activation block: their
                 # wayland branch drops DISPLAY and forces PROTON_NO_STEAMINPUT=1.
