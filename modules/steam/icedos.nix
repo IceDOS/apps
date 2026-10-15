@@ -175,6 +175,8 @@
                 "Steam/steam_dev.cfg" = mkIf downloadsWorkaround {
                   text = ''
                     @nClientDownloadEnableHTTP2PlatformLinux 0
+                    @fDownloadRateImprovementToAddAnotherConnection 1.0
+                    @cMaxInitialDownloadSources 15
                   '';
                 };
               };
