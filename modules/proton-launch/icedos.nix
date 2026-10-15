@@ -214,8 +214,8 @@
                   }"
                   echo -e "> ${purpleString "--sdl-x11"}: force SDL to use X11 video driver"
                   echo -e "> ${purpleString "--shader-all-cores"}: use all CPU cores for DXVK shader compilation"
-                  echo -e "> ${purpleString "--tear-free"}: force DXVK mailbox presentation (no tearing without vsync)"
-                  echo -e "> ${purpleString "--no-tear-free"}: force DXVK relaxed-fifo presentation (may tear below refresh, but stutters less)"
+                  echo -e "> ${purpleString "--tear-free"}: force mailbox presentation in DXVK, Mesa Vulkan and MangoHud (no tearing without vsync; last of this, --no-tear-free and --present-mode wins)"
+                  echo -e "> ${purpleString "--no-tear-free"}: force relaxed-fifo presentation in DXVK, Mesa Vulkan and MangoHud (may tear below refresh, but stutters less)"
                   ${conditionalVrrHelp}
                   echo -e "> ${purpleString "--wayland"}: enable Proton's native Wayland backend (SDL defaults to wayland; --sdl-x11 overrides)"
                   ${conditionalSteamWaylandOverlayHelp}
@@ -226,15 +226,19 @@
                 BALOO_SUSPEND=1
                 DEBUG_LOGS=0
                 DXVK_CONFIG_OPTS=""
+                DXVK_HDR="''${DXVK_HDR:-0}"
                 DXVK_LOG_LEVEL=none
                 # `none` makes dxvk skip creating the log file entirely, so no
                 # `<exe>_d3d11.log` is written into the game's install dir.
                 DXVK_LOG_PATH=none
+                FPS_LIMIT=""
                 GST_DEBUG=0
                 LOW_LATENCY_LAYER=0
                 LOW_LATENCY_LAYER_FORCE_DECOUPLED=0
                 LOW_LATENCY_LAYER_REFLEX=0
                 LOW_LATENCY_LAYER_SPOOF_NVIDIA=0
+                MANGOHUD_OPTS=""
+                MANGOHUD_VSYNC=""
                 PROTON_ENABLE_HIDRAW=0
                 PROTON_ENABLE_WAYLAND=0
                 PROTON_FORCE_NVAPI=0
@@ -262,6 +266,18 @@
                 MESA_DISK_CACHE_DATABASE=1
                 ${optionalString (presentMode != "") ''
                   MESA_VK_WSI_PRESENT_MODE=${presentMode}
+                  ${
+                    if presentMode == "fifo" then
+                      "MANGOHUD_VSYNC=3"
+                    else if presentMode == "relaxed" then
+                      "MANGOHUD_VSYNC=0"
+                    else if presentMode == "mailbox" then
+                      "MANGOHUD_VSYNC=2"
+                    else if presentMode == "immediate" then
+                      "MANGOHUD_VSYNC=1"
+                    else
+                      ""
+                  }
                 ''}
 
                 # Stop the NVIDIA driver purging the GL shader cache between
@@ -347,7 +363,7 @@
                       ;;
                     --fps-limit)
                       [ $# -ge 2 ] || { echo "Missing value for --fps-limit" >&2; exit 1; }
-                      DXVK_FRAME_RATE="$2"
+                      FPS_LIMIT="$2"
                       shift 2
                       ;;
                     --fsr4)
@@ -361,6 +377,8 @@
                       ;;
                     --hdr)
                       PROTON_ENABLE_HDR=1
+                      DXVK_HDR=1
+                      GAMESCOPE_ARGS="''${GAMESCOPE_ARGS:+$GAMESCOPE_ARGS }--hdr-enabled"
                       shift
                       ;;
                     --hidraw)
@@ -426,7 +444,7 @@
                       }
                     --gamescope-args)
                       [ $# -ge 2 ] || { echo "Missing value for --gamescope-args" >&2; exit 1; }
-                      GAMESCOPE_ARGS="$2"
+                      GAMESCOPE_ARGS="''${GAMESCOPE_ARGS:+$GAMESCOPE_ARGS }$2"
 
                       if [[ $GAMESCOPE_ARGS =~ (^| )(-W[0-9]|-W [0-9]|-H[0-9]|-H [0-9]) ]]; then
                         DEFAULT_WIDTH=""
@@ -452,21 +470,39 @@
                     --present-mode)
                       [ $# -ge 2 ] || { echo "Missing value for --present-mode" >&2; exit 1; }
                       case "$2" in
-                        fifo|relaxed|mailbox|immediate) ;;
+                        fifo)
+                          MESA_VK_WSI_PRESENT_MODE="fifo"
+                          MANGOHUD_VSYNC=3
+                          ;;
+                        relaxed)
+                          MESA_VK_WSI_PRESENT_MODE="relaxed"
+                          MANGOHUD_VSYNC=0
+                          ;;
+                        mailbox)
+                          MESA_VK_WSI_PRESENT_MODE="mailbox"
+                          MANGOHUD_VSYNC=2
+                          ;;
+                        immediate)
+                          MESA_VK_WSI_PRESENT_MODE="immediate"
+                          MANGOHUD_VSYNC=1
+                          ;;
                         *)
                           echo "Invalid --present-mode: $2 (expected fifo, relaxed, mailbox or immediate)" >&2
                           exit 1
                           ;;
                       esac
-                      MESA_VK_WSI_PRESENT_MODE="$2"
                       shift 2
                       ;;
                     --tear-free)
                       DXVK_CONFIG_OPTS="''${DXVK_CONFIG_OPTS:+$DXVK_CONFIG_OPTS;}dxvk.tearFree = True"
+                      MESA_VK_WSI_PRESENT_MODE="mailbox"
+                      MANGOHUD_VSYNC=2
                       shift
                       ;;
                     --no-tear-free)
                       DXVK_CONFIG_OPTS="''${DXVK_CONFIG_OPTS:+$DXVK_CONFIG_OPTS;}dxvk.tearFree = False"
+                      MESA_VK_WSI_PRESENT_MODE="relaxed"
+                      MANGOHUD_VSYNC=0
                       shift
                       ;;
                     --sdl-x11)
@@ -641,6 +677,7 @@
                 DXVK_ALL_CORES \
                 DXVK_CONFIG \
                 DXVK_FRAME_RATE \
+                DXVK_HDR \
                 DXVK_LOG_LEVEL \
                 DXVK_LOG_PATH \
                 DXVK_SHADER_CACHE \
@@ -652,10 +689,10 @@
                 LOW_LATENCY_LAYER_FORCE_DECOUPLED \
                 LOW_LATENCY_LAYER_REFLEX \
                 LOW_LATENCY_LAYER_SPOOF_NVIDIA \
+                MANGOHUD_CONFIGFILE \
                 MESA_DISK_CACHE_DATABASE \
                 MESA_SHADER_CACHE_DISABLE \
                 MESA_VK_WSI_PRESENT_MODE \
-                MANGOHUD_CONFIGFILE \
                 MLFG_WATERMARK \
                 PROTON_ENABLE_HDR \
                 PROTON_ENABLE_HIDRAW \
@@ -689,6 +726,21 @@
                 fi
 
                 [[ "$MANGOAPP" != "" && "$GAMESCOPE" != "" ]] && MANGOHUD=""
+
+                # One frame limiter only: two in series add latency and frame-time jitter.
+                if [ -n "$FPS_LIMIT" ]; then
+                  if [ -n "$MANGOHUD" ]; then
+                    MANGOHUD_OPTS="''${MANGOHUD_OPTS:+$MANGOHUD_OPTS,}fps_limit=$FPS_LIMIT"
+                  else
+                    DXVK_FRAME_RATE="$FPS_LIMIT"
+                  fi
+                fi
+
+                # Any MANGOHUD_CONFIG value makes MangoHud skip MangoHud.conf unless it holds read_cfg.
+                [ -n "$MANGOHUD_VSYNC" ] && MANGOHUD_OPTS="''${MANGOHUD_OPTS:+$MANGOHUD_OPTS,}vsync=$MANGOHUD_VSYNC"
+                if [ -n "$MANGOHUD_OPTS" ]; then
+                  export MANGOHUD_CONFIG="''${MANGOHUD_CONFIG:-read_cfg},$MANGOHUD_OPTS"
+                fi
 
                 # A crashing game or anti-cheat child otherwise dumps its whole
                 # address space through systemd-coredump mid-session.
