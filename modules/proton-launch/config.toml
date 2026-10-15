@@ -1,4 +1,7 @@
 [icedos.applications.proton-launch]
+# Cap in MiB for the tmpfs launch log ($XDG_RUNTIME_DIR/proton-launch.log); output past it is dropped. 0 disables the cap.
+logSizeLimit = 16
+
 # Default Vulkan present mode; "" leaves it to the driver. --present-mode overrides.
 # Options: fifo (strict vsync), relaxed, mailbox (tear-free, low latency), immediate (lowest latency, tears)
 presentMode = ""

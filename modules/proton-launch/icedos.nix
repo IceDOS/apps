@@ -9,9 +9,16 @@
   options.icedos.applications.proton-launch =
     let
       inherit (lib) importTOML;
-      inherit ((importTOML ./config.toml).icedos.applications.proton-launch) presentMode;
+      inherit ((importTOML ./config.toml).icedos.applications.proton-launch) logSizeLimit presentMode;
     in
     {
+      logSizeLimit = icedosLib.mkIntBetweenOption {
+        path = "icedos.applications.proton-launch.logSizeLimit";
+        source = ./config.toml;
+        default = logSizeLimit;
+        description = "Cap in MiB for the tmpfs launch log. 0 disables the cap.";
+      } 0 4096;
+
       presentMode =
         icedosLib.mkEnumOption
           {
@@ -72,7 +79,8 @@
             name = "steam-wayland-overlay";
           };
 
-          inherit (config.icedos.applications.proton-launch) presentMode;
+          inherit (config.icedos.applications.proton-launch) logSizeLimit presentMode;
+          logSizeLimitBytes = toString (logSizeLimit * 1024 * 1024);
 
           packages = [ proton-launch ] ++ optional hasGamescope pkgs.gamescope;
 
@@ -518,6 +526,7 @@
                       ;;
                     --no-ntsync)
                       PROTON_USE_NTSYNC=0
+                      PROTON_NO_NTSYNC=1
                       shift
                       ;;
                     --no-proton-sdl)
@@ -600,10 +609,15 @@
                   esac
                 done
 
+                if [ "''${#COMMAND[@]}" -eq 0 ]; then
+                  echo "proton-launch: no command specified" >&2
+                  exit 1
+                fi
+
                 SCB_GAMESCOPE_ARGS="$DEFAULT_HEIGHT $DEFAULT_REFRESH_RATE $DEFAULT_WIDTH $GAMESCOPE_ARGS $MANGOAPP"
 
-                [ -n "$DXVK_CONFIG_OPTS" ] && DXVK_CONFIG="$DXVK_CONFIG_OPTS"
-                [ -n "$VKD3D_CONFIG_OPTS" ] && VKD3D_CONFIG="$VKD3D_CONFIG_OPTS"
+                [ -n "$DXVK_CONFIG_OPTS" ] && DXVK_CONFIG="''${DXVK_CONFIG:+$DXVK_CONFIG;}$DXVK_CONFIG_OPTS"
+                [ -n "$VKD3D_CONFIG_OPTS" ] && VKD3D_CONFIG="''${VKD3D_CONFIG:+$VKD3D_CONFIG,}$VKD3D_CONFIG_OPTS"
 
                 # Shim for Protons predating proton-ge's activation block: their
                 # wayland branch drops DISPLAY and forces PROTON_NO_STEAMINPUT=1.
@@ -651,6 +665,7 @@
                 PROTON_LOG \
                 PROTON_LOG_DIR \
                 PROTON_NO_ESYNC \
+                PROTON_NO_NTSYNC \
                 PROTON_NO_WRITE_WATCH \
                 PROTON_PREFER_SDL \
                 PROTON_USE_NTSYNC \
@@ -684,7 +699,23 @@
                 # Redirect stderr to tmpfs to avoid journald fsync during gameplay.
                 # PROTON_LAUNCH_LOG provides a readable last-run log at no disk cost.
                 if [ "$DEBUG_LOGS" = "0" ]; then
-                  exec >"''${PROTON_LAUNCH_LOG:-/dev/null}" 2>&1
+                  LAUNCH_LOG="''${PROTON_LAUNCH_LOG:-$RUNTIME_DIR/proton-launch.log}"
+                  # A concurrent launch gets a per-PID log instead of truncating the running one.
+                  exec 9>>"$LAUNCH_LOG.lock"
+                  ${pkgs.util-linux}/bin/flock -n 9 || LAUNCH_LOG="''${LAUNCH_LOG%.log}.$$.log"
+                  ${
+                    if logSizeLimit == 0 then
+                      ''
+                        exec >"$LAUNCH_LOG" 2>&1
+                      ''
+                    else
+                      ''
+                        # Past the cap, drain to /dev/null instead of closing the pipe, so writers never get SIGPIPE.
+                        if exec 8>"$LAUNCH_LOG"; then
+                          exec > >({ ${pkgs.coreutils}/bin/head -c ${logSizeLimitBytes}; ${pkgs.coreutils}/bin/cat >/dev/null; } >&8) 2>&1 8>&-
+                        fi
+                      ''
+                  }
                 fi
 
                 ${
