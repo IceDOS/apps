@@ -187,6 +187,7 @@
                   ${conditionalGamemodeHelp}
                   ${conditionalGamescopeHelp}
                   echo -e "> ${purpleString "--gamescope-args <args>"}: pass extra args to gamescope"
+                  echo -e "> ${purpleString "--force-large-address-aware"}: enable LARGE_ADDRESS_AWARE (4GB for 32-bit games) even where Valve opts a game out; on by default otherwise"
                   echo -e "> ${purpleString "--fps-limit <N>"}: cap framerate at N fps"
                   echo -e "> ${purpleString "--fsr4"}: enable FSR 4 frame upscaling"
                   echo -e "> ${purpleString "--fsr4-watermark"}: show FSR4/MLFG watermark overlay"
@@ -202,6 +203,7 @@
                   ${conditionalNoGamemodeHelp}
                   ${conditionalNoGamePerformanceHelp}
                   echo -e "> ${purpleString "--no-gpl"}: disable DXVK graphics pipeline library"
+                  echo -e "> ${purpleString "--no-large-address-aware"}: disable LARGE_ADDRESS_AWARE for the games that break with it"
                   echo -e "> ${purpleString "--no-mangohud"}: disable mangohud overlay (when present)"
                   echo -e "> ${purpleString "--no-ntsync"}: disable ntsync"
                   echo -e "> ${purpleString "--no-proton-sdl"}: disable proton's SDL preference"
@@ -389,6 +391,14 @@
                       ;;
                     --hidraw)
                       PROTON_ENABLE_HIDRAW=1
+                      shift
+                      ;;
+                    --force-large-address-aware)
+                      PROTON_FORCE_LARGE_ADDRESS_AWARE=1
+                      shift
+                      ;;
+                    --no-large-address-aware)
+                      PROTON_FORCE_LARGE_ADDRESS_AWARE=0
                       shift
                       ;;
                       ${
@@ -725,6 +735,7 @@
                 PROTON_ENABLE_HDR \
                 PROTON_ENABLE_HIDRAW \
                 PROTON_ENABLE_WAYLAND \
+                PROTON_FORCE_LARGE_ADDRESS_AWARE \
                 PROTON_FORCE_NVAPI \
                 PROTON_FSR4_UPGRADE \
                 PROTON_LOG \
