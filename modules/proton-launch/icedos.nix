@@ -82,6 +82,9 @@
           inherit (config.icedos.applications.proton-launch) logSizeLimit presentMode;
           logSizeLimitBytes = toString (logSizeLimit * 1024 * 1024);
 
+          # 16G when the hardware repo, or a pinned revision of it, lacks the option.
+          shaderCacheMaxSize = config.icedos.hardware.graphics.mesa.shaderCacheMaxSize or "16G";
+
           packages = [ proton-launch ] ++ optional hasGamescope pkgs.gamescope;
 
           # Skip heavy maintenance (nix GC, fstrim, logrotate) during gameplay.
@@ -243,6 +246,7 @@
                 LOW_LATENCY_LAYER_SPOOF_NVIDIA=0
                 MANGOHUD_OPTS=""
                 MANGOHUD_VSYNC=""
+                MESA_SHADER_CACHE_MAX_SIZE="''${MESA_SHADER_CACHE_MAX_SIZE:-${shaderCacheMaxSize}}"
                 PROTON_ENABLE_HIDRAW=0
                 PROTON_ENABLE_WAYLAND=0
                 PROTON_FORCE_NVAPI=0
@@ -730,6 +734,7 @@
                 MANGOHUD_CONFIGFILE \
                 MESA_DISK_CACHE_DATABASE \
                 MESA_SHADER_CACHE_DISABLE \
+                MESA_SHADER_CACHE_MAX_SIZE \
                 MESA_VK_WSI_PRESENT_MODE \
                 MLFG_WATERMARK \
                 PROTON_ENABLE_HDR \
