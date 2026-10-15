@@ -82,8 +82,11 @@
           # 'format' in namespace 'fmt'".
           # fmt 12.2 deprecates a conversion every LOG_* macro hits; the warning chain was
           # ~120k log lines per build and the CI runner dropped mid-build.
-          NIX_CFLAGS_COMPILE =
-            (old.NIX_CFLAGS_COMPILE or "") + " -DFMT_DEPRECATED_HEAVY_CORE -Wno-deprecated-declarations";
+          # nixpkgs sets env.NIX_CFLAGS_COMPILE; a top-level one would collide with it.
+          env = (old.env or { }) // {
+            NIX_CFLAGS_COMPILE =
+              (old.env.NIX_CFLAGS_COMPILE or "") + " -DFMT_DEPRECATED_HEAVY_CORE -Wno-deprecated-declarations";
+          };
 
           # Upstream forces ENABLE_GLSLANG_BINARIES on to compile host shaders, and
           # glslang's standalone build needs a Python 3 interpreter.

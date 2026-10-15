@@ -73,7 +73,10 @@
           # ext-fmt makes core.h pull in format.h, but system fmt 12 gates that behind
           # FMT_DEPRECATED_HEAVY_CORE, so the system build fails with "no member named
           # 'format' in namespace 'fmt'".
-          NIX_CFLAGS_COMPILE = (old.NIX_CFLAGS_COMPILE or "") + " -DFMT_DEPRECATED_HEAVY_CORE";
+          # nixpkgs sets env.NIX_CFLAGS_COMPILE; a top-level one would collide with it.
+          env = (old.env or { }) // {
+            NIX_CFLAGS_COMPILE = (old.env.NIX_CFLAGS_COMPILE or "") + " -DFMT_DEPRECATED_HEAVY_CORE";
+          };
 
           # protobuf_LOCAL_DEPENDENCIES_ONLY kills its FetchContent fallback, so
           # find_package(absl) must hit — with clang, or the Cord symbols mangle wrong.
