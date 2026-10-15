@@ -3,7 +3,7 @@
 {
   options.icedos.applications.mangohud =
     let
-      inherit (icedosLib) mkNumberOption mkStrOption;
+      inherit (icedosLib) mkIntBetweenOption mkNumberOption mkStrOption;
       inherit (lib) importTOML;
 
       inherit ((importTOML ./config.toml).icedos.applications.mangohud)
@@ -13,11 +13,13 @@
         fontSize
         fpsColor
         fpsLimit
+        glVsync
         gpuColor
         gpuLoadColor
         position
         textColor
         vramColor
+        vsync
         ;
     in
     {
@@ -27,11 +29,25 @@
       fontSize = mkNumberOption { default = fontSize; };
       fpsColor = mkStrOption { default = fpsColor; };
       fpsLimit = mkStrOption { default = fpsLimit; };
+      glVsync = mkIntBetweenOption {
+        path = "icedos.applications.mangohud.glVsync";
+        source = ./config.toml;
+        default = glVsync;
+        description = "OpenGL swap interval. -1 lets the game decide.";
+      } (-1) 4;
+
       gpuColor = mkStrOption { default = gpuColor; };
       gpuLoadColor = mkStrOption { default = gpuLoadColor; };
       position = mkStrOption { default = position; };
       textColor = mkStrOption { default = textColor; };
       vramColor = mkStrOption { default = vramColor; };
+
+      vsync = mkIntBetweenOption {
+        path = "icedos.applications.mangohud.vsync";
+        source = ./config.toml;
+        default = vsync;
+        description = "Vulkan present mode index. -1 lets the game decide.";
+      } (-1) 3;
     };
 
   outputs.nixosModules =
@@ -89,7 +105,7 @@
                       fps_limit = mangohud.fpsLimit;
                       fps_value = "20,30";
                       frame_timing = false;
-                      gl_vsync = 0;
+                      gl_vsync = mkIf (mangohud.glVsync != -1) mangohud.glVsync;
                       gpu_color = override mangohud.gpuColor "";
                       gpu_load_change = true;
                       gpu_load_color = override mangohud.gpuLoadColor "";
@@ -105,7 +121,7 @@
                       text_color = override mangohud.textColor "";
                       text_outline = false;
                       vram_color = override mangohud.vramColor "";
-                      vsync = 1;
+                      vsync = mkIf (mangohud.vsync != -1) mangohud.vsync;
                     };
                 };
               }

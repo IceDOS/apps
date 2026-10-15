@@ -7,8 +7,10 @@ engineColor = ""
 fontSize = 0 # 0 = use stylix size
 fpsColor = ""
 fpsLimit = "0" # 0 equals unlimited
+glVsync = 0 # OpenGL: -1 = game decides, 0 = off, 1 = on, n (2-4) = refresh rate / n
 gpuColor = ""
 gpuLoadColor = ""
 position = "bottom-right" # Options: top-left, top-right, middle-left, middle-right, bottom-left, bottom-right, top-center, bottom-center
 textColor = ""
 vramColor = ""
+vsync = 1 # Vulkan: -1 = game decides, 0 = adaptive (FIFO_RELAXED), 1 = off (IMMEDIATE), 2 = mailbox, 3 = on (FIFO)
