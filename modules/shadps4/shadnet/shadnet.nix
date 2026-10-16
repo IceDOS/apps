@@ -46,8 +46,28 @@
                 imgui=dear_imgui
               fi
             ''
-            + lib.replaceString "dear_imgui" "\"$imgui\"" old.src.postCheckout
+            # Local copy of nixpkgs' 0.18 checkout; same reason as prerelease/prerelease.nix.
             + ''
+              git -C "$out" rev-parse --short=8 HEAD > $out/COMMIT
+              date -u -d "@$(git -C "$out" log -1 --pretty=%ct)" "+%Y-%m-%dT%H:%M:%SZ" > $out/SOURCE_DATE_EPOCH
+
+              git -C "$out/externals" submodule update --init --recursive \
+                glslang \
+                zydis \
+                sirit \
+                tracy \
+                libusb \
+                discord-rpc \
+                hwinfo \
+                openal-soft \
+                "$imgui" \
+                LibAtrac9 \
+                aacdec/fdk-aac \
+                spdlog \
+                libressl \
+                ImGuiFileDialog \
+                protobuf
+
               git -C "$out/externals" submodule update --init --recursive \
                 cpp-httplib \
                 protobuf \
@@ -65,8 +85,16 @@
             fi
           '';
 
+          # The fork's protobuf still FetchContent-downloads abseil. nixpkgs 0.19 dropped
+          # this source-dir override, so keep the one 0.18 passed.
           cmakeFlags = (old.cmakeFlags or [ ]) ++ [
             (lib.cmakeBool "ENABLE_SYSTEM_LIBRARIES" true)
+            (lib.cmakeFeature "FETCHCONTENT_SOURCE_DIR_ABSL" "${final.fetchFromGitHub {
+              owner = "abseil";
+              repo = "abseil-cpp";
+              tag = "20250512.1";
+              hash = "sha256-eB7OqTO9Vwts9nYQ/Mdq0Ds4T1KgmmpYdzU09VPWOhk=";
+            }}")
           ];
 
           # elf.cpp includes <fmt/core.h> and calls fmt::format. Upstream's bundled

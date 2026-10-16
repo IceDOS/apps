@@ -45,8 +45,29 @@
                 imgui=dear_imgui
               fi
             ''
-            + lib.replaceString "dear_imgui" "\"$imgui\"" old.src.postCheckout
+            # nixpkgs' shadps4 0.18 checkout, kept local: reusing old.src.postCheckout made
+            # every nixpkgs bump of its submodule list (0.19 added abseil-cpp) break the pin hash.
             + ''
+              git -C "$out" rev-parse --short=8 HEAD > $out/COMMIT
+              date -u -d "@$(git -C "$out" log -1 --pretty=%ct)" "+%Y-%m-%dT%H:%M:%SZ" > $out/SOURCE_DATE_EPOCH
+
+              git -C "$out/externals" submodule update --init --recursive \
+                glslang \
+                zydis \
+                sirit \
+                tracy \
+                libusb \
+                discord-rpc \
+                hwinfo \
+                openal-soft \
+                "$imgui" \
+                LibAtrac9 \
+                aacdec/fdk-aac \
+                spdlog \
+                libressl \
+                ImGuiFileDialog \
+                protobuf
+
               git -C "$out/externals" submodule update --init --recursive \
                 cpp-httplib \
                 protobuf \
