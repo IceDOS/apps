@@ -15,7 +15,7 @@ jobs:
     uses: ./.github/workflows/module-update.yml
     with:
       module: bbhost
-      paths: modules/bbhost
-      command: nix-shell modules/bbhost/update.sh
-      version-file: modules/bbhost/source.json
+      paths: modules/fromsoftware/bloodborne/bbhost
+      command: nix-shell modules/fromsoftware/bloodborne/bbhost/update.sh
+      version-file: modules/fromsoftware/bloodborne/bbhost/source.json
     secrets: inherit

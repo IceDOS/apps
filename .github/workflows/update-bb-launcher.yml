@@ -15,7 +15,7 @@ jobs:
     uses: ./.github/workflows/module-update.yml
     with:
       module: bb-launcher
-      paths: modules/bb-launcher
-      command: nix-shell modules/bb-launcher/update.sh
-      version-file: modules/bb-launcher/source.json
+      paths: modules/fromsoftware/bloodborne/bb-launcher
+      command: nix-shell modules/fromsoftware/bloodborne/bb-launcher/update.sh
+      version-file: modules/fromsoftware/bloodborne/bb-launcher/source.json
     secrets: inherit

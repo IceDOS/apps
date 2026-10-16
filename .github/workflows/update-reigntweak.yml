@@ -15,7 +15,7 @@ jobs:
     uses: ./.github/workflows/module-update.yml
     with:
       module: reigntweak
-      paths: modules/reigntweak
-      command: nix-shell modules/reigntweak/update.sh
-      version-file: modules/reigntweak/source.json
+      paths: modules/fromsoftware/reigntweak
+      command: nix-shell modules/fromsoftware/reigntweak/update.sh
+      version-file: modules/fromsoftware/reigntweak/source.json
     secrets: inherit

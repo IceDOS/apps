@@ -1,0 +1,23 @@
+name: Update bbport
+
+# Thin wrapper: all logic lives in .github/workflows/module-update.yml. The
+# updater opens a PR and cache-server's external build gates the merge, so this
+# repo's main only advances after a green build.
+on:
+  schedule:
+    # GitHub may delay or skip scheduled runs, and they only run on the default branch.
+    - cron: "10 13 * * *"
+  workflow_dispatch:
+permissions: {}
+
+jobs:
+  update:
+    uses: ./.github/workflows/module-update.yml
+    with:
+      module: bbport
+      paths: modules/fromsoftware/bloodborne/bbport
+      command: nix-shell modules/fromsoftware/bloodborne/bbport/update.sh
+      version-file: modules/fromsoftware/bloodborne/bbport/source.json
+      # One PR covers both channels, so the title shows both pins.
+      version-jq: '"\(.stable.version) / \(.prerelease.version)"'
+    secrets: inherit

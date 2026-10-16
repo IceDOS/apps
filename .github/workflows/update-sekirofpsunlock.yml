@@ -15,7 +15,7 @@ jobs:
     uses: ./.github/workflows/module-update.yml
     with:
       module: sekirofpsunlock
-      paths: modules/sekirofpsunlock
-      command: nix-shell modules/sekirofpsunlock/update.sh
-      version-file: modules/sekirofpsunlock/source.json
+      paths: modules/fromsoftware/sekirofpsunlock
+      command: nix-shell modules/fromsoftware/sekirofpsunlock/update.sh
+      version-file: modules/fromsoftware/sekirofpsunlock/source.json
     secrets: inherit
