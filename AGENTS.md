@@ -17,7 +17,8 @@
 
 ## Purpose
 Application modules — the bulk of what a user installs and configures: terminals,
-browsers, gaming tooling, media apps, streaming, networking, dev tools. ~70 modules.
+browsers, Steam, media apps, streaming, networking, dev tools. Gaming tooling lives in
+[gaming](https://github.com/IceDOS/gaming).
 
 ## Layout
 - `modules/<name>/{icedos.nix,config.toml}` per module; `flake.nix` exposes them via
@@ -40,7 +41,6 @@ checkout (`path:/abs/path/to/apps`), then `icedos rebuild --build` (no activatio
 `path:` inputs auto-refresh each build.
 
 ## Notable modules / gotchas
-- `me3` — game mod loader (per-game profiles/natives/packages).
 - `sunshine` + `sunshine-headless` + `steam-headless` — game streaming, incl. headless
   HDR. The base `sunshine` module is always the primary, stock daemon (real desktop capture).
   Loading `sunshine-headless` stands up a SECOND, independent `sunshine-headless` daemon
@@ -63,16 +63,15 @@ checkout (`path:/abs/path/to/apps`), then `icedos rebuild --build` (no activatio
   device policy is what denies host pads. Such a scope is in no session either, so polkit
   refuses the idle/sleep and power-profile holds there (this module's rules let its marker group
   take them, and proton-launch drops a refused hold instead of dying).
+- `steam` — `proton-launch`, `me3` and `reigntweak` moved to the gaming repo, so its
+  `hasModule` calls for them pass `url = "github:icedos/gaming"` instead of `repoUrl`.
 - `artcraft/<app>` — the twelve ArtCraft Crafting Apps (photocraft, vectorcraft, filmcraft,
   lightcraft, pdfcraft, effectcraft, designcraft, cadcraft, deckcraft, gridcraft, soundcraft,
   wordcraft), each its own module. All share
   `artcraft/lib/mk-craft.nix` (prebuilt release tarball) and `artcraft/lib/update.sh <app>`,
   which pins hashes from upstream's `SHA256SUMS.txt`. One matrix workflow,
   `update-artcraft.yml`, opens a separate `update/<app>` PR for each app.
-- `gamescope`, `lsfg-vk`, `mangohud` — gaming/perf.
 - `helium` — loads `inputs.nur.modules.nixos.default` (the input is supplied by
   `providers#nur` via `meta.dependencies`), which puts unvetted `pkgs.nur.repos.*`
   into the global package set. The only consumer of the NUR overlay today.
-- `prefixer`, `proton-launch` — Proton prefix tooling (protontricks is deprecated here;
-  use `prefixer <APP_ID> run <exe>`).
 - `zed` — `agent-bridge` enables resuming agent sessions when reopening sidebar terminal threads. It extends ai-tools' `agent-launch` module: the agent registry and picker live there, and the bridge calls `agent-launch --print` for new threads. It relies on Zed's private `sidebar_terminal_threads` table (`~/.local/share/zed/db/0-stable/db.sqlite`), so verify table/schema compatibility after Zed updates.

@@ -28,7 +28,7 @@
     };
 
   outputs.nixosModules =
-    { repoUrl, inputs, ... }:
+    { inputs, ... }:
     [
       (
         {
@@ -65,17 +65,20 @@
           hasGamescope = config.programs.gamescope.enable;
 
           hasProtonLaunch = icedosLib.hasModule {
-            inherit config repoUrl;
+            inherit config;
+            url = "github:icedos/gaming";
             name = "proton-launch";
           };
 
           hasMe3 = icedosLib.hasModule {
-            inherit config repoUrl;
+            inherit config;
+            url = "github:icedos/gaming";
             name = "me3";
           };
 
           hasReigntweak = icedosLib.hasModule {
-            inherit config repoUrl;
+            inherit config;
+            url = "github:icedos/gaming";
             name = "reigntweak";
           };
 
