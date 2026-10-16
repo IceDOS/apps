@@ -1,4 +1,4 @@
-name: Update shadPS4 Prerelease
+name: Update bbsc-gameserver
 
 # Thin wrapper: all logic lives in .github/workflows/module-update.yml. The
 # updater opens a PR and cache-server's external build gates the merge, so this
@@ -6,7 +6,7 @@ name: Update shadPS4 Prerelease
 on:
   schedule:
     # GitHub may delay or skip scheduled runs, and they only run on the default branch.
-    - cron: "10 2 * * *"
+    - cron: "10 14 * * *"
   workflow_dispatch:
 permissions: {}
 
@@ -14,8 +14,8 @@ jobs:
   update:
     uses: ./.github/workflows/module-update.yml
     with:
-      module: shadps4
-      paths: modules/shadps4
-      command: nix-shell modules/shadps4/update.sh
-      version-file: modules/shadps4/prerelease/prerelease.json
+      module: bbsc-gameserver
+      paths: modules/fromsoftware/bloodborne/bbsc-gameserver
+      command: nix-shell modules/fromsoftware/bloodborne/bbsc-gameserver/update.sh
+      version-file: modules/fromsoftware/bloodborne/bbsc-gameserver/source.json
     secrets: inherit

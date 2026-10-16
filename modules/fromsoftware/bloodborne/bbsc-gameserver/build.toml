@@ -1,11 +1,7 @@
 [[icedos.repositories]]
 url = "github:icedos/apps"
 fetchDependencies = false
-modules = ["shadps4"]
-
-[icedos.applications.shadps4]
-prerelease = true
-shadnet = true
+modules = ["bbsc-gameserver"]
 
 [icedos.system]
 version = "26.05"

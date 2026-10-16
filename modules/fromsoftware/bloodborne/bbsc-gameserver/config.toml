@@ -1,0 +1,23 @@
+[icedos.applications.bbsc-gameserver]
+# Run the server as a managed systemd unit. False installs the binary only.
+enable = false
+# Per-user systemd unit via home-manager (state in ~/.local/share/bbsc-gameserver).
+# Don't enable both this and `enable` because they bind the same ports.
+userService = false
+# The IPv4 address players reach this server at. It goes into the game's server list
+# and the relay, so a bind address like 0.0.0.0 does not work here.
+address = ""
+# The shadNet server summons go to. Empty means `address`, the usual case with
+# shadnet-p2p on the same machine.
+shadnet = ""
+# IP to bind. 0.0.0.0 makes the server reachable on the LAN.
+host = "0.0.0.0"
+# Seconds between summon sign checks. Vanilla is 35, BBSC's host package uses 5.
+summonInterval = 5
+# Co-op level window. 0 keeps vanilla's 20; 999 matches any level.
+levelRange = 0
+# Writable state dir for messages, bloodstains, accounts and logs (system unit).
+stateDir = "/var/lib/bbsc-gameserver"
+# Open the game server (20443), BBSC relay (20444), bbhost (18671) and shadPS4
+# relay (3478/udp) ports in the firewall.
+openFirewall = false

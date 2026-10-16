@@ -4,8 +4,8 @@
 
 # Run the server as a managed systemd unit. False installs the binary only.
 enable = false
-# Bloodborne seamless co-op. Must match the client's mode. The shadps4 module's
-# shadnet builds set SHADPS4_BLOODBORNE_SEAMLESS_COOP=1, so they all run seamless.
+# Bloodborne seamless co-op. Must match the client's mode. bbport's BBSC build
+# runs seamless by default.
 seamless = true
 # Seamless-only: match signs whose SummonType is missing from the searcher's
 # SummonTypeList. The sign keeps its original SummonType in the reply.

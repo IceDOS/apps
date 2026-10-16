@@ -79,23 +79,10 @@
             name = "reigntweak";
           };
 
-          hasShadps4 = icedosLib.hasModule {
-            inherit config repoUrl;
-            name = "shadps4";
-          };
-
           optionalGamescope = optional hasGamescope pkgs.gamescope;
           optionalProtonLaunch = optional hasProtonLaunch pkgs.proton-launch;
           optionalMe3 = optional hasMe3 pkgs.me3;
           optionalReigntweak = optional hasReigntweak pkgs.reigntweak;
-
-          optionalShadps4 = optionals hasShadps4 (
-            with pkgs;
-            [
-              shadps4
-              shadps4-qtlauncher
-            ]
-          );
 
           # -steamos3 spawns SteamOS-only helpers; stand-ins from jovian-stubs keep
           # the runtime log clean of missing steamos-select-branch/polkit errors.
@@ -120,8 +107,7 @@
             ++ optionalGamescope
             ++ optionalProtonLaunch
             ++ optionalMe3
-            ++ optionalReigntweak
-            ++ optionalShadps4;
+            ++ optionalReigntweak;
 
           optionalSunshineHeadlessSteamOS = applications.steam.headless-session.steamOS or false;
           session = hasAttr "session" applications.steam;
