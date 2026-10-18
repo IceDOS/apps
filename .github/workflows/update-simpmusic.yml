@@ -15,7 +15,7 @@ jobs:
     uses: ./.github/workflows/module-update.yml
     with:
       module: simpmusic
-      paths: modules/simpmusic
-      command: nix-shell modules/simpmusic/update.sh
-      version-file: modules/simpmusic/source.json
+      paths: modules/music/simpmusic
+      command: nix-shell modules/music/simpmusic/update.sh
+      version-file: modules/music/simpmusic/source.json
     secrets: inherit
