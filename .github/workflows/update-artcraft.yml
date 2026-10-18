@@ -15,18 +15,13 @@ jobs:
       fail-fast: false
       matrix:
         app:
-          - cadcraft
-          - deckcraft
           - designcraft
           - effectcraft
           - filmcraft
-          - gridcraft
           - lightcraft
           - pdfcraft
           - photocraft
-          - soundcraft
           - vectorcraft
-          - wordcraft
     uses: ./.github/workflows/module-update.yml
     with:
       module: ${{ matrix.app }}

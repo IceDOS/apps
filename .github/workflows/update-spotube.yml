@@ -18,7 +18,7 @@ jobs:
       paths: modules/spotube
       # Updates both pins: the nightly deb (source.json) and the dev branch build
       # (git.json + git-deps.json, whose refresh runs the full gradle build).
-      command: nix-shell modules/spotube/update.sh
+      command: nix-shell modules/music/spotube/update.sh
       title-command: >-
-        echo "nightly $(jq -r .version modules/spotube/source.json), git $(jq -r .version modules/spotube/git.json)"
+        echo "nightly $(jq -r .version modules/music/spotube/source.json), git $(jq -r .version modules/music/spotube/git.json)"
     secrets: inherit

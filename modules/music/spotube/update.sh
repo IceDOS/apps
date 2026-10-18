@@ -83,11 +83,22 @@ fod_hash() {
   echo "$hash"
 }
 
-# github_pin REPO: {rev, hash} of the default branch of a team-spotube gradle plugin.
+# github_pin REPO VERSION: {rev, hash} of the newest commit of a team-spotube gradle plugin
+# that declares VERSION. The plugin head can be a release ahead of what spotube asks for.
 github_pin() {
-  local rev hash
-  rev=$(git_head "https://github.com/team-spotube/$1.git")
-  [ -n "$rev" ] || error "could not read the HEAD of team-spotube/$1"
+  local dir rev="" hash candidate
+  dir=$(mktemp -d)
+  git clone -q --filter=blob:none --no-checkout "https://github.com/team-spotube/$1.git" "$dir" \
+    || error "could not clone team-spotube/$1"
+  for candidate in $(git -C "$dir" rev-list HEAD); do
+    if git -C "$dir" show "$candidate:plugin/build.gradle.kts" 2>/dev/null \
+      | grep -qP "^\s*version\s*=\s*\"\Q$2\E\""; then
+      rev=$candidate
+      break
+    fi
+  done
+  rm -rf "$dir"
+  [ -n "$rev" ] || error "team-spotube/$1 has no commit with version $2"
   hash=$(prefetch_github team-spotube "$1" "$rev")
   require_nonempty "$1" "$rev" "$hash"
   jq -n --arg rev "$rev" --arg hash "$hash" '{rev: $rev, hash: $hash}'
@@ -113,10 +124,18 @@ update_git() {
   [ -n "$rev" ] || error "could not read the head of $GIT_BRANCH"
   info "  Latest: $rev"
 
-  # The plugins have no pinned upstream version either, so their heads count as a change.
-  local gradle_plugin vlcj_bundler
-  gradle_plugin=$(github_pin gradle-plugin)
-  vlcj_bundler=$(github_pin vlcj-bundler-gradle-plugin)
+  local toml
+  toml=$(curl -sf "https://raw.githubusercontent.com/$REPO/$rev/gradle/libs.versions.toml") \
+    || error "could not read libs.versions.toml at $rev"
+
+  # The plugins are not published, so each is pinned to the commit carrying the version
+  # spotube asks for; a new commit there counts as a change.
+  local gradle_plugin_version vlcj_bundler_version gradle_plugin vlcj_bundler
+  gradle_plugin_version=$(echo "$toml" | grep -oP '^spotube-gradle\s*=\s*"\K[^"]+' || true)
+  vlcj_bundler_version=$(echo "$toml" | grep -oP '^vlcjBundler\s*=\s*"\K[^"]+' || true)
+  require_nonempty "spotube plugin versions" "$gradle_plugin_version" "$vlcj_bundler_version"
+  gradle_plugin=$(github_pin gradle-plugin "$gradle_plugin_version")
+  vlcj_bundler=$(github_pin vlcj-bundler-gradle-plugin "$vlcj_bundler_version")
 
   if [ "$rev" = "$(read_pin "$GIT_PIN" .rev)" ] \
     && [ "$(jq -r .rev <<<"$gradle_plugin")" = "$(read_pin "$GIT_PIN" .gradlePlugin.rev)" ] \
@@ -147,9 +166,7 @@ update_git() {
   require_nonempty "spotube cargo" "$cargo_hash"
 
   # gobley's bindgen is published with the same version as the gobley gradle plugins.
-  local toml bindgen_version sdk platform
-  toml=$(curl -sf "https://raw.githubusercontent.com/$REPO/$rev/gradle/libs.versions.toml") \
-    || error "could not read libs.versions.toml at $rev"
+  local bindgen_version sdk platform
   bindgen_version=$(echo "$toml" | grep -oP '^uniffi\s*=\s*"\K[^"]+' || true)
   sdk=$(echo "$toml" | grep -oP '^android-compileSdk\s*=\s*"\K[^"]+' || true)
   require_nonempty "spotube versions" "$bindgen_version" "$sdk"
