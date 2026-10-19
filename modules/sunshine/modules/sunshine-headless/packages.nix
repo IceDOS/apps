@@ -3,6 +3,7 @@
 {
   pkgs,
   lib,
+  icedosLib,
   inputs,
   cfg,
   # Resolved apps (per-app values already inherit the module globals).
@@ -114,7 +115,7 @@ let
       # REQUIRED, always applied: without it the 1.22+ portal frontend forwards 0x0
       # to the client and Sunshine's startup probe wedges.
       portalPkg =
-        (inputs.jovian.overlays.default pkgs pkgs).xdg-desktop-portal-gamescope.overrideAttrs
+        (icedosLib.jovian.getPackage { inherit inputs pkgs; } "xdg-desktop-portal-gamescope").overrideAttrs
           (old: {
             patches = (old.patches or [ ]) ++ [
               ./lib/fix-stream-size.patch

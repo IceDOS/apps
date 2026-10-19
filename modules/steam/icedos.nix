@@ -91,7 +91,7 @@
           # the runtime log clean of missing steamos-select-branch/polkit errors.
           steamosShims =
             let
-              stubs = (pkgs.extend inputs.jovian.overlays.default).jovian-stubs;
+              stubs = icedosLib.jovian.getPackage { inherit inputs pkgs; } "jovian-stubs";
             in
             # Only the binaries Steam calls; excludes jovian's pkexec/sudo/holo-* stand-ins.
             optional optionalSunshineHeadlessSteamOS (
