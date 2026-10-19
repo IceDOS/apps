@@ -114,7 +114,7 @@ let
       # REQUIRED, always applied: without it the 1.22+ portal frontend forwards 0x0
       # to the client and Sunshine's startup probe wedges.
       portalPkg =
-        (inputs.jovian.overlays.default pkgs pkgs).xdg-desktop-portal-gamescope.overrideAttrs
+        (pkgs.extend inputs.jovian.overlays.default).jovianPackages.xdg-desktop-portal-gamescope.overrideAttrs
           (old: {
             patches = (old.patches or [ ]) ++ [
               ./lib/fix-stream-size.patch
