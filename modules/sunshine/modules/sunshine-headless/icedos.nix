@@ -74,6 +74,7 @@
             inherit
               pkgs
               lib
+              icedosLib
               inputs
               cfg
               apps
