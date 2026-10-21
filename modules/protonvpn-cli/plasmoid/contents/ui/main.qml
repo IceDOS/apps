@@ -128,6 +128,8 @@ PlasmoidItem {
             root.countries = parseTable(out)
                 .filter(function (r) { return r.length >= 2; })
                 .map(function (r) { return { name: r[0], code: r[1] }; });
+            // A load at login can fail before the keyring is ready; drop that error once a retry works.
+            if (/^Error: Authentication required/.test(root.lastOutput)) root.lastOutput = "";
         });
     }
 
