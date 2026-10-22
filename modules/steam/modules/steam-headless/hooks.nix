@@ -14,8 +14,8 @@ let
 
   # Tag one window with its appid: gamescope (SteamControlled) presents Steam's appid.
   tagWindow = ''
-    if ! DISPLAY=:2 xprop -id "$w" STEAM_GAME 2>/dev/null | grep -q "= $a$"; then
-      DISPLAY=:2 xprop -id "$w" -f STEAM_GAME 32c -set STEAM_GAME "$a" 2>/dev/null || true
+    if ! DISPLAY="$gs_x1" xprop -id "$w" STEAM_GAME 2>/dev/null | grep -q "= $a$"; then
+      DISPLAY="$gs_x1" xprop -id "$w" -f STEAM_GAME 32c -set STEAM_GAME "$a" 2>/dev/null || true
     fi
   '';
 
@@ -23,14 +23,14 @@ let
   windowScan = ''
     game_appid=""
     while read -r w; do
-      wpid="$(DISPLAY=:2 xprop -id "$w" _NET_WM_PID 2>/dev/null | grep -oE '[0-9]+$' || true)"
+      wpid="$(DISPLAY="$gs_x1" xprop -id "$w" _NET_WM_PID 2>/dev/null | grep -oE '[0-9]+$' || true)"
       [ -n "$wpid" ] || continue
       a="$(tr '\0' '\n' <"/proc/$wpid/environ" 2>/dev/null | sed -n 's/^SteamAppId=//p' | head -n1 || true)"
       case "$a" in "" | 0 | *[!0-9]*) a="$(steam_launch_appid "$wpid" || true)" ;; esac
   '';
 
   windowScanEnd = ''
-    done < <(DISPLAY=:2 xwininfo -root -children 2>/dev/null | grep -oE '0x[0-9a-f]+')
+    done < <(DISPLAY="$gs_x1" xwininfo -root -children 2>/dev/null | grep -oE '0x[0-9a-f]+')
   '';
 
   # Desktop Steam: an untagged window is not a game, so skip it.
@@ -51,7 +51,7 @@ let
     esac
     # Keep a tag Steam already set: the stand-in would hide the window from focus (EAC race).
     if [ "$real_appid" = 0 ]; then
-      cur="$(DISPLAY=:2 xprop -id "$w" STEAM_GAME 2>/dev/null | sed -n 's/^.*= //p' || true)"
+      cur="$(DISPLAY="$gs_x1" xprop -id "$w" STEAM_GAME 2>/dev/null | sed -n 's/^.*= //p' || true)"
       case "$cur" in "" | 0 | *[!0-9]* | "$wpid") ;; *)
         game_appid="$cur"
         continue
@@ -68,7 +68,7 @@ let
   baselayerDesktop = ''
     want="''${game_appid:-769}"
     if [ "$want" != "$last_baselayer" ]; then
-      DISPLAY=:1 xprop -root -f GAMESCOPECTRL_BASELAYER_APPID 32c \
+      DISPLAY="$gs_x0" xprop -root -f GAMESCOPECTRL_BASELAYER_APPID 32c \
         -set GAMESCOPECTRL_BASELAYER_APPID "$want" 2>/dev/null || true
       last_baselayer="$want"
     fi
@@ -82,7 +82,7 @@ let
     wl_launch="$(printf '%s\n' "$wl_ids" | sed -n 2p)"
     if [ -n "$wl_appid" ]; then
       game_appid="$wl_appid"
-      base="$(DISPLAY=:1 xprop -root GAMESCOPECTRL_BASELAYER_APPID 2>/dev/null | sed -n 's/^.*= //p' | tr -d ' ' || true)"
+      base="$(DISPLAY="$gs_x0" xprop -root GAMESCOPECTRL_BASELAYER_APPID 2>/dev/null | sed -n 's/^.*= //p' | tr -d ' ' || true)"
       # Seed only when Steam has not listed the id (multi-app wrappers launch the real game).
       if [[ ",$base," != *",$wl_appid,"* ]]; then
         desired="$wl_appid"
@@ -92,7 +92,7 @@ let
         rest="$(printf '%s' "$base" | tr ',' '\n' | grep -vx "$wl_appid" | grep -vx "$wl_launch" | tr '\n' ',' | sed 's/,$//' || true)"
         [ -n "$rest" ] && rest=",$rest"
         if [ "$base" != "$desired$rest" ]; then
-          DISPLAY=:1 xprop -root -f GAMESCOPECTRL_BASELAYER_APPID 32c \
+          DISPLAY="$gs_x0" xprop -root -f GAMESCOPECTRL_BASELAYER_APPID 32c \
             -set GAMESCOPECTRL_BASELAYER_APPID "$desired$rest" 2>/dev/null || true
         fi
       fi
@@ -116,7 +116,7 @@ let
   steamEnvVars = [
     "STEAM_MULTIPLE_XWAYLANDS=1"
   ]
-  ++ optionals (nativeWayland && steamOS) [ "GAMESCOPE_XWAYLAND_DISPLAY=:1" ]
+  ++ optionals (nativeWayland && steamOS) [ "GAMESCOPE_XWAYLAND_DISPLAY=$gs_x0" ]
   ++ optionals colorManagement [
     "STEAM_GAMESCOPE_COLOR_MANAGED=1"
     "STEAM_GAMESCOPE_COLOR_TOYS=1"
@@ -233,12 +233,12 @@ in
       for _ in $(seq 1 120); do
         steam_win=""
         while read -r w; do
-          case "$(DISPLAY=:1 xprop -id "$w" WM_CLASS 2>/dev/null)" in
+          case "$(DISPLAY="$gs_x0" xprop -id "$w" WM_CLASS 2>/dev/null)" in
             *[Ss]team*)
-              DISPLAY=:1 xwininfo -id "$w" 2>/dev/null | grep -q IsViewable && steam_win=1 && break
+              DISPLAY="$gs_x0" xwininfo -id "$w" 2>/dev/null | grep -q IsViewable && steam_win=1 && break
               ;;
           esac
-        done < <(DISPLAY=:1 xwininfo -root -children 2>/dev/null | grep -oE '0x[0-9a-f]+')
+        done < <(DISPLAY="$gs_x0" xwininfo -root -children 2>/dev/null | grep -oE '0x[0-9a-f]+')
         [ -n "$steam_win" ] && break
         sleep 0.1
       done

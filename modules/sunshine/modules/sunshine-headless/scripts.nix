@@ -61,7 +61,8 @@ let
   # Shadow `mangoapp` with an X11-forcing wrapper (native-Wayland GLFW coredumps, MangoHud #1741).
   mangoappWrapper = pkgs.writeShellScriptBin "mangoapp" ''
     unset WAYLAND_DISPLAY
-    export XDG_SESSION_TYPE=x11 GDK_BACKEND=x11 DISPLAY=:1
+    # gamescope exports DISPLAY (its first Xwayland) to the overlays it spawns.
+    export XDG_SESSION_TYPE=x11 GDK_BACKEND=x11
     exec ${pkgs.mangohud}/bin/mangoapp "$@"
   '';
 
@@ -184,6 +185,42 @@ let
     # shellcheck disable=SC2034 # only the session helper reads this; the drain sources it too
     input_inject=${if inputInjection then "1" else "0"}
 
+    # gamescope's Xwayland displays: 0 hosts Steam and the control atoms, 1 the games.
+    # Their numbers are whatever was free (KWin can hold :0 and :1), so see resolve_gamescope_displays.
+    gs_x0=""
+    gs_x1=""
+    # Match each X root's GAMESCOPE_PID against the gamescope unit's cgroup.
+    resolve_gamescope_displays() {
+      local cg s d pid id
+      gs_x0=""
+      gs_x1=""
+      cg="$(systemctl --user show -p ControlGroup --value ${gamescopeUnit} 2>/dev/null || true)"
+      [ -n "$cg" ] && [ -r "/sys/fs/cgroup$cg/cgroup.procs" ] || return 1
+      for s in /tmp/.X11-unix/X*; do
+        [ -S "$s" ] || continue
+        d=":''${s##*/X}"
+        pid="$(DISPLAY="$d" timeout 2 xprop -root GAMESCOPE_PID 2>/dev/null | sed -n 's/^.*= //p' || true)"
+        case "$pid" in "" | *[!0-9]*) continue ;; esac
+        grep -qx "$pid" "/sys/fs/cgroup$cg/cgroup.procs" 2>/dev/null || continue
+        id="$(DISPLAY="$d" timeout 2 xprop -root GAMESCOPE_XWAYLAND_SERVER_ID 2>/dev/null | sed -n 's/^.*= //p' || true)"
+        case "$id" in
+          0) gs_x0="$d" ;;
+          1) gs_x1="$d" ;;
+        esac
+      done
+      [ -n "$gs_x0" ] && [ -n "$gs_x1" ]
+    }
+
+    # gamescope sets the atoms shortly after its socket appears.
+    wait_gamescope_displays() {
+      for _ in $(seq 1 100); do
+        resolve_gamescope_displays && return 0
+        sleep 0.1
+      done
+      echo "sunshine-headless: gamescope's Xwayland displays not found (no X root carries its GAMESCOPE_PID)" >&2
+      return 1
+    }
+
     ${appHelpers}
     ${hookFunctions}
     # App hook dispatch: the app's own app_<slug>_<hook> when defined, else the generic default.
@@ -223,21 +260,21 @@ let
       local w wpid a
       while read -r w; do
         [ -n "$w" ] || continue
-        wpid="$(DISPLAY=:1 xprop -id "$w" _NET_WM_PID 2>/dev/null | grep -oE '[0-9]+$' || true)"
+        wpid="$(DISPLAY="$gs_x0" xprop -id "$w" _NET_WM_PID 2>/dev/null | grep -oE '[0-9]+$' || true)"
         [ -n "$wpid" ] || continue
         a="''${app_appid:-}"
         if [ -z "$a" ]; then
           a="$(tr '\0' '\n' <"/proc/$wpid/environ" 2>/dev/null | sed -n 's/^SteamAppId=//p' | head -n1 || true)"
         fi
         case "$a" in "" | 0 | *[!0-9]*) a="$wpid" ;; esac
-        if ! DISPLAY=:1 xprop -id "$w" STEAM_GAME 2>/dev/null | grep -q "= $a$"; then
-          DISPLAY=:1 xprop -id "$w" -f STEAM_GAME 32c -set STEAM_GAME "$a" 2>/dev/null || true
+        if ! DISPLAY="$gs_x0" xprop -id "$w" STEAM_GAME 2>/dev/null | grep -q "= $a$"; then
+          DISPLAY="$gs_x0" xprop -id "$w" -f STEAM_GAME 32c -set STEAM_GAME "$a" 2>/dev/null || true
         fi
         app_appid="$a"
-      done < <(DISPLAY=:1 xwininfo -root -children 2>/dev/null | grep -oE '0x[0-9a-f]+')
+      done < <(DISPLAY="$gs_x0" xwininfo -root -children 2>/dev/null | grep -oE '0x[0-9a-f]+')
       [ -n "''${app_appid:-}" ] || return 0
       if [ "''${last_baselayer:-}" != "$app_appid" ]; then
-        DISPLAY=:1 xprop -root -f GAMESCOPECTRL_BASELAYER_APPID 32c \
+        DISPLAY="$gs_x0" xprop -root -f GAMESCOPECTRL_BASELAYER_APPID 32c \
           -set GAMESCOPECTRL_BASELAYER_APPID "$app_appid" 2>/dev/null || true
         last_baselayer="$app_appid"
       fi
@@ -255,7 +292,7 @@ let
     # shellcheck disable=SC2329
     game_in_focusable() {
       local apps
-      apps="$(DISPLAY=:1 xprop -root GAMESCOPE_FOCUSABLE_APPS 2>/dev/null | sed -n 's/^.*= //p' | tr -d ' ' || true)"
+      apps="$(DISPLAY="$gs_x0" xprop -root GAMESCOPE_FOCUSABLE_APPS 2>/dev/null | sed -n 's/^.*= //p' | tr -d ' ' || true)"
       case ",$apps," in *",$1,"*) return 0 ;; esac
       return 1
     }
@@ -265,7 +302,7 @@ let
     # Only reachable through app_call's dynamic dispatch.
     # shellcheck disable=SC2329
     reroll_gamescope_focus() {
-      DISPLAY=:2 sunshine-headless-xnudge 2>/dev/null || true
+      DISPLAY="$gs_x1" sunshine-headless-xnudge 2>/dev/null || true
     }
 
     default_app_tick() {
@@ -346,7 +383,7 @@ let
       # A leftover file from a crash or a hook-owned stop would satisfy the wait below.
       rm -f "$app_pgid_file"
       local -a env_args=(
-        "DISPLAY=:1"
+        "DISPLAY=$gs_x0"
         "WAYLAND_DISPLAY=gamescope-0"
         "GAMESCOPE_WAYLAND_DISPLAY=gamescope-0"
         "ENABLE_GAMESCOPE_WSI=1"
@@ -698,7 +735,7 @@ let
         # Record the gamescope store path + argv so a stale one is restarted in `start`.
         printf '%s' "$(gamescope_marker_now)" >"$rt/sunshine-headless-gamescope-bin"
 
-        gamescope_env="DISPLAY=:1 ENABLE_GAMESCOPE_WSI=1 PATH=${lib.optionalString mangoApp "${mangoappWrapper}/bin:"}${gamescopePkg}/bin"
+        gamescope_env="ENABLE_GAMESCOPE_WSI=1 PATH=${lib.optionalString mangoApp "${mangoappWrapper}/bin:"}${gamescopePkg}/bin"
         # --mangoapp is steam mode only, so a plain app gets no MANGOHUD_CONFIGFILE (the file
         # is written for steam-mode apps only, see the start verb).
         if [ "''${app_steam_mode:-0}" = 1 ] && [ "''${app_g[mango]:-${if mangoApp then "1" else "0"}}" = 1 ]; then
@@ -843,6 +880,8 @@ let
           else
             start_gamescope "1920" "1080" "60" "$client_hdr"
           fi
+          # Without them the app would land on whatever X server owns the hardcoded number.
+          wait_gamescope_displays || exit 1
           # The app's own start hook does the app-specific work (window wait, pre-kill, ...).
           app_call start || exit 1
           # Past this point the app owns the session, so the EXIT trap must not stop it.
@@ -851,6 +890,8 @@ let
           ;;
         wait)
           app_setup "''${2:-}" || exit 1
+          # Ticks tag windows on these; empty values only make them no-ops.
+          wait_gamescope_displays || true
           # Keep the desktop default off the stream/sunshine sinks (Sunshine re-defaults its own).
           last_default="$(cat "$rt/sunshine-headless-default-sink" 2>/dev/null || true)"
           iso_tick=0
