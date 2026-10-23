@@ -10,15 +10,24 @@ on:
   workflow_dispatch:
 permissions: {}
 
+# Separate jobs and PRs, so a broken git build never holds back the nightly pin.
+# Upstream re-uploads the nightly deb in place, which breaks the old hash at once.
 jobs:
-  update:
+  nightly:
     uses: ./.github/workflows/module-update.yml
     with:
-      module: spotube
-      paths: modules/spotube
-      # Updates both pins: the nightly deb (source.json) and the dev branch build
-      # (git.json + git-deps.json, whose refresh runs the full gradle build).
-      command: nix-shell modules/music/spotube/update.sh
-      title-command: >-
-        echo "nightly $(jq -r .version modules/music/spotube/source.json), git $(jq -r .version modules/music/spotube/git.json)"
+      module: spotube-nightly
+      paths: modules/music/spotube/source.json
+      command: nix-shell modules/music/spotube/update.sh nightly
+      version-file: modules/music/spotube/source.json
+    secrets: inherit
+
+  git:
+    uses: ./.github/workflows/module-update.yml
+    with:
+      module: spotube-git
+      # The deps refresh runs the full gradle build.
+      paths: modules/music/spotube/git.json modules/music/spotube/git-deps.json
+      command: nix-shell modules/music/spotube/update.sh git
+      version-file: modules/music/spotube/git.json
     secrets: inherit
