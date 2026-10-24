@@ -20,13 +20,12 @@
 
           nativeBuildInputs = (old.nativeBuildInputs or [ ]) ++ [ final.patchelf ];
 
-          # jpackage resolves lib/app/<launcher>.cfg relative to the launcher in bin/, so
-          # the bundle is copied wholesale and bin/ and lib/ stay siblings.
+          # GraalVM native image: the binary loads its AWT libs from its own dir ($ORIGIN).
           installPhase = ''
             runHook preInstall
 
             mkdir -p $out/share/spotube
-            cp -r opt/dev.krtirtho.spotube/. $out/share/spotube/
+            cp -r opt/spotube/. $out/share/spotube/
 
             # The bundled JDK arms GDK's thread lock (gdk_threads_init) and the app's
             # webview parks holding it, so AWT URL opens (gdk_threads_enter) block and
@@ -41,19 +40,19 @@
               -o $out/lib/libgdk-3.so.0 "${gdkShim}"
             $CC -shared -fPIC -O2 -Wall -o $out/lib/libgdk-backend-shim.so "${gdkBackendShim}" -ldl
 
-            for icon in usr/share/icons/hicolor/*/apps/dev.krtirtho.spotube.png; do
+            for icon in usr/share/icons/hicolor/*/apps/spotube.png; do
               install -Dm644 "$icon" "$out/''${icon#usr/}"
             done
 
-            # The packaged entry has a reverse-DNS name, placeholder comment and category,
+            # The packaged entry has a lowercase name, placeholder comment and category,
             # and an absolute /opt path that does not exist here.
             mkdir -p $out/share/applications
-            substitute usr/share/applications/dev.krtirtho.spotube.desktop \
+            substitute usr/share/applications/spotube.desktop \
               $out/share/applications/spotube.desktop \
-              --replace-fail "Name=dev.krtirtho.spotube" "Name=Spotube" \
+              --replace-fail "Name=spotube" "Name=Spotube" \
               --replace-fail "Comment=Packaged desktop application" "Comment=Open source Spotify client" \
               --replace-fail "Categories=Utility;" "Categories=AudioVideo;Audio;Player;" \
-              --replace-fail "Exec=/opt/dev.krtirtho.spotube/dev.krtirtho.spotube" "Exec=spotube"
+              --replace-fail "Exec=/opt/spotube/spotube" "Exec=spotube"
 
 
             runHook postInstall
@@ -94,7 +93,7 @@
           # $out/bin/spotube is the launcher the overlay installs (Exec=spotube in the .desktop);
           # makeWrapper writes it directly and folds every flag below into it.
           postFixup = ''
-            makeWrapper $out/share/spotube/bin/dev.krtirtho.spotube $out/bin/spotube \
+            makeWrapper $out/share/spotube/spotube $out/bin/spotube \
               --prefix LD_PRELOAD : $out/lib/libgdk-backend-shim.so \
               --prefix GIO_EXTRA_MODULES : ${final.glib-networking}/lib/gio/modules \
               --set-default XDG_DATA_DIRS /usr/local/share/:/usr/share/ \
