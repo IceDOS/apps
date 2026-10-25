@@ -65,7 +65,7 @@ checkout (`path:/abs/path/to/apps`), then `icedos rebuild --build` (no activatio
   take them, and proton-launch drops a refused hold instead of dying).
 - `steam` — `proton-launch`, `me3` and `reigntweak` moved to the gaming repo, so its
   `hasModule` calls for them pass `url = "github:icedos/gaming"` instead of `repoUrl`.
-- `artcraft/<app>` — the twelve ArtCraft Crafting Apps (photocraft, vectorcraft, filmcraft,
+- `artcraft/<app>` — the thirteen ArtCraft Crafting Apps (photocraft, vectorcraft, filmcraft, figcraft,
   lightcraft, pdfcraft, effectcraft, designcraft, cadcraft, deckcraft, gridcraft, soundcraft,
   wordcraft), each its own module. All share
   `artcraft/lib/mk-craft.nix` (prebuilt release tarball) and `artcraft/lib/update.sh <app>`,

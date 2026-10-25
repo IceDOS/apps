@@ -17,6 +17,7 @@ jobs:
         app:
           - designcraft
           - effectcraft
+          - figcraft
           - filmcraft
           - lightcraft
           - pdfcraft
