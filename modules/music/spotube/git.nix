@@ -183,16 +183,19 @@
           installPhase = ''
             runHook preInstall
 
+            # The nightly deb now ships a native image at opt/spotube/spotube. The jpackage
+            # launcher finds its cfg via /proc/self/exe, so a symlink to it works the same.
             mkdir -p $out/opt $out/usr/share/applications
-            cp -r composeApp/build/compose/binaries/main-release/app/dev.krtirtho.spotube $out/opt/
+            cp -r composeApp/build/compose/binaries/main-release/app/dev.krtirtho.spotube $out/opt/spotube
+            ln -s bin/dev.krtirtho.spotube $out/opt/spotube/spotube
 
-            cat > $out/usr/share/applications/dev.krtirtho.spotube.desktop <<'EOF'
+            cat > $out/usr/share/applications/spotube.desktop <<'EOF'
             [Desktop Entry]
-            Name=dev.krtirtho.spotube
-            Exec=/opt/dev.krtirtho.spotube/dev.krtirtho.spotube %U
+            Name=spotube
+            Exec=/opt/spotube/spotube %U
             Terminal=false
             Type=Application
-            Icon=dev.krtirtho.spotube
+            Icon=spotube
             StartupWMClass=dev-krtirtho-spotube-MainKt
             Comment=Packaged desktop application
             Categories=Utility;
@@ -201,7 +204,7 @@
             for size in 16 32 48 64 128 256 512; do
               dir=$out/usr/share/icons/hicolor/''${size}x''${size}/apps
               mkdir -p $dir
-              magick assets/branding/spotube-logo.png -resize ''${size}x''${size} $dir/dev.krtirtho.spotube.png
+              magick assets/branding/spotube-logo.png -resize ''${size}x''${size} $dir/spotube.png
             done
 
             runHook postInstall
