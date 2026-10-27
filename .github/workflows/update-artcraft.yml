@@ -19,10 +19,7 @@ jobs:
           - effectcraft
           - figcraft
           - filmcraft
-          - lightcraft
-          - pdfcraft
-          - photocraft
-          - vectorcraft
+
     uses: ./.github/workflows/module-update.yml
     with:
       module: ${{ matrix.app }}
