@@ -1,7 +1,7 @@
 {
-  "version": "2026-10-09-963b360",
-  "rev": "963b360a81391fdbdfa15f8744c5873db2f34030",
-  "hash": "sha256-bx0gHk6v+IyFdnfArhWrQeKiv9pY74MmGF9qgvvz5t8=",
+  "version": "2026-10-27-aca3aeb",
+  "rev": "aca3aeb592d2873620a29e5d38a2cdc107382407",
+  "hash": "sha256-SBIqgGBr6rHOhJ1f72P1nINZu6weh2SlM027G0C45FQ=",
   "cargoHash": "sha256-U93ECB9G/qi8h8YQcEV/wSEWOwG+72/TVGcQ8ydcgEE=",
   "androidPlatform": "37.0",
   "composeWebview": "1.0.3",
@@ -15,11 +15,11 @@
     "cargoHash": "sha256-h6eYccB9/WSkTR9YAwijRbEgqZHlOU6uq1enlyLBRcs="
   },
   "gradlePlugin": {
-    "rev": "1aa3c1099fadeb8bccc8ae1e3564fd66fb1af2da",
-    "hash": "sha256-AKQ37Kb5J5+IgICqrwHVGBA/uptOw7czg/+SJZPEVfU="
+    "rev": "ce1dfa439228eb3ab9d59f8a8052639d4bbb9f61",
+    "hash": "sha256-7rd6UkAB6RCWK1vvpO2UGelVOM61Ny9d0LP8FbZSa+s="
   },
   "vlcjBundler": {
-    "rev": "f98e3b710eec44ae0472fa9535473b9251705ef0",
-    "hash": "sha256-RXDdIi/70Gjoko7KGWCacj4O1z47ThANOG+Kj/qHXW8="
+    "rev": "132740edaac6baa4b5c6fcc26b7c6562425ae9e9",
+    "hash": "sha256-MhNSTjbUKMUwieEncpzHcTG5RvB9MxDv24fptUcKZcw="
   }
 }

@@ -164,6 +164,9 @@
           preBuild = ''
             export ANDROID_HOME=${androidSdk}/libexec/android-sdk
             export PATH=${rustShims}/bin:$PATH
+            # Upstream's release profile strips symbols, which drops the UniFFI metadata the
+            # library-mode bindgen reads; keeping the symbol table still drops debug info.
+            export CARGO_PROFILE_RELEASE_STRIP=debuginfo
             # gobley looks for the toolchain in ~/.cargo/bin, not on PATH.
             export HOME="$NIX_BUILD_TOP/home"
             mkdir -p "$HOME/.cargo"
