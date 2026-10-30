@@ -83,6 +83,24 @@ let
     exit 0
   '';
 
+  # Fail the start when Sunshine hangs in its boot-time portal probe (never binds its port) or
+  # logs the startup encoder/display Fatal (binds, but every stream fails); Restart= retries.
+  readyGate = pkgs.writeShellScript "sunshine-headless-ready" ''
+    log="''${XDG_CONFIG_HOME:-$HOME/.config/sunshine-headless}/sunshine/sunshine.log"
+    for _ in $(seq 1 300); do
+      if [ -n "$(${pkgs.iproute2}/bin/ss -Hltn "sport = :${toString port}")" ]; then
+        if grep -q 'Fatal: Unable to find display or encoder' "$log" 2>/dev/null; then
+          echo "sunshine-headless-ready: startup probe found no display/encoder, restarting" >&2
+          exit 1
+        fi
+        exit 0
+      fi
+      sleep 0.1
+    done
+    echo "sunshine-headless-ready: port ${toString port} not bound after 30s (probe hang), restarting" >&2
+    exit 1
+  '';
+
   # Same port offsets as the primary (relative to 47989), shifted to this base.
   firewall = {
     allowedTCPPorts = [
@@ -145,7 +163,10 @@ let
         (lib.optionalString bridgeNeeded "/run/wrappers/bin/sunshine-headless-gid-root ")
         + "${pkgs.sunshine}/bin/sunshine ${sunshineConf}";
       # Post-start: surface the selected encoder / GPU and warn if vulkan init failed.
-      ExecStartPost = "${encoderDiag}";
+      ExecStartPost = [
+        "${encoderDiag}"
+        "${readyGate}"
+      ];
       Restart = "always";
       RestartSec = "3s";
       # SIGKILL + clean D-Bus disconnect: the SIGTERM watchdog hangs ~10s and leaks the portal session.
