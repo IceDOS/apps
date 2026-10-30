@@ -189,8 +189,8 @@
             # The nightly deb now ships a native image at opt/spotube/spotube. The jpackage
             # launcher finds its cfg via /proc/self/exe, so a symlink to it works the same.
             mkdir -p $out/opt $out/usr/share/applications
-            cp -r composeApp/build/compose/binaries/main-release/app/dev.krtirtho.spotube $out/opt/spotube
-            ln -s bin/dev.krtirtho.spotube $out/opt/spotube/spotube
+            cp -r composeApp/build/compose/binaries/main-release/app/org.spotube.spotube $out/opt/spotube
+            ln -s bin/org.spotube.spotube $out/opt/spotube/spotube
 
             cat > $out/usr/share/applications/spotube.desktop <<'EOF'
             [Desktop Entry]
@@ -199,7 +199,7 @@
             Terminal=false
             Type=Application
             Icon=spotube
-            StartupWMClass=dev-krtirtho-spotube-MainKt
+            StartupWMClass=org-spotube-spotube-MainKt
             Comment=Packaged desktop application
             Categories=Utility;
             EOF
