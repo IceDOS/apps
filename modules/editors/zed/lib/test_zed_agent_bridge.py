@@ -164,19 +164,19 @@ FAKE_LOCATORS = {
     "claude": {"exists": lambda s: s == "alive", "latest": None},
     "prime-agent": {"exists": lambda s: s == "alive", "latest": None},
 }
-PICK_CLAUDE = lambda: ("claude", ["claude"])
+PICK_CLAUDE = lambda: ("claude", ["claude"], {})
 
 
 class LaunchTest(TmpHome):
     def test_no_state_asks_agent_launch(self):
-        self.assertEqual(zab.plan_launch(CFG, None, FAKE_LOCATORS, PICK_CLAUDE), ("claude", ["claude"], None))
+        self.assertEqual(zab.plan_launch(CFG, None, FAKE_LOCATORS, PICK_CLAUDE), ("claude", ["claude"], None, {}))
 
     def test_state_resumes_recorded_agent_without_picker(self):
         state = {"agent": "prime-agent", "session_id": "alive"}
         picker = mock.Mock()
         self.assertEqual(
             zab.plan_launch(CFG, state, FAKE_LOCATORS, picker),
-            ("prime-agent", ["prime-agent", "--resume", "alive"], "alive"),
+            ("prime-agent", ["prime-agent", "--resume", "alive"], "alive", {}),
         )
         picker.assert_not_called()
 
@@ -189,17 +189,18 @@ class LaunchTest(TmpHome):
         self.assertEqual(zab.plan_launch(CFG, state, FAKE_LOCATORS, PICK_CLAUDE)[1], ["claude"])
 
     def test_picker_cancelled_returns_none(self):
-        self.assertEqual(zab.plan_launch(CFG, None, FAKE_LOCATORS, lambda: (None, None)), (None, None, None))
+        self.assertEqual(zab.plan_launch(CFG, None, FAKE_LOCATORS, lambda: (None, None, {})), (None, None, None, {}))
 
     def test_agent_launch_choice_reads_print_output(self):
-        out = mock.Mock(returncode=0, stdout=json.dumps({"agent": "claude", "argv": ["claude"]}))
+        env = {"AI_ACCOUNT_CLAUDE": "default"}
+        out = mock.Mock(returncode=0, stdout=json.dumps({"agent": "claude", "argv": ["claude"], "env": env}))
         with mock.patch.object(zab.subprocess, "run", return_value=out) as run:
-            self.assertEqual(zab.agent_launch_choice(), ("claude", ["claude"]))
+            self.assertEqual(zab.agent_launch_choice(), ("claude", ["claude"], env))
         self.assertEqual(run.call_args.args[0], ["agent-launch", "--print"])
 
     def test_agent_launch_choice_cancelled(self):
         with mock.patch.object(zab.subprocess, "run", return_value=mock.Mock(returncode=1, stdout="")):
-            self.assertEqual(zab.agent_launch_choice(), (None, None))
+            self.assertEqual(zab.agent_launch_choice(), (None, None, {}))
 
 
 class HookTest(TmpHome):

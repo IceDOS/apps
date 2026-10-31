@@ -224,12 +224,13 @@ def watch_once(tid, agent, latest, cwd, since, current):
     return current
 
 
-def agent_launch_choice() -> tuple[str | None, list[str] | None]:
+def agent_launch_choice() -> tuple[str | None, list[str] | None, dict]:
     proc = subprocess.run(["agent-launch", "--print"], text=True, stdout=subprocess.PIPE, check=False)
     if proc.returncode != 0:
-        return None, None
+        return None, None, {}
     choice = json.loads(proc.stdout)
-    return choice["agent"], choice["argv"]
+    # env carries the picked account (AI_ACCOUNT_<AGENT>); without it ai-account auto-picks
+    return choice["agent"], choice["argv"], choice.get("env", {})
 
 
 def plan_launch(cfg, state, locators, picker=agent_launch_choice):
@@ -240,9 +241,9 @@ def plan_launch(cfg, state, locators, picker=agent_launch_choice):
         sid = state.get("session_id")
         if sid and locator and locator["exists"](sid):
             resume = [arg.replace("{id}", sid) for arg in agent.get("resumeArgs", [])]
-            return state["agent"], list(agent.get("command", [])) + resume, sid
-    name, argv = picker()
-    return name, argv, None
+            return state["agent"], list(agent.get("command", [])) + resume, sid, {}
+    name, argv, env = picker()
+    return name, argv, None, env
 
 
 def _has_ancestor(pid: int, depth: int = 6) -> bool:
@@ -326,7 +327,7 @@ def cmd_launch(cfg: dict) -> int:
         log(f"resolve failed: {e!r}")
     tid = resolved[0] if resolved else None
     try:
-        name, argv, sid = plan_launch(cfg, read_state(tid) if tid else None, LOCATORS)
+        name, argv, sid, picked_env = plan_launch(cfg, read_state(tid) if tid else None, LOCATORS)
     except (OSError, ValueError, KeyError) as e:
         log(f"agent-launch failed: {e!r}")
         return 1
@@ -334,6 +335,7 @@ def cmd_launch(cfg: dict) -> int:
         return 0
     log(f"launch tid={tid} agent={name} resume={sid}")
     env = dict(os.environ)
+    env.update(picked_env)
     if tid:
         env.update({ENV_ID: tid, ENV_AGENT: name, ENV_PID: str(os.getpid())})
         locator = cfg.get("agents", {}).get(name, {}).get("locator", "")
