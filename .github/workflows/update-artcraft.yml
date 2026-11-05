@@ -15,10 +15,13 @@ jobs:
       fail-fast: false
       matrix:
         app:
+          - craft-anything
           - designcraft
           - effectcraft
           - figcraft
           - filmcraft
+          - materialcraft
+          - texturecraft
 
     uses: ./.github/workflows/module-update.yml
     with:
