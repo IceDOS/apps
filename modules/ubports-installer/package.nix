@@ -69,6 +69,10 @@ in
 stdenv.mkDerivation {
   inherit pname version;
 
+  icedosNoCache = true;
+  preferLocalBuild = true;
+  allowSubstitutes = false;
+
   dontUnpack = true;
   dontBuild = true;
 

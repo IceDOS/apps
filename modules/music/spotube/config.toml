@@ -1,3 +1,6 @@
 [icedos.applications.spotube]
 nightly = false
 git = false
+
+[updater]
+min-interval = "24h"

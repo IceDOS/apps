@@ -82,6 +82,10 @@ in
 stdenv.mkDerivation {
   inherit pname version;
 
+  icedosNoCache = true;
+  preferLocalBuild = true;
+  allowSubstitutes = false;
+
   src = simpmusicAppimage;
 
   dontUnpack = true;

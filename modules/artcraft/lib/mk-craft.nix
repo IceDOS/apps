@@ -49,6 +49,10 @@ in
 stdenvNoCC.mkDerivation {
   inherit pname version;
 
+  icedosNoCache = true;
+  preferLocalBuild = true;
+  allowSubstitutes = false;
+
   src = fetchurl {
     url = "https://github.com/storytold/${pname}/releases/download/${rev}/${pname}-${version}-linux-${arch}.tar.gz";
     hash = hashes.${arch};
