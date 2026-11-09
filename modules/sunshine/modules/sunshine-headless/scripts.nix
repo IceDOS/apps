@@ -689,6 +689,16 @@ let
         rm -f "$rt/gamescope-0" "$rt/sunshine-headless-gamescope-params" "$rt/sunshine-headless-gamescope-bin"
       }
 
+      # gamescope never reconnects after a PipeWire restart, so its capture node stays dead.
+      # Only the probe qualifies: a session gamescope may still host a running app.
+      probe_gamescope_stale() {
+        local pw gs
+        [ "$(cat "$rt/sunshine-headless-gamescope-params" 2>/dev/null || true)" = "1 1 1 0" ] || return 1
+        pw="$(systemctl --user show -p ActiveEnterTimestampMonotonic --value pipewire.service 2>/dev/null || true)"
+        gs="$(systemctl --user show -p ActiveEnterTimestampMonotonic --value ${gamescopeUnit} 2>/dev/null || true)"
+        [ "''${gs:-0}" -gt 0 ] && [ "''${pw:-0}" -gt "''${gs:-0}" ]
+      }
+
       start_gamescope() {
         local w="$1" h="$2" fps="$3" hdr_on="$4"
         local rw="''${app_g[render_w]:-${toString renderWidth}}" rh="''${app_g[render_h]:-${toString renderHeight}}"
@@ -1011,7 +1021,9 @@ let
           ;;
         idle)
           # Boot-time display for the encoder probe (else 503); SDR fallback res.
-          [ -S "$rt/gamescope-0" ] && systemctl --user is-active --quiet ${gamescopeUnit} && exit 0
+          if [ -S "$rt/gamescope-0" ] && systemctl --user is-active --quiet ${gamescopeUnit}; then
+            probe_gamescope_stale || exit 0
+          fi
           start_gamescope "1" "1" "1" "0"
           ;;
         recycle)
@@ -1046,7 +1058,12 @@ let
             rm -f "$gone"
             # The minimal probe gamescope has nothing to tear down.
             params="$(cat "$rt/sunshine-headless-gamescope-params" 2>/dev/null || true)"
-            [ "$params" = "1 1 1 0" ] && exit 0
+            if [ "$params" = "1 1 1 0" ]; then
+              if probe_gamescope_stale; then
+                start_gamescope "1" "1" "1" "0"
+              fi
+              exit 0
+            fi
             if [ "$idle" -gt 0 ] && [ "$age" -ge "$idle" ]; then
               recycle_stop_sessions
               stop_gamescope

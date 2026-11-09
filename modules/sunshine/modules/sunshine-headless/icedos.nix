@@ -424,6 +424,8 @@
             description = "Boot-time idle gamescope so Sunshine's display probe passes";
             wantedBy = [ "graphical-session.target" ];
             partOf = [ "graphical-session.target" ];
+            # A switch that restarts PipeWire must finish that first, or the stale-probe check misses it.
+            after = [ "pipewire.service" ];
 
             serviceConfig = {
               Type = "oneshot";
