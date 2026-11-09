@@ -35,7 +35,7 @@ class StateTest(TmpHome):
         self.assertIsNone(zab.read_state("nope"))
 
     def test_claimed_by_other(self):
-        zab.write_state("t1", "prime-agent", "s1")
+        zab.write_state("t1", "pi-agent", "s1")
         self.assertTrue(zab.claimed_by_other("s1", "t2"))
         self.assertFalse(zab.claimed_by_other("s1", "t1"))
         self.assertFalse(zab.claimed_by_other("s2", "t2"))
@@ -98,10 +98,10 @@ class ResolveTest(TmpHome):
 
 
 class LocatorTest(TmpHome):
-    def _prime(self, sid, cwd, mtime):
-        d = self.root / ".config/prime-agent/sessions"
+    def _pi(self, sid, cwd, mtime):
+        d = self.root / ".config/pi-agent/sessions" / f"--{cwd.strip('/')}--"
         d.mkdir(parents=True, exist_ok=True)
-        p = d / f"{sid}.jsonl"
+        p = d / f"2026-11-09T09-46-46-589Z_{sid}.jsonl"
         p.write_text(json.dumps({"type": "session", "id": sid, "cwd": cwd}) + "\n")
         os.utime(p, (mtime, mtime))
 
@@ -112,15 +112,15 @@ class LocatorTest(TmpHome):
         self.assertTrue(zab.LOCATORS["claude"]["exists"]("s1"))
         self.assertFalse(zab.LOCATORS["claude"]["exists"]("s2"))
 
-    def test_prime_latest_picks_newest_in_cwd_after_since(self):
+    def test_pi_latest_picks_newest_in_cwd_after_since(self):
         now = time.time()
-        self._prime("old", "/p", now - 100)
-        self._prime("new", "/p", now - 5)
-        self._prime("newer-other-cwd", "/q", now)
-        latest = zab.LOCATORS["prime-agent"]["latest"]
+        self._pi("old", "/p", now - 100)
+        self._pi("new", "/p", now - 5)
+        self._pi("newer-other-cwd", "/q", now)
+        latest = zab.LOCATORS["pi-agent"]["latest"]
         self.assertEqual(latest("/p", now - 50), "new")
         self.assertIsNone(latest("/p", now + 10))
-        self.assertTrue(zab.LOCATORS["prime-agent"]["exists"]("old"))
+        self.assertTrue(zab.LOCATORS["pi-agent"]["exists"]("old"))
 
     def test_antigravity_latest(self):
         d = self.root / ".gemini/antigravity-cli"
@@ -146,23 +146,23 @@ class LocatorTest(TmpHome):
         self.assertFalse(zab.LOCATORS["antigravity"]["exists"]("nope"))
 
     def test_watch_once_records_unclaimed_session(self):
-        zab.write_state("other", "prime-agent", "taken")
+        zab.write_state("other", "pi-agent", "taken")
         latest = lambda cwd, since: "taken"
-        self.assertIsNone(zab.watch_once("t1", "prime-agent", latest, "/p", 0, None))
+        self.assertIsNone(zab.watch_once("t1", "pi-agent", latest, "/p", 0, None))
         latest = lambda cwd, since: "mine"
-        self.assertEqual(zab.watch_once("t1", "prime-agent", latest, "/p", 0, None), "mine")
+        self.assertEqual(zab.watch_once("t1", "pi-agent", latest, "/p", 0, None), "mine")
         self.assertEqual(zab.read_state("t1")["session_id"], "mine")
 
 
 CFG = {
     "agents": {
         "claude": {"command": ["claude"], "resumeArgs": ["--resume", "{id}"], "locator": "claude"},
-        "prime-agent": {"command": ["prime-agent"], "resumeArgs": ["--resume", "{id}"], "locator": "prime-agent"},
+        "pi-agent": {"command": ["pi-agent"], "resumeArgs": ["--resume", "{id}"], "locator": "pi-agent"},
     },
 }
 FAKE_LOCATORS = {
     "claude": {"exists": lambda s: s == "alive", "latest": None},
-    "prime-agent": {"exists": lambda s: s == "alive", "latest": None},
+    "pi-agent": {"exists": lambda s: s == "alive", "latest": None},
 }
 PICK_CLAUDE = lambda: ("claude", ["claude"], {})
 
@@ -172,16 +172,16 @@ class LaunchTest(TmpHome):
         self.assertEqual(zab.plan_launch(CFG, None, FAKE_LOCATORS, PICK_CLAUDE), ("claude", ["claude"], None, {}))
 
     def test_state_resumes_recorded_agent_without_picker(self):
-        state = {"agent": "prime-agent", "session_id": "alive"}
+        state = {"agent": "pi-agent", "session_id": "alive"}
         picker = mock.Mock()
         self.assertEqual(
             zab.plan_launch(CFG, state, FAKE_LOCATORS, picker),
-            ("prime-agent", ["prime-agent", "--resume", "alive"], "alive", {}),
+            ("pi-agent", ["pi-agent", "--resume", "alive"], "alive", {}),
         )
         picker.assert_not_called()
 
     def test_deleted_session_asks_agent_launch(self):
-        state = {"agent": "prime-agent", "session_id": "gone"}
+        state = {"agent": "pi-agent", "session_id": "gone"}
         self.assertEqual(zab.plan_launch(CFG, state, FAKE_LOCATORS, PICK_CLAUDE)[1], ["claude"])
 
     def test_unknown_agent_asks_agent_launch(self):
@@ -218,7 +218,7 @@ class HookTest(TmpHome):
         self.assertIsNone(zab.read_state("t1"))
 
     def test_hook_ignores_other_agent(self):
-        self._hook({zab.ENV_ID: "t1", zab.ENV_AGENT: "prime-agent", zab.ENV_PID: str(os.getpid())})
+        self._hook({zab.ENV_ID: "t1", zab.ENV_AGENT: "pi-agent", zab.ENV_PID: str(os.getpid())})
         self.assertIsNone(zab.read_state("t1"))
 
 

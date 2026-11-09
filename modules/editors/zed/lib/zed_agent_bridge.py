@@ -140,17 +140,17 @@ def claude_exists(sid: str) -> bool:
     return any(Path.home().glob(f".claude/projects/*/{sid}.jsonl"))
 
 
-def _prime_dir() -> Path:
-    return Path.home() / ".config/prime-agent/sessions"
+def _pi_dir() -> Path:
+    return Path.home() / ".config/pi-agent/sessions"
 
 
-def prime_exists(sid: str) -> bool:
-    return (_prime_dir() / f"{sid}.jsonl").exists()
+def pi_exists(sid: str) -> bool:
+    return any(_pi_dir().glob(f"*/*_{sid}.jsonl"))
 
 
-def prime_latest(cwd: str, since: float) -> str | None:
+def pi_latest(cwd: str, since: float) -> str | None:
     best = None
-    for path in _prime_dir().glob("*.jsonl"):
+    for path in _pi_dir().glob("*/*.jsonl"):
         try:
             mtime = path.stat().st_mtime
             if mtime < since or (best and mtime <= best[0]):
@@ -210,7 +210,7 @@ def agy_latest(cwd: str, since: float) -> str | None:
 
 LOCATORS = {
     "claude": {"exists": claude_exists, "latest": None},
-    "prime-agent": {"exists": prime_exists, "latest": prime_latest},
+    "pi-agent": {"exists": pi_exists, "latest": pi_latest},
     "antigravity": {"exists": agy_exists, "latest": agy_latest},
 }
 
