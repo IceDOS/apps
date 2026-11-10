@@ -13,6 +13,7 @@ let
     mkRecordOption
     mkStrListOption
     mkStrOption
+    mkSubmoduleAttrsOption
     mkSubmoduleListOption
     ;
 
@@ -20,7 +21,6 @@ let
 
   inherit ((importTOML ./config.toml).icedos.applications.sunshine-headless)
     apps
-    gamescope
     session
     ;
 in
@@ -36,6 +36,9 @@ in
 
     # Runtime file suffix (states, logs, scope unit); derived from `name` when empty.
     slug = mkStrOption { default = ""; };
+
+    # Name of the compositor backend; "" uses session.defaultCompositor.
+    compositor = mkStrOption { default = ""; };
 
     # Command run inside the session, as an argv list; empty only when every hook is supplied.
     command = mkStrListOption { default = [ ]; };
@@ -116,92 +119,45 @@ in
     };
   };
 
-  gamescope = {
-    # Gamescope --rt (realtime SCHED_FIFO; needs the cap_sys_nice wrapper). Off = only SetNice(-20).
-    realtime = mkBoolOption { default = gamescope.realtime; };
+  # Compositor backends; each module adds one. See gaming#sunshine-headless-gamescope.
+  compositors = mkSubmoduleAttrsOption { default = { }; } {
+    # Socket name under $XDG_RUNTIME_DIR.
+    waylandDisplay = mkStrOption { default = ""; };
 
-    # Each patch forces a local rebuild, so each is its own option; even all-off is
-    # still rebuilt (gamescopePkg's always-on overlay postPatch).
-    preferDiscreteGpu = mkBoolOption { default = gamescope.preferDiscreteGpu; };
+    packages = mkListOption { default = [ ]; } types.package;
 
-    # Prefer DMA-BUF buffers for the capture stream (fallback to SHM when the consumer can't).
-    preferDmaBuf = mkBoolOption { default = gamescope.preferDmaBuf; };
+    # This backend consumes the libvirtualhid devices, so their uaccess must be stripped.
+    inputBridge = mkBoolOption { default = false; };
 
-    # HDR-capable gamescope (HDR/colorimetry patches); stream HDR follows the client per-stream.
-    hdr = mkBoolOption { default = gamescope.hdr; };
+    # Bash emitted once, before every hook and app helper.
+    helpers = mkLinesOption { default = ""; };
 
-    # Render Proton Wayland games natively (instead of via Xwayland).
-    nativeWayland = mkBoolOption { default = gamescope.nativeWayland; };
+    hooks = mkRecordOption { default = { }; } {
+      setup = mkLinesOption { default = ""; };
+      ensure = mkLinesOption { default = ""; };
+      appEnv = mkLinesOption { default = ""; };
+      waitReady = mkLinesOption { default = ""; };
+      tick = mkLinesOption { default = ""; };
+      release = mkLinesOption { default = ""; };
+      probe = mkLinesOption { default = ""; };
+      recycle = mkLinesOption { default = ""; };
+    };
 
-    # Forward Moonlight keyboard/mouse (Sunshine's libvirtualhid devices) and composite the X cursor into
-    # the stream. Host devices never leak in; don't stream from the primary daemon concurrently (same names).
-    inputInjection = mkBoolOption { default = gamescope.inputInjection; };
-
-    # Color management: Steam's Display color controls.
-    colorManagement = mkBoolOption { default = gamescope.colorManagement; };
-
-    # MangoHud overlay: --mangoapp on the gamescope used by the session.
-    mangoApp = mkBoolOption { default = gamescope.mangoApp; };
-
-    # Gamescope render size, upscaled to output; 0 renders at the output resolution.
-    renderWidth = mkIntBetweenOption {
-      path = "icedos.applications.sunshine-headless.gamescope.renderWidth";
-      source = ./config.toml;
-      default = gamescope.renderWidth;
-    } 0 8192;
-
-    renderHeight = mkIntBetweenOption {
-      path = "icedos.applications.sunshine-headless.gamescope.renderHeight";
-      source = ./config.toml;
-      default = gamescope.renderHeight;
-    } 0 8192;
-
-    # SDR-on-HDR tuning: brightness (--hdr-sdr-content-nits) and gamut stretch.
-    sdrContentNits = mkIntBetweenOption {
-      path = "icedos.applications.sunshine-headless.gamescope.sdrContentNits";
-      source = ./config.toml;
-      default = gamescope.sdrContentNits;
-    } 0 10000;
-
-    sdrGamutWideness = mkFloatBetweenOption {
-      path = "icedos.applications.sunshine-headless.gamescope.sdrGamutWideness";
-      source = ./config.toml;
-      default = gamescope.sdrGamutWideness;
-    } 0 1;
-
-    # Gamescope upscaler (-F) and sharpness (--fsr-sharpness; fsr/nis only).
-    upscaleFilter =
-      mkEnumOption
-        {
-          path = "icedos.applications.sunshine-headless.gamescope.upscaleFilter";
-          source = ./config.toml;
-          default = gamescope.upscaleFilter;
-        }
-        [
-          ""
-          "fsr"
-          "nis"
-          "linear"
-          "nearest"
-          "pixel"
-        ];
-
-    fsrSharpness = mkIntBetweenOption {
-      path = "icedos.applications.sunshine-headless.gamescope.fsrSharpness";
-      source = ./config.toml;
-      default = gamescope.fsrSharpness;
-    } 0 20;
-
-    # Seconds with no gamescope at all (teardown, crash, manual stop) before the minimal
-    # 1x1x1 probe gamescope is rerun so Sunshine's display probe keeps passing. 0 = off.
-    regrowTimeout = mkIntBetweenOption {
-      path = "icedos.applications.sunshine-headless.gamescope.regrowTimeout";
-      source = ./config.toml;
-      default = gamescope.regrowTimeout;
-    } 0 86400;
+    portal = mkRecordOption { default = { }; } {
+      # D-Bus activation directories for this backend's private bus.
+      serviceDirs = mkStrListOption { default = [ ]; };
+      # Inherited by services the bus activates.
+      busEnvironment = mkAttrsOfOption { default = { }; } types.str;
+      environment = mkAttrsOfOption { default = { }; } types.str;
+      # false: the backend starts the portal itself once its compositor is up.
+      autoStart = mkBoolOption { default = true; };
+    };
   };
 
   session = {
+    # Backend for apps that name none and for Sunshine's startup probe; "" prefers gamescope.
+    defaultCompositor = mkStrOption { default = session.defaultCompositor; };
+
     # Freeze the per-app cgroup (SIGSTOP) ~10s after the last client disconnects;
     # thaw on reconnect. Off = keep running idle.
     pauseOnDisconnect = mkBoolOption { default = session.pauseOnDisconnect; };

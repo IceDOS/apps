@@ -45,7 +45,7 @@
 
             steamHelpers = import ./steam-helpers.nix;
 
-            inherit (headless.gamescope) colorManagement mangoApp nativeWayland;
+            inherit (config.icedos.gaming.gamescope.sunshine-headless) colorManagement mangoApp nativeWayland;
           };
 
           # One Sunshine app per enabled session: `name` is the Moonlight entry, `home`
@@ -58,6 +58,7 @@
             }:
             {
               inherit name home;
+              compositor = "gamescope";
 
               slug = if home == "" then "steam" else "steam_second";
 
@@ -146,6 +147,12 @@
         modules = [
           "steam"
           "sunshine-headless"
+        ];
+      }
+      {
+        url = "github:icedos/gaming";
+        modules = [
+          "sunshine-headless-gamescope"
         ];
       }
     ];

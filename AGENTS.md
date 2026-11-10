@@ -44,7 +44,7 @@ checkout (`path:/abs/path/to/apps`), then `icedos rebuild --build` (no activatio
 - `sunshine` + `sunshine-headless` + `steam-headless` — game streaming, incl. headless
   HDR. The base `sunshine` module is always the primary, stock daemon (real desktop capture).
   Loading `sunshine-headless` stands up a SECOND, independent `sunshine-headless` daemon
-  (own ports/state) pinned to a private gamescope-0 portal; autostart via its
+  (own ports/state) whose capture follows `%t/sunshine-portal/bus`; autostart via its
   `icedos.applications.sunshine-headless.session.sunshine.autoStart`. The module is
   generic: `icedos.applications.sunshine-headless.apps` lists the apps it streams (each
   an argv `command` plus per-hook shell), and the helper records each app's process group
@@ -63,6 +63,12 @@ checkout (`path:/abs/path/to/apps`), then `icedos rebuild --build` (no activatio
   device policy is what denies host pads. Such a scope is in no session either, so polkit
   refuses the idle/sleep and power-profile holds there (this module's rules let its marker group
   take them, and proton-launch drops a refused hold instead of dying).
+  Compositors are backends in `icedos.applications.sunshine-headless.compositors.<name>`:
+  gaming's `sunshine-headless-gamescope` provides gamescope and kde's `kde-virtual-session` provides
+  KWin. Each backend has a private bus at `%t/sunshine-portal/<name>/bus`, and the `start`
+  verb repoints the `%t/sunshine-portal/bus` symlink before capture, so one daemon streams
+  one compositor at a time while both stay alive. Gamescope's input patch releases its
+  `EVIOCGRAB` while that symlink points elsewhere, so the KWin bridge can take the devices.
 - `steam` — `proton-launch`, `me3` and `reigntweak` moved to the gaming repo, so its
   `hasModule` calls for them pass `url = "github:icedos/gaming"` instead of `repoUrl`.
 - `artcraft/<app>` — the ArtCraft Crafting Apps not yet in nixpkgs (craft-anything, designcraft,

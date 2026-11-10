@@ -26,9 +26,22 @@
 
           inherit (lib) mkIf mkMerge;
 
-          inputInjection = cfg.gamescope.inputInjection;
           isolateVirtualControllers = cfg.session.controllers.isolateVirtual;
           port = cfg.session.sunshine.port;
+
+          compositors = cfg.compositors;
+
+          defaultCompositor =
+            if cfg.session.defaultCompositor != "" then
+              cfg.session.defaultCompositor
+            else if compositors ? gamescope then
+              "gamescope"
+            else if compositors != { } then
+              lib.head (lib.attrNames compositors)
+            else
+              "";
+
+          inputInjection = lib.any (c: c.inputBridge) (lib.attrValues compositors);
 
           # A per-app override uses null to mean "inherit the module-global value".
           pick = v: fallback: if v == null then fallback else v;
@@ -57,8 +70,7 @@
             app
             // {
               slug = if app.slug != "" then app.slug else mkSlug app.name;
-              # Null per-app overrides inherit the module-global gamescope value.
-              gamescope = lib.mapAttrs (k: v: if v == null then cfg.gamescope.${k} else v) app.gamescope;
+              compositor = if app.compositor != "" then app.compositor else defaultCompositor;
               session = {
                 idleTimeout = pick app.session.idleTimeout cfg.session.idleTimeout;
                 pauseOnDisconnect = pick app.session.pauseOnDisconnect cfg.session.pauseOnDisconnect;
@@ -71,27 +83,14 @@
           bridgeNeeded = isolateVirtualControllers || inputInjection || lib.any (app: app.shim) apps;
 
           packages = import ./packages.nix {
-            inherit
-              pkgs
-              lib
-              icedosLib
-              inputs
-              cfg
-              apps
-              ;
-
+            inherit pkgs lib;
             sunshinePkg = pkgs.sunshine;
-            # Only the shim's TEST_MAIN build assert reads this, as an example of a live
-            # target name; the runtime gate is shape-based, so a lookup failure is fine.
             steamVersion = pkgs.steam.version or "0";
           };
 
           inherit (packages)
-            xdg-desktop-portal-gamescope
-            sunshinePortalConfig
             gidExec
             inputBridgeGroup
-            gamescopePkg
             ;
 
           inherit
@@ -101,11 +100,8 @@
                 lib
                 cfg
                 apps
-                ;
-
-              inherit (packages)
-                gamescopePkg
-                xnudge
+                compositors
+                defaultCompositor
                 ;
             })
             sessionApp
@@ -122,49 +118,103 @@
               cfg
               bridgeNeeded
               sessionApp
+              compositors
+              defaultCompositor
               ;
 
             apps = sunshineApps;
           };
 
-          # Custom session.conf: standard servicedirs + the gamescope portal's D-Bus service dir,
-          # so dbus-daemon can D-Bus-activate org.freedesktop.impl.portal.desktop.gamescope.
-          sunshinePortalBusConf = pkgs.writeText "sunshine-portal-bus.conf" ''
-            <!DOCTYPE busconfig PUBLIC "-//freedesktop//DTD D-Bus Bus Configuration 1.0//EN"
-             "http://www.freedesktop.org/standards/dbus/1.0/busconfig.dtd">
-            <busconfig>
-              <type>session</type>
-              <keep_umask/>
-              <auth>EXTERNAL</auth>
-              <!-- config-file mode makes dbus-daemon require a listen element here;
-                   the unit passes address= on the command line, which overrides it. -->
-              <listen>unix:tmpdir=/tmp</listen>
-              <standard_session_servicedirs />
-              <servicedir>${xdg-desktop-portal-gamescope}/share/dbus-1/services</servicedir>
-              <policy context="default">
-                <allow send_destination="*" eavesdrop="true"/>
-                <allow eavesdrop="true"/>
-                <allow own="*"/>
-              </policy>
-              <limit name="max_incoming_bytes">1000000000</limit>
-              <limit name="max_incoming_unix_fds">250000000</limit>
-              <limit name="max_outgoing_bytes">1000000000</limit>
-              <limit name="max_outgoing_unix_fds">250000000</limit>
-              <limit name="max_message_size">1000000000</limit>
-              <limit name="service_start_timeout">120000</limit>
-              <limit name="auth_timeout">240000</limit>
-              <limit name="pending_fd_timeout">150000</limit>
-              <limit name="max_completed_connections">100000</limit>
-              <limit name="max_incomplete_connections">10000</limit>
-              <limit name="max_connections_per_user">100000</limit>
-              <limit name="max_pending_service_starts">10000</limit>
-              <limit name="max_names_per_connection">50000</limit>
-              <limit name="max_match_rules_per_connection">50000</limit>
-              <limit name="max_replies_per_connection">50000</limit>
-            </busconfig>
-          '';
+          # Custom session.conf: standard servicedirs + the backend portal's D-Bus service dir,
+          # so dbus-daemon can D-Bus-activate org.freedesktop.impl.portal.desktop.<name>.
+          portalBusConf =
+            name: serviceDirs:
+            pkgs.writeText "sunshine-portal-bus-${name}.conf" ''
+              <!DOCTYPE busconfig PUBLIC "-//freedesktop//DTD D-Bus Bus Configuration 1.0//EN"
+               "http://www.freedesktop.org/standards/dbus/1.0/busconfig.dtd">
+              <busconfig>
+                <type>session</type>
+                <keep_umask/>
+                <auth>EXTERNAL</auth>
+                <!-- config-file mode makes dbus-daemon require a listen element here;
+                     the unit passes address= on the command line, which overrides it. -->
+                <listen>unix:tmpdir=/tmp</listen>
+                <!-- The first file for a name wins, so backend dirs can override system services. -->
+                ${lib.concatMapStrings (d: "<servicedir>${d}</servicedir>\n") serviceDirs}
+                <standard_session_servicedirs />
+                <policy context="default">
+                  <allow send_destination="*" eavesdrop="true"/>
+                  <allow eavesdrop="true"/>
+                  <allow own="*"/>
+                </policy>
+                <limit name="max_incoming_bytes">1000000000</limit>
+                <limit name="max_incoming_unix_fds">250000000</limit>
+                <limit name="max_outgoing_bytes">1000000000</limit>
+                <limit name="max_outgoing_unix_fds">250000000</limit>
+                <limit name="max_message_size">1000000000</limit>
+                <limit name="service_start_timeout">120000</limit>
+                <limit name="auth_timeout">240000</limit>
+                <limit name="pending_fd_timeout">150000</limit>
+                <limit name="max_completed_connections">100000</limit>
+                <limit name="max_incomplete_connections">10000</limit>
+                <limit name="max_connections_per_user">100000</limit>
+                <limit name="max_pending_service_starts">10000</limit>
+                <limit name="max_names_per_connection">50000</limit>
+                <limit name="max_match_rules_per_connection">50000</limit>
+                <limit name="max_replies_per_connection">50000</limit>
+              </busconfig>
+            '';
+
+          mkPortalUnits =
+            name: c:
+            let
+              address = "unix:path=%t/sunshine-portal/${name}/bus";
+            in
+            {
+              "sunshine-portal-bus-${name}" = {
+                description = "Private D-Bus for the Sunshine headless ${name} portal";
+                wantedBy = [ "graphical-session.target" ];
+                partOf = [ "graphical-session.target" ];
+                environment = c.portal.busEnvironment;
+                serviceConfig = {
+                  ExecStartPre = "${pkgs.coreutils}/bin/mkdir -p %t/sunshine-portal/${name}/data";
+                  ExecStart = "${pkgs.dbus}/bin/dbus-daemon --nofork --nopidfile --address=${address} --config-file=${portalBusConf name c.portal.serviceDirs}";
+                  Restart = "always";
+                  RestartSec = "2s";
+                  # No namespacing or seccomp: a user namespace breaks the portal checks.
+                  UMask = "0027";
+                };
+              };
+
+              "sunshine-portal-${name}" = {
+                description = "Private xdg-desktop-portal (${name}) for Sunshine headless";
+                wantedBy = lib.mkIf c.portal.autoStart [ "graphical-session.target" ];
+                partOf = [ "graphical-session.target" ];
+                requires = [ "sunshine-portal-bus-${name}.service" ];
+                after = [ "sunshine-portal-bus-${name}.service" ];
+                environment = c.portal.environment // {
+                  DBUS_SESSION_BUS_ADDRESS = address;
+                };
+                serviceConfig = {
+                  ExecStart = "${pkgs.xdg-desktop-portal}/libexec/xdg-desktop-portal --verbose";
+                  Restart = "always";
+                  RestartSec = "2s";
+                  # No namespacing or seccomp: a user namespace trips is_sandboxed() and gets a 503.
+                  UMask = "0027";
+                };
+              };
+            };
         in
         {
+          # Backport of Sunshine #6044. mkBefore: this must run before the sunshine module's symlinkJoin overlay.
+          nixpkgs.overlays = lib.mkBefore [
+            (_: previous: {
+              sunshine = previous.sunshine.overrideAttrs (old: {
+                patches = (old.patches or [ ]) ++ [ ./lib/portalgrab-subscribe-first.patch ];
+              });
+            })
+          ];
+
           # The whole block below is the HEADLESS session; the primary is untouched.
 
           # xpadneo binds Sunshine's emulated pad whenever it advertises an Xbox VID/PID (every
@@ -220,34 +270,24 @@
 
           # The gid shim's setgid exec clears ambient caps, so CAP_SYS_NICE has to come from
           # a wrapper the shim execs. Always registered; gamescope needs it for SetNice and --rt.
-          security.wrappers = mkMerge [
-            (mkIf bridgeNeeded {
-              # Mode A (setgid `input`) is for apps and gamescope only; the daemon running
-              # as gid `input` fails the portal's /proc/<pid>/root check and gets a 503.
-              sunshine-headless-gid = {
-                setgid = true;
-                owner = "root";
-                group = "input";
-                source = "${gidExec}";
-              };
-              # Mode B (setuid root, daemon only): keeps caller gids, adds `input`, drops root.
-              sunshine-headless-gid-root = {
-                setuid = true;
-                owner = "root";
-                group = inputBridgeGroup;
-                permissions = "u+rx,g+x";
-                source = "${gidExec}";
-              };
-            })
-            {
-              sunshine-headless-gamescope = {
-                owner = "root";
-                group = "root";
-                source = "${gamescopePkg}/bin/gamescope";
-                capabilities = "cap_sys_nice+pie";
-              };
-            }
-          ];
+          security.wrappers = mkIf bridgeNeeded {
+            # Mode A (setgid `input`) is for apps and gamescope only; the daemon running
+            # as gid `input` fails the portal's /proc/<pid>/root check and gets a 503.
+            sunshine-headless-gid = {
+              setgid = true;
+              owner = "root";
+              group = "input";
+              source = "${gidExec}";
+            };
+            # Mode B (setuid root, daemon only): keeps caller gids, adds `input`, drops root.
+            sunshine-headless-gid-root = {
+              setuid = true;
+              owner = "root";
+              group = inputBridgeGroup;
+              permissions = "u+rx,g+x";
+              source = "${gidExec}";
+            };
+          };
 
           # Marker group the shim's caller gate checks; the wrapper turns it into `input`.
           users.groups = mkIf bridgeNeeded {
@@ -349,119 +389,68 @@
               message = "icedos.applications.sunshine-headless.session.sunshine.port (${toString port}) must be <= 65514 because the openFirewall rule opens the derived port+21 (RTSP) block.";
             }
             {
-              # These four select a patched gamescope/wrapper at build time, so an app can
-              # only turn them ON when the module-global option built them. Off always works.
-              assertion = lib.all (
-                app:
-                lib.all (k: app.gamescope.${k} != true || cfg.gamescope.${k}) [
-                  "hdr"
-                  "nativeWayland"
-                  "inputInjection"
-                  "mangoApp"
-                ]
-              ) cfg.apps;
-              message = "icedos.applications.sunshine-headless.apps[].gamescope can only enable hdr/nativeWayland/inputInjection/mangoApp when the matching module-global gamescope.* option is also true (each selects a patched gamescope or wrapper at build time).";
+              assertion = apps == [ ] || compositors != { };
+              message = "icedos.applications.sunshine-headless.apps needs a compositor backend module, such as sunshine-headless-gamescope from github:icedos/gaming.";
             }
             {
-              # Steam's environment is built at evaluation time from the module globals
-              # (see steam-headless/hooks.nix), so a per-app value would be ignored there.
-              assertion = lib.all (
-                app: !app.steamMode || (app.gamescope.mangoApp == null && app.gamescope.nativeWayland == null)
-              ) cfg.apps;
-              message = "icedos.applications.sunshine-headless.apps[].gamescope.nativeWayland/mangoApp are ignored for a steamMode app: set the module-global gamescope value instead.";
+              assertion = lib.all (app: compositors ? ${app.compositor}) apps;
+              message = "icedos.applications.sunshine-headless.apps[].compositor must name a registered backend (${lib.concatStringsSep ", " (lib.attrNames compositors)}).";
             }
           ];
 
-          # Private D-Bus + portal so ScreenCast never touches the host portal.
-          systemd.user.services.sunshine-portal-bus = {
-            description = "Private D-Bus for the Sunshine headless portal";
-            wantedBy = [ "graphical-session.target" ];
-            partOf = [ "graphical-session.target" ];
-            serviceConfig = {
-              ExecStartPre = "${pkgs.coreutils}/bin/mkdir -p %t/sunshine-portal";
-              ExecStart = "${pkgs.dbus}/bin/dbus-daemon --nofork --nopidfile --address=unix:path=%t/sunshine-portal/bus --config-file=${sunshinePortalBusConf}";
-              Restart = "always";
-              RestartSec = "2s";
+          systemd.user.services = lib.mkMerge (
+            (lib.mapAttrsToList mkPortalUnits compositors)
+            ++ [
+              {
+                # Boot-time idle gamescope: Sunshine's display probe needs one before prep-cmd spawns it.
+                sunshine-headless-idle = {
+                  description = "Boot-time idle gamescope so Sunshine's display probe passes";
+                  wantedBy = [ "graphical-session.target" ];
+                  partOf = [ "graphical-session.target" ];
+                  # A switch that restarts PipeWire must finish that first, or the stale-probe check misses it.
+                  after = [ "pipewire.service" ];
 
-              # No namespacing/seccomp: they imply a user namespace, which breaks the portal checks.
-              UMask = "0027";
-            };
-          };
+                  serviceConfig = {
+                    Type = "oneshot";
+                    RemainAfterExit = true;
+                    ExecStart = "${lib.getExe sessionApp} idle";
 
-          systemd.user.services.sunshine-portal = {
-            description = "Private xdg-desktop-portal (gamescope) for Sunshine headless";
-            wantedBy = [ "graphical-session.target" ];
-            partOf = [ "graphical-session.target" ];
-            requires = [ "sunshine-portal-bus.service" ];
+                    PrivateTmp = true;
+                    NoNewPrivileges = true;
+                    ProtectClock = true;
+                    ProtectKernelTunables = true;
+                    ProtectKernelModules = true;
+                    ProtectControlGroups = true;
+                    RestrictRealtime = true;
+                    RestrictSUIDSGID = true;
+                    UMask = "0027";
+                  };
+                };
 
-            # After bus only (idle/target ordering would cycle); backend is D-Bus-activated.
-            after = [ "sunshine-portal-bus.service" ];
+                # Tears the session down after session.idleTimeout, regrows the probe gamescope after
+                # gamescope.regrowTimeout. Hardened like idle.service; it systemd-runs gamescope too.
+                sunshine-headless-recycle = {
+                  description = "Sunshine headless session recycler (idle teardown + probe gamescope regrow)";
+                  serviceConfig = {
+                    Type = "oneshot";
+                    ExecStart = "${lib.getExe sessionApp} recycle";
+                    PrivateTmp = true;
+                    NoNewPrivileges = true;
+                    ProtectClock = true;
+                    ProtectKernelTunables = true;
+                    ProtectKernelModules = true;
+                    ProtectControlGroups = true;
+                    RestrictRealtime = true;
+                    RestrictSUIDSGID = true;
+                    UMask = "0027";
+                  };
+                };
 
-            environment = {
-              DBUS_SESSION_BUS_ADDRESS = "unix:path=%t/sunshine-portal/bus";
-              XDG_DATA_DIRS = "${pkgs.xdg-desktop-portal}/share:${xdg-desktop-portal-gamescope}/share";
-
-              # xdg-desktop-portal reads .portal defs from these vars, not XDG_DATA_DIRS.
-              NIX_XDG_DESKTOP_PORTAL_DIR = "${xdg-desktop-portal-gamescope}/share/xdg-desktop-portal/portals";
-              XDG_DESKTOP_PORTAL_DIR = "${xdg-desktop-portal-gamescope}/share/xdg-desktop-portal/portals";
-              XDG_CONFIG_HOME = "${sunshinePortalConfig}";
-              XDG_CURRENT_DESKTOP = "gamescope";
-              WAYLAND_DISPLAY = "gamescope-0";
-              G_MESSAGES_DEBUG = "all"; # verbose: log exactly which backend serves ScreenCast
-            };
-            serviceConfig = {
-              ExecStart = "${pkgs.xdg-desktop-portal}/libexec/xdg-desktop-portal --verbose";
-              Restart = "always";
-              RestartSec = "2s";
-
-              # No namespacing or seccomp: a user namespace trips is_sandboxed() and gets a 503.
-              UMask = "0027";
-            };
-          };
-
-          # Boot-time idle gamescope: Sunshine's display probe needs one before prep-cmd spawns it.
-          systemd.user.services.sunshine-headless-idle = {
-            description = "Boot-time idle gamescope so Sunshine's display probe passes";
-            wantedBy = [ "graphical-session.target" ];
-            partOf = [ "graphical-session.target" ];
-            # A switch that restarts PipeWire must finish that first, or the stale-probe check misses it.
-            after = [ "pipewire.service" ];
-
-            serviceConfig = {
-              Type = "oneshot";
-              RemainAfterExit = true;
-              ExecStart = "${lib.getExe sessionApp} idle";
-
-              PrivateTmp = true;
-              NoNewPrivileges = true;
-              ProtectClock = true;
-              ProtectKernelTunables = true;
-              ProtectKernelModules = true;
-              ProtectControlGroups = true;
-              RestrictRealtime = true;
-              RestrictSUIDSGID = true;
-              UMask = "0027";
-            };
-          };
-
-          # Tears the session down after session.idleTimeout, regrows the probe gamescope after
-          # gamescope.regrowTimeout. Hardened like idle.service; it systemd-runs gamescope too.
-          systemd.user.services.sunshine-headless-recycle = {
-            description = "Sunshine headless session recycler (idle teardown + probe gamescope regrow)";
-            serviceConfig = {
-              Type = "oneshot";
-              ExecStart = "${lib.getExe sessionApp} recycle";
-              PrivateTmp = true;
-              NoNewPrivileges = true;
-              ProtectClock = true;
-              ProtectKernelTunables = true;
-              ProtectKernelModules = true;
-              ProtectControlGroups = true;
-              RestrictRealtime = true;
-              RestrictSUIDSGID = true;
-              UMask = "0027";
-            };
-          };
+                # The headless daemon: a second, independent Sunshine pinned to the private portal.
+                sunshine-headless = headlessDaemon.service;
+              }
+            ]
+          );
 
           systemd.user.timers.sunshine-headless-recycle = {
             wantedBy = [ "graphical-session.target" ];
@@ -472,9 +461,6 @@
               OnUnitActiveSec = "30s";
             };
           };
-
-          # The headless daemon: a second, independent Sunshine pinned to the private portal.
-          systemd.user.services.sunshine-headless = headlessDaemon.service;
 
           networking.firewall = mkIf cfg.session.sunshine.openFirewall headlessDaemon.firewall;
         }
@@ -488,12 +474,6 @@
       {
         modules = [
           "sunshine"
-        ];
-      }
-      {
-        url = "github:icedos/providers";
-        modules = [
-          "jovian"
         ];
       }
     ];

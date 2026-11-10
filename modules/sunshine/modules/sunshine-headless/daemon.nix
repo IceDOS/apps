@@ -9,9 +9,13 @@
   sessionApp,
   # The Sunshine app entries (apps.nix) for the configured apps.
   apps,
+  compositors,
+  defaultCompositor,
 }:
 
 let
+  defaultDisplay = compositors.${defaultCompositor}.waylandDisplay or "";
+
   inherit (cfg.session.sunshine)
     autoStart
     gamepad
@@ -126,7 +130,7 @@ let
     # Pin to the private portal so this instance captures the headless session;
     # XDG_CONFIG_HOME redirected to keep state apart from the primary.
     environment = {
-      WAYLAND_DISPLAY = "gamescope-0";
+      WAYLAND_DISPLAY = defaultDisplay;
       DBUS_SESSION_BUS_ADDRESS = "unix:path=%t/sunshine-portal/bus";
       XDG_CONFIG_HOME = "%h/.config/sunshine-headless";
     };
@@ -134,26 +138,27 @@ let
     # Gate on idle gamescope + portal: Sunshine's display probe never recovers (503).
     after = [
       "sunshine-headless-idle.service"
-      "sunshine-portal.service"
+      "sunshine-portal-${defaultCompositor}.service"
     ];
     # Wants both so the gate holds on the manual path too (After= alone is a no-op).
     wants = [
       "sunshine-headless-idle.service"
-      "sunshine-portal.service"
+      "sunshine-portal-${defaultCompositor}.service"
     ];
 
     serviceConfig = {
       ExecStartPre = [
+        "${lib.getExe sessionApp} retarget-default"
         # State dir must exist before Sunshine writes (pairing, certs, log, portal_token).
         "${pkgs.coreutils}/bin/mkdir -p %h/.config/sunshine-headless/sunshine"
         # Drop a stale portal token so startup re-requests a fresh ScreenCast.
         "${pkgs.coreutils}/bin/rm -f %h/.config/sunshine-headless/sunshine/portal_token %h/.config/sunshine-headless/sunshine/portal_token.bak"
-        (pkgs.writeShellScript "wait-gamescope" ''
+        (pkgs.writeShellScript "wait-compositor" ''
           for _ in $(seq 1 200); do
-            [ -S "$XDG_RUNTIME_DIR/gamescope-0" ] && exit 0
+            [ -S "$XDG_RUNTIME_DIR/${defaultDisplay}" ] && exit 0
             sleep 0.05
           done
-          echo "timeout waiting for gamescope-0" >&2
+          echo "timeout waiting for ${defaultDisplay}" >&2
           exit 1
         '')
       ];

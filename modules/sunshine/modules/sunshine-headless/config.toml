@@ -5,40 +5,9 @@
 # Apps to publish over Moonlight; each carries its own launch command and hooks.
 apps = []
 
-[icedos.applications.sunshine-headless.gamescope]
-# Display color controls (vibrance/temperature sliders); requires the patched gamescope.
-colorManagement = true
-# FSR/NIS sharpness: 0 = max sharp .. 20 = min sharp (gamescope default 2).
-fsrSharpness = 20
-# HDR-capable gamescope; stream HDR follows the client per-stream. false = always SDR.
-hdr = true
-# Forward Moonlight keyboard/mouse into the session; composites the cursor too (one feature).
-# Host devices never leak in; don't stream from the primary daemon concurrently (same device names).
-inputInjection = true
-# Gamescope --mangoapp; the app must also be told to render into it (see the steam app hooks).
-mangoApp = true
-# Render Proton Wayland games natively (patched gamescope).
-nativeWayland = true
-# Prefer the discrete GPU on hybrid rigs (stock picks the iGPU; upstream #2217). Inert on single GPU.
-preferDiscreteGpu = true
-# Prefer DMA-BUF buffers for the capture stream (fallback to SHM when the consumer can't).
-preferDmaBuf = true
-# Gamescope --rt (realtime SCHED_FIFO); off = only SetNice(-20).
-realtime = true
-# Seconds (2m) with no gamescope at all before the minimal 1x1x1 probe gamescope is rerun (needs the daemon up); 0 = never regrow.
-regrowTimeout = 120
-# gamescope internal render height; 0 = output resolution.
-renderHeight = 0
-# gamescope internal render width, upscaled to output; 0 = output resolution.
-renderWidth = 0
-# Nits SDR content is shown at on the HDR output (203 = BT.2408 reference white).
-sdrContentNits = 203
-# SDR to wide-gamut stretch on the HDR output: 0 = accurate, 1 = full BT2020 (vivid).
-sdrGamutWideness = 0
-# gamescope upscaler (-F): fsr | nis | linear | nearest | pixel.
-upscaleFilter = ""
-
 [icedos.applications.sunshine-headless.session]
+# Backend for apps that name none and for Sunshine's startup probe; empty prefers gamescope.
+defaultCompositor = ""
 # Seconds (15m) with no active stream before the session is torn down (apps + full gamescope); 0 = never tear down.
 idleTimeout = 900
 # Freeze the session cgroup ~10s after the last client leaves; thaw on reconnect.

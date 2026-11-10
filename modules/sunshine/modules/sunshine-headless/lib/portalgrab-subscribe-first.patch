@@ -1,0 +1,129 @@
+--- a/src/platform/linux/portalgrab.cpp
++++ b/src/platform/linux/portalgrab.cpp
+@@ -111,6 +111,18 @@
+     GMainLoop *loop;  ///< GLib main loop waiting for a portal response signal.
+     GVariant *response;  ///< DBus response payload returned by the portal.
+     guint subscription_id;  ///< Subscription ID.
++    std::string request_path;  ///< Path the subscription listens on.
++    GDBusConnection *conn;  ///< Borrowed from the calling dbus_t.
++
++    dbus_response_t() = default;
++    dbus_response_t(const dbus_response_t &) = delete;
++    dbus_response_t &operator=(const dbus_response_t &) = delete;
++
++    ~dbus_response_t() {
++      if (subscription_id != 0) {
++        g_dbus_connection_signal_unsubscribe(conn, subscription_id);
++      }
++    }
+   };
+ 
+   /**
+@@ -356,7 +368,7 @@
+ 
+       dbus_response_t response {};
+       g_autofree gchar *request_token = nullptr;
+-      create_request_path(conn, nullptr, &request_token);
++      dbus_response_prepare(&response, loop, conn, &request_token);
+ 
+       GVariantBuilder builder;
+       g_variant_builder_init(&builder, G_VARIANT_TYPE("(a{sv})"));
+@@ -373,9 +385,7 @@
+         return -1;
+       }
+ 
+-      const gchar *request_path = nullptr;
+-      g_variant_get(reply, "(o)", &request_path);
+-      dbus_response_init(&response, loop, conn, request_path);
++      dbus_response_follow_handle(&response, reply);
+ 
+       g_autoptr(GVariant) create_response = dbus_response_wait(&response);
+ 
+@@ -417,7 +427,7 @@
+     int select_remote_desktop_devices(GMainLoop *loop, const gchar *session_path) {
+       dbus_response_t response {};
+       g_autofree gchar *request_token = nullptr;
+-      create_request_path(conn, nullptr, &request_token);
++      dbus_response_prepare(&response, loop, conn, &request_token);
+ 
+       GVariantBuilder builder;
+       g_variant_builder_init(&builder, G_VARIANT_TYPE("(oa{sv})"));
+@@ -439,9 +449,7 @@
+         return -1;
+       }
+ 
+-      const gchar *request_path = nullptr;
+-      g_variant_get(reply, "(o)", &request_path);
+-      dbus_response_init(&response, loop, conn, request_path);
++      dbus_response_follow_handle(&response, reply);
+ 
+       g_autoptr(GVariant) devices_response = dbus_response_wait(&response);
+ 
+@@ -465,7 +473,7 @@
+     int select_screencast_sources(GMainLoop *loop, const gchar *session_path, bool persist) {
+       dbus_response_t response {};
+       g_autofree gchar *request_token = nullptr;
+-      create_request_path(conn, nullptr, &request_token);
++      dbus_response_prepare(&response, loop, conn, &request_token);
+ 
+       GVariantBuilder builder;
+       g_variant_builder_init(&builder, G_VARIANT_TYPE("(oa{sv})"));
+@@ -490,9 +498,7 @@
+         return -1;
+       }
+ 
+-      const gchar *request_path = nullptr;
+-      g_variant_get(reply, "(o)", &request_path);
+-      dbus_response_init(&response, loop, conn, request_path);
++      dbus_response_follow_handle(&response, reply);
+ 
+       g_autoptr(GVariant) sources_response = dbus_response_wait(&response);
+ 
+@@ -519,7 +525,7 @@
+ 
+       dbus_response_t response {};
+       g_autofree gchar *request_token = nullptr;
+-      create_request_path(conn, nullptr, &request_token);
++      dbus_response_prepare(&response, loop, conn, &request_token);
+ 
+       GVariantBuilder builder;
+       g_variant_builder_init(&builder, G_VARIANT_TYPE("(osa{sv})"));
+@@ -536,9 +542,7 @@
+         return -1;
+       }
+ 
+-      const gchar *request_path = nullptr;
+-      g_variant_get(reply, "(o)", &request_path);
+-      dbus_response_init(&response, loop, conn, request_path);
++      dbus_response_follow_handle(&response, reply);
+ 
+       g_autoptr(GVariant) start_response = dbus_response_wait(&response);
+ 
+@@ -692,9 +696,27 @@
+ 
+     static void dbus_response_init(struct dbus_response_t *response, GMainLoop *loop, GDBusConnection *conn, const char *request_path) {
+       response->loop = loop;
++      response->conn = conn;
++      response->request_path = request_path;
+       response->subscription_id = g_dbus_connection_signal_subscribe(conn, PORTAL_NAME, REQUEST_IFACE, "Response", request_path, nullptr, G_DBUS_SIGNAL_FLAGS_NONE, on_response_received_cb, response, nullptr);
+     }
+ 
++    // The portal can send Response within a millisecond of the method reply, so subscribe first.
++    static void dbus_response_prepare(dbus_response_t *response, GMainLoop *loop, GDBusConnection *conn, gchar **out_token) {
++      g_autofree gchar *request_path = nullptr;
++      create_request_path(conn, &request_path, out_token);
++      dbus_response_init(response, loop, conn, request_path);
++    }
++
++    static void dbus_response_follow_handle(dbus_response_t *response, GVariant *reply) {
++      const gchar *request_path = nullptr;
++      g_variant_get(reply, "(&o)", &request_path);
++      if (response->request_path != request_path) {
++        g_dbus_connection_signal_unsubscribe(response->conn, response->subscription_id);
++        dbus_response_init(response, response->loop, response->conn, request_path);
++      }
++    }
++
+     static GVariant *dbus_response_wait(struct dbus_response_t *response) {
+       g_main_loop_run(response->loop);
+       return response->response;
