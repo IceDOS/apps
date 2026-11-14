@@ -19,11 +19,36 @@ ENV_ID = "ZED_AGENT_BRIDGE_ID"
 ENV_AGENT = "ZED_AGENT_BRIDGE_AGENT"
 ENV_PID = "ZED_AGENT_BRIDGE_PID"
 NONCE_PREFIX = "zab-"
+_warned_dirs: set[Path] = set()
 
 
 def state_dir() -> Path:
-    base = os.environ.get("XDG_STATE_HOME") or str(Path.home() / ".local/state")
-    return Path(base) / "zed-agent-bridge"
+    base = Path(os.environ.get("XDG_STATE_HOME") or (Path.home() / ".local/state"))
+    new_dir = base / "icedos" / "zed-agent-bridge"
+    legacy_dir = base / "zed-agent-bridge"  # legacy path pre-2026-11
+    if not new_dir.exists() and legacy_dir.exists():
+        new_dir.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            legacy_dir.rename(new_dir)
+        except OSError:
+            pass
+    elif new_dir.exists() and legacy_dir.exists():
+        for f in legacy_dir.iterdir():
+            if not f.is_file():
+                continue
+            target = new_dir / f.name
+            try:
+                if not target.exists() or f.stat().st_mtime > target.stat().st_mtime:
+                    f.replace(target)
+                else:
+                    f.unlink()
+            except OSError:
+                pass
+        try:
+            legacy_dir.rmdir()
+        except OSError:
+            pass
+    return new_dir
 
 
 def log(msg: str) -> None:

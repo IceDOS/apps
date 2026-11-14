@@ -30,6 +30,7 @@ class StateTest(TmpHome):
     def test_roundtrip(self):
         zab.write_state("t1", "claude", "s1")
         self.assertEqual(zab.read_state("t1"), {"agent": "claude", "session_id": "s1"})
+        self.assertTrue((self.root / "state/icedos/zed-agent-bridge/t1.json").exists())
 
     def test_missing_state_is_none(self):
         self.assertIsNone(zab.read_state("nope"))
@@ -39,6 +40,37 @@ class StateTest(TmpHome):
         self.assertTrue(zab.claimed_by_other("s1", "t2"))
         self.assertFalse(zab.claimed_by_other("s1", "t1"))
         self.assertFalse(zab.claimed_by_other("s2", "t2"))
+
+    def test_migrates_legacy_state_dir(self):
+        legacy = self.root / "state/zed-agent-bridge"
+        legacy.mkdir(parents=True)
+        (legacy / "t0.json").write_text('{"agent": "claude", "session_id": "s0"}')
+        self.assertEqual(zab.read_state("t0"), {"agent": "claude", "session_id": "s0"})
+        new_dir = self.root / "state/icedos/zed-agent-bridge"
+        self.assertTrue((new_dir / "t0.json").exists())
+        self.assertFalse(legacy.exists())
+
+    def test_both_dirs_exist_merges_and_removes_legacy(self):
+        legacy = self.root / "state/zed-agent-bridge"
+        new_dir = self.root / "state/icedos/zed-agent-bridge"
+        legacy.mkdir(parents=True)
+        new_dir.mkdir(parents=True)
+        (legacy / "t_only.json").write_text('{"agent": "claude", "session_id": "s_only"}')
+        (new_dir / "t_older.json").write_text('{"agent": "old", "session_id": "s_old"}')
+        (legacy / "t_older.json").write_text('{"agent": "new", "session_id": "s_new"}')
+        now = time.time()
+        os.utime(new_dir / "t_older.json", (now - 100, now - 100))
+        os.utime(legacy / "t_older.json", (now, now))
+        (new_dir / "t_newer.json").write_text('{"agent": "keep", "session_id": "s_keep"}')
+        (legacy / "t_newer.json").write_text('{"agent": "drop", "session_id": "s_drop"}')
+        os.utime(new_dir / "t_newer.json", (now, now))
+        os.utime(legacy / "t_newer.json", (now - 100, now - 100))
+
+        zab.state_dir()
+        self.assertEqual(zab.read_state("t_only"), {"agent": "claude", "session_id": "s_only"})
+        self.assertEqual(zab.read_state("t_older"), {"agent": "new", "session_id": "s_new"})
+        self.assertEqual(zab.read_state("t_newer"), {"agent": "keep", "session_id": "s_keep"})
+        self.assertFalse(legacy.exists())
 
 
 def make_zed_db(path, rows):
