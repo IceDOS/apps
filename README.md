@@ -54,7 +54,6 @@ The `default` module loads whenever this repository is used. It provisions syste
 | `direnv` | [modules/direnv/icedos.nix](modules/direnv/icedos.nix) | Environment variable switcher based on current directory (.envrc) |
 | `effectcraft` | [modules/artcraft/effectcraft/icedos.nix](modules/artcraft/effectcraft/icedos.nix) | Open-source motion graphics and visual effects in pure Rust |
 | `figcraft` | [modules/artcraft/figcraft/icedos.nix](modules/artcraft/figcraft/icedos.nix) | Open-source UI design and prototyping tool (clean-room Figma-style) in pure Rust |
-| `filmcraft` | [modules/artcraft/filmcraft/icedos.nix](modules/artcraft/filmcraft/icedos.nix) | Open-source video editor (clean-room Premiere Pro-style) in pure Rust |
 | `flatpak` | [modules/flatpak/icedos.nix](modules/flatpak/icedos.nix) | Flatpak application sandboxing service and Flathub repository setup |
 | `gnome-control-center` | [modules/gnome-control-center/icedos.nix](modules/gnome-control-center/icedos.nix) | GNOME Control Center configuration and settings app |
 | `helium` | [modules/browsers/helium/icedos.nix](modules/browsers/helium/icedos.nix) | Privacy-focused Helium web browser with custom profile shortcuts |

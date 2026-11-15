@@ -72,7 +72,7 @@ checkout (`path:/abs/path/to/apps`), then `icedos rebuild --build` (no activatio
 - `steam` — `proton-launch`, `me3` and `reigntweak` moved to the gaming repo, so its
   `hasModule` calls for them pass `url = "github:icedos/gaming"` instead of `repoUrl`.
 - `artcraft/<app>` — the ArtCraft Crafting Apps not yet in nixpkgs (craft-anything, designcraft,
-  effectcraft, figcraft, filmcraft, materialcraft, texturecraft), each its own module. All share
+  effectcraft, figcraft, materialcraft, texturecraft), each its own module. All share
   `artcraft/lib/mk-craft.nix` (prebuilt release tarball) and `artcraft/lib/update.sh <app>`,
   which pins hashes from upstream's `SHA256SUMS.txt`. One matrix workflow,
   `update-artcraft.yml`, opens a separate `update/<app>` PR for each app.

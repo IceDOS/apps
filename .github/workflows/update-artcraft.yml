@@ -19,7 +19,6 @@ jobs:
           - designcraft
           - effectcraft
           - figcraft
-          - filmcraft
           - materialcraft
           - texturecraft
 
