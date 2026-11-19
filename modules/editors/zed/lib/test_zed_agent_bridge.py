@@ -17,7 +17,11 @@ class TmpHome(unittest.TestCase):
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
         self.root = Path(self._tmp.name)
-        env = {"HOME": str(self.root), "XDG_STATE_HOME": str(self.root / "state")}
+        env = {
+            "HOME": str(self.root),
+            "XDG_STATE_HOME": str(self.root / "state"),
+            "XDG_DATA_HOME": str(self.root / ".local/share"),
+        }
         self._env = mock.patch.dict(os.environ, env)
         self._env.start()
 
@@ -155,7 +159,7 @@ class LocatorTest(TmpHome):
         self.assertTrue(zab.LOCATORS["pi-agent"]["exists"]("old"))
 
     def test_antigravity_latest(self):
-        d = self.root / ".gemini/antigravity-cli"
+        d = self.root / ".local/share/gemini/antigravity-cli"
         d.mkdir(parents=True)
         con = sqlite3.connect(d / "conversation_summaries.db")
         con.execute(

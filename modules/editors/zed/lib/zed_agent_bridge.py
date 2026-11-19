@@ -190,7 +190,9 @@ def pi_latest(cwd: str, since: float) -> str | None:
 
 
 def _agy_db() -> Path:
-    return Path.home() / ".gemini/antigravity-cli/conversation_summaries.db"
+    # The antigravity launcher keeps agy's .gemini in the XDG data dir, not ~.
+    base = Path(os.environ.get("XDG_DATA_HOME") or (Path.home() / ".local/share"))
+    return base / "gemini/antigravity-cli/conversation_summaries.db"
 
 
 def _agy_query(sql: str, params=()) -> list:
