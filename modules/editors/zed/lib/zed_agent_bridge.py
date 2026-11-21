@@ -7,6 +7,8 @@ import os
 import re
 import secrets
 import select
+import shlex
+import shutil
 import sqlite3
 import subprocess
 import sys
@@ -19,6 +21,7 @@ ENV_ID = "ZED_AGENT_BRIDGE_ID"
 ENV_AGENT = "ZED_AGENT_BRIDGE_AGENT"
 ENV_PID = "ZED_AGENT_BRIDGE_PID"
 NONCE_PREFIX = "zab-"
+TMUX_SOCKET = "zed-agent-bridge"
 _warned_dirs: set[Path] = set()
 
 
@@ -377,7 +380,189 @@ def _resolve(cfg):
     return resolve_local(db, emit_tty_title, timeout)
 
 
-def cmd_launch(cfg: dict) -> int:
+def write_env(tid: str, env: dict[str, str]) -> Path:
+    state_dir().mkdir(parents=True, exist_ok=True)
+    tmp = state_dir() / f"{tid}.env.tmp"
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    try:
+        with open(fd, "w", encoding="utf-8") as f:
+            json.dump(env, f)
+        target = state_dir() / f"{tid}.env"
+        tmp.replace(target)
+        return target
+    except Exception:
+        try:
+            tmp.unlink(missing_ok=True)
+        except OSError:
+            pass
+        raise
+
+
+def tmux_session_name(tid: str) -> str:
+    return f"zab-{re.sub(r'[:.]', '-', tid)}"
+
+
+def detached_timeout_seconds(cfg: dict) -> float:
+    return float(cfg.get("tmux", {}).get("detachedTimeout", 0)) * 60
+
+
+def tmux_hook_command(timeout_secs: float, socket: str = TMUX_SOCKET) -> str:
+    sock = shlex.quote(socket)
+    delay = shlex.quote(str(timeout_secs))
+    return f"run-shell -b 'zed-agent-bridge timeout-kill --socket {sock} --session #{{q:session_name}} --delay {delay}'"
+
+
+def cmd_timeout_kill(socket: str, session: str, delay: float) -> int:
+    token = secrets.token_hex(8)
+    subprocess.run(
+        ["tmux", "-L", socket, "-f", "/dev/null", "set-option", "-t", session, "@zab_detach_token", token],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    time.sleep(delay)
+    res = subprocess.run(
+        ["tmux", "-L", socket, "-f", "/dev/null", "display-message", "-t", session, "-p", "#{@zab_detach_token}:#{session_attached}"],
+        capture_output=True,
+        text=True,
+    )
+    if res.returncode != 0:
+        return 0
+    if res.stdout.strip() == f"{token}:0":
+        subprocess.run(
+            ["tmux", "-L", socket, "-f", "/dev/null", "kill-session", "-t", session],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+    return 0
+
+
+def tmux_has_session(session: str, socket: str = TMUX_SOCKET) -> bool:
+    res = subprocess.run(
+        ["tmux", "-L", socket, "-f", "/dev/null", "has-session", "-t", session],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    return res.returncode == 0
+
+
+def tmux_attach(session: str, socket: str = TMUX_SOCKET) -> None:
+    os.execvp("tmux", ["tmux", "-L", socket, "-f", "/dev/null", "attach", "-t", session])
+
+
+def tmux_create_session(
+    session: str,
+    inner_cmd: list[str],
+    hook_cmd: str | None = None,
+    socket: str = TMUX_SOCKET,
+    title: str | None = None,
+) -> None:
+    cmd = [
+        "tmux",
+        "-L",
+        socket,
+        "-f",
+        "/dev/null",
+        "new-session",
+        "-d",
+        "-s",
+        session,
+        "-c",
+        os.getcwd(),
+        *inner_cmd,
+    ]
+    subprocess.run(cmd, check=True)
+    subprocess.run(["tmux", "-L", socket, "-f", "/dev/null", "set-option", "-s", "escape-time", "0"], check=False)
+    # Zed's keymap sends Shift+Enter as CSI 13;2u; without this tmux forwards a plain Enter.
+    subprocess.run(["tmux", "-L", socket, "-f", "/dev/null", "set-option", "-s", "extended-keys", "on"], check=False)
+    subprocess.run(["tmux", "-L", socket, "-f", "/dev/null", "set-option", "-t", session, "status", "off"], check=False)
+    subprocess.run(["tmux", "-L", socket, "-f", "/dev/null", "set-option", "-t", session, "mouse", "on"], check=False)
+    subprocess.run(["tmux", "-L", socket, "-f", "/dev/null", "set-option", "-t", session, "history-limit", "50000"], check=False)
+    # Forward the agent's OSC title to Zed, which names the thread after it.
+    subprocess.run(["tmux", "-L", socket, "-f", "/dev/null", "set-option", "-t", session, "set-titles", "on"], check=False)
+    subprocess.run(["tmux", "-L", socket, "-f", "/dev/null", "set-option", "-t", session, "set-titles-string", "#T"], check=False)
+    if title:
+        # Seeds the title tmux sends on attach; otherwise it is the hostname.
+        subprocess.run(["tmux", "-L", socket, "-f", "/dev/null", "select-pane", "-t", session, "-T", title], check=False)
+    if hook_cmd:
+        subprocess.run(["tmux", "-L", socket, "-f", "/dev/null", "set-hook", "-t", session, "client-detached", hook_cmd], check=False)
+
+
+def build_inner_cmd(
+    cfg_path: str,
+    tid: str,
+    agent: str,
+    locator: str | None,
+    since: float,
+    sid: str | None,
+    argv: list[str],
+    env_file: str | None = None,
+) -> list[str]:
+    cmd = [
+        sys.executable,
+        os.path.abspath(__file__),
+        "--config",
+        cfg_path,
+        "inner-launch",
+        "--tid",
+        tid,
+        "--agent",
+        agent,
+        "--since",
+        str(since),
+    ]
+    if locator:
+        cmd.extend(["--locator", locator])
+    if sid:
+        cmd.extend(["--sid", sid])
+    if env_file:
+        cmd.extend(["--env-file", env_file])
+    cmd.append("--")
+    cmd.extend(argv)
+    return cmd
+
+
+def cmd_inner_launch(
+    tid: str,
+    agent: str,
+    locator: str | None,
+    since: float,
+    sid: str | None,
+    cmd_argv: list[str],
+    env_file: str | None = None,
+) -> int:
+    if not cmd_argv:
+        return 0
+    saved_env = None
+    if env_file:
+        p = Path(env_file)
+        try:
+            saved_env = json.loads(p.read_text())
+        except (OSError, ValueError) as e:
+            log(f"inner-launch failed to read env-file {env_file}: {e!r}")
+        finally:
+            try:
+                p.unlink(missing_ok=True)
+            except OSError:
+                pass
+    else:
+        log("inner-launch missing --env-file")
+    # Keep tmux's TERM_PROGRAM: with Zed's, Claude Code skips extended keys and Shift+Enter submits.
+    pane_keys = ("TERM", "TERM_PROGRAM", "TERM_PROGRAM_VERSION", "TMUX", "TMUX_PANE")
+    pane_env = {k: os.environ[k] for k in pane_keys if k in os.environ}
+    if saved_env:
+        os.environ.clear()
+        os.environ.update(saved_env)
+        os.environ.update(pane_env)
+    os.environ[ENV_PID] = str(os.getpid())
+    os.environ[ENV_ID] = tid
+    os.environ[ENV_AGENT] = agent
+    latest = LOCATORS.get(locator, {}).get("latest") if locator else None
+    if latest:
+        _spawn_watcher(tid, agent, latest, os.getcwd(), since, sid)
+    os.execvpe(cmd_argv[0], cmd_argv, os.environ)
+
+
+def cmd_launch(cfg: dict, cfg_path: str) -> int:
     since = time.time() - 1
     resolved = None
     try:
@@ -387,6 +572,21 @@ def cmd_launch(cfg: dict) -> int:
     except Exception as e:  # noqa: BLE001 - never block the agent
         log(f"resolve failed: {e!r}")
     tid = resolved[0] if resolved else None
+
+    tmux_cfg = cfg.get("tmux", {})
+    use_tmux = bool(tid and tmux_cfg.get("enable") and shutil.which("tmux"))
+
+    if use_tmux:
+        session = tmux_session_name(tid)
+        try:
+            if tmux_has_session(session):
+                log(f"attach tid={tid} session={session}")
+                tmux_attach(session)
+                return 0
+        except OSError as e:
+            log(f"tmux attach failed, falling back to direct exec: {e!r}")
+            use_tmux = False
+
     try:
         name, argv, sid, picked_env = plan_launch(cfg, read_state(tid) if tid else None, LOCATORS)
     except (OSError, ValueError, KeyError) as e:
@@ -395,10 +595,46 @@ def cmd_launch(cfg: dict) -> int:
     if not name or not argv:
         return 0
     log(f"launch tid={tid} agent={name} resume={sid}")
+
     env = dict(os.environ)
     env.update(picked_env)
     if tid:
-        env.update({ENV_ID: tid, ENV_AGENT: name, ENV_PID: str(os.getpid())})
+        env[ENV_ID] = tid
+        env[ENV_AGENT] = name
+
+    if use_tmux:
+        tmux_env = dict(env)
+        for drop in ("TERM", "TMUX", "TMUX_PANE"):
+            tmux_env.pop(drop, None)
+        # Claude Code drops to 256 colours inside tmux unless told the outer terminal does RGB.
+        tmux_env.setdefault("CLAUDE_CODE_TMUX_TRUECOLOR", "1")
+        timeout_secs = detached_timeout_seconds(cfg)
+        hook_cmd = tmux_hook_command(timeout_secs) if timeout_secs > 0 else None
+        session = tmux_session_name(tid)
+        locator = cfg.get("agents", {}).get(name, {}).get("locator", "")
+        env_file = str(state_dir() / f"{tid}.env")
+        inner_cmd = build_inner_cmd(cfg_path, tid, name, locator, since, sid, argv, env_file=env_file)
+        try:
+            write_env(tid, tmux_env)
+            tmux_create_session(session, inner_cmd, hook_cmd, title=resolved[1] if resolved else None)
+            tmux_attach(session)
+            return 0
+        except Exception as e:
+            if tmux_has_session(session):
+                log(f"session {session} exists after creation failure, attaching: {e!r}")
+                try:
+                    tmux_attach(session)
+                    return 0
+                except OSError as ae:
+                    log(f"tmux attach failed: {ae!r}")
+            try:
+                Path(env_file).unlink(missing_ok=True)
+            except OSError:
+                pass
+            log(f"tmux new-session failed, falling back to direct exec: {e!r}")
+
+    if tid:
+        env[ENV_PID] = str(os.getpid())
         locator = cfg.get("agents", {}).get(name, {}).get("locator", "")
         latest = LOCATORS.get(locator, {}).get("latest")
         if latest:
@@ -420,19 +656,40 @@ def cmd_resolve(cfg: dict, timeout: float) -> int:
 
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(prog="zed-agent-bridge")
-    parser.add_argument("--config", required=True)
+    parser.add_argument("--config", default="")
     sub = parser.add_subparsers(dest="cmd", required=True)
     resolve = sub.add_parser("resolve")
     resolve.add_argument("--timeout", type=float, default=3.0)
     sub.add_parser("launch")
     sub.add_parser("claude-hook")
+    inner = sub.add_parser("inner-launch")
+    inner.add_argument("--tid", required=True)
+    inner.add_argument("--agent", required=True)
+    inner.add_argument("--locator", default=None)
+    inner.add_argument("--since", type=float, default=0.0)
+    inner.add_argument("--sid", default=None)
+    inner.add_argument("--env-file", default=None)
+    inner.add_argument("cmd_argv", nargs=argparse.REMAINDER)
+    tk = sub.add_parser("timeout-kill")
+    tk.add_argument("--socket", required=True)
+    tk.add_argument("--session", required=True)
+    tk.add_argument("--delay", type=float, required=True)
     args = parser.parse_args(argv)
     if args.cmd == "claude-hook":
         return claude_hook(sys.stdin)
+    if args.cmd == "timeout-kill":
+        return cmd_timeout_kill(args.socket, args.session, args.delay)
+    if args.cmd == "inner-launch":
+        cmd_argv = args.cmd_argv
+        if cmd_argv and cmd_argv[0] == "--":
+            cmd_argv = cmd_argv[1:]
+        return cmd_inner_launch(args.tid, args.agent, args.locator, args.since, args.sid, cmd_argv, env_file=args.env_file)
+    if not args.config:
+        parser.error("--config is required for resolve and launch")
     cfg = json.loads(Path(args.config).read_text())
     if args.cmd == "resolve":
         return cmd_resolve(cfg, args.timeout)
-    return cmd_launch(cfg)
+    return cmd_launch(cfg, args.config)
 
 
 if __name__ == "__main__":

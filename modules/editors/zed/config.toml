@@ -41,3 +41,7 @@ remoteLookup = true
 sshTarget = ""
 resolveTimeout = 3 # seconds to wait for Zed to store the probe title
 zedDb = "~/.local/share/zed/db/0-stable/db.sqlite"
+
+[icedos.applications.zed.agent-bridge.tmux]
+enable = true # Run the agent inside a dedicated tmux session that survives Zed crashes.
+detachedTimeout = 30 # Minutes left detached before the session is killed (0 = never kill).

@@ -2,6 +2,7 @@
 import json
 import os
 import sqlite3
+import stat
 import sys
 import tempfile
 import time
@@ -329,6 +330,218 @@ class HookTest(TmpHome):
         self._hook({zab.ENV_ID: "t1", zab.ENV_AGENT: "pi-agent", zab.ENV_PID: str(os.getpid())})
         self.assertIsNone(zab.read_state("t1"))
 
+
+
+class TmuxTest(TmpHome):
+    def test_name_sanitizing(self):
+        self.assertEqual(zab.tmux_session_name("t1"), "zab-t1")
+        self.assertEqual(zab.tmux_session_name("thread:1.2.3:abc"), "zab-thread-1-2-3-abc")
+        name = zab.tmux_session_name("colon:and.dot")
+        self.assertNotIn(":", name)
+        self.assertNotIn(".", name)
+        self.assertTrue(name.startswith("zab-"))
+
+    def test_hook_command(self):
+        cmd = zab.tmux_hook_command(300.0, socket="zab-sock")
+        self.assertEqual(
+            cmd,
+            "run-shell -b 'zed-agent-bridge timeout-kill --socket zab-sock --session #{q:session_name} --delay 300.0'"
+        )
+        cmd_quoted = zab.tmux_hook_command(300.0, socket="zab sock; evil")
+        self.assertIn("--socket 'zab sock; evil'", cmd_quoted)
+        self.assertIn("#{q:session_name}", cmd_quoted)
+
+    def test_timeout_kill_matches_token_and_kills(self):
+        with mock.patch.object(zab.time, "sleep"), \
+             mock.patch.object(zab.subprocess, "run") as mock_run:
+            mock_run.side_effect = [
+                mock.Mock(returncode=0), # set-option
+                mock.Mock(returncode=0, stdout="tok123:0"), # display-message
+                mock.Mock(returncode=0), # kill-session
+            ]
+            with mock.patch.object(zab.secrets, "token_hex", return_value="tok123"):
+                zab.cmd_timeout_kill("sock1", "s1", 10.0)
+            self.assertEqual(mock_run.call_count, 3)
+            kill_args = mock_run.call_args_list[2][0][0]
+            self.assertIn("kill-session", kill_args)
+            self.assertIn("s1", kill_args)
+
+    def test_timeout_kill_mismatched_token_does_not_kill(self):
+        with mock.patch.object(zab.time, "sleep"), \
+             mock.patch.object(zab.subprocess, "run") as mock_run:
+            mock_run.side_effect = [
+                mock.Mock(returncode=0), # set-option
+                mock.Mock(returncode=0, stdout="other_token:0"), # display-message (superseded)
+            ]
+            with mock.patch.object(zab.secrets, "token_hex", return_value="tok123"):
+                zab.cmd_timeout_kill("sock1", "s1", 10.0)
+            self.assertEqual(mock_run.call_count, 2)
+
+    def test_detached_timeout_seconds(self):
+        self.assertEqual(zab.detached_timeout_seconds({"tmux": {"detachedTimeout": 5}}), 300.0)
+        self.assertEqual(zab.detached_timeout_seconds({"tmux": {"detachedTimeout": 0.05}}), 3.0)
+        self.assertEqual(zab.detached_timeout_seconds({"tmux": {"detachedTimeout": 0}}), 0.0)
+        self.assertEqual(zab.detached_timeout_seconds({}), 0.0)
+
+    def test_tmux_disabled_path_unchanged(self):
+        cfg = {"agents": {"claude": {"command": ["claude"]}}}
+        with mock.patch.object(zab, "_resolve", return_value=("t1", "title")), \
+             mock.patch.object(zab, "plan_launch", return_value=("claude", ["claude"], None, {})), \
+             mock.patch.object(zab, "tmux_has_session") as mock_has, \
+             mock.patch.object(zab.os, "execvpe") as mock_exec:
+            zab.cmd_launch(cfg, "/dummy/cfg.json")
+        mock_has.assert_not_called()
+        mock_exec.assert_called_once()
+        self.assertEqual(mock_exec.call_args[0][0], "claude")
+        self.assertEqual(mock_exec.call_args[0][2][zab.ENV_ID], "t1")
+
+    def test_tmux_enabled_without_tid_runs_execvpe(self):
+        cfg = {"tmux": {"enable": True}, "agents": {"claude": {"command": ["claude"]}}}
+        with mock.patch.object(zab, "_resolve", return_value=None), \
+             mock.patch.object(zab, "plan_launch", return_value=("claude", ["claude"], None, {})), \
+             mock.patch.object(zab, "tmux_has_session") as mock_has, \
+             mock.patch.object(zab.os, "execvpe") as mock_exec:
+            zab.cmd_launch(cfg, "/dummy/cfg.json")
+        mock_has.assert_not_called()
+        mock_exec.assert_called_once()
+
+    def test_attach_decision_when_session_exists(self):
+        cfg = {"tmux": {"enable": True}, "agents": {}}
+        with mock.patch.object(zab.shutil, "which", return_value="/bin/tmux"), \
+             mock.patch.object(zab, "_resolve", return_value=("t1", "title")), \
+             mock.patch.object(zab, "tmux_has_session", return_value=True) as mock_has, \
+             mock.patch.object(zab, "plan_launch") as mock_plan, \
+             mock.patch.object(zab, "tmux_attach") as mock_attach:
+            zab.cmd_launch(cfg, "/dummy/cfg.json")
+        mock_has.assert_called_once_with("zab-t1")
+        mock_plan.assert_not_called()
+        mock_attach.assert_called_once_with("zab-t1")
+
+    def test_write_env_mode_0600(self):
+        p = zab.write_env("t1", {"FOO": "bar"})
+        self.assertTrue(p.exists())
+        self.assertEqual(stat.S_IMODE(p.stat().st_mode), 0o600)
+        self.assertEqual(json.loads(p.read_text()), {"FOO": "bar"})
+
+    def test_write_env_failure_unlinks_tmp(self):
+        with mock.patch.object(zab.json, "dump", side_effect=ValueError("boom")):
+            with self.assertRaises(ValueError):
+                zab.write_env("t_fail", {"A": "B"})
+        tmp_file = zab.state_dir() / "t_fail.env.tmp"
+        self.assertFalse(tmp_file.exists())
+
+    def test_tmux_create_session_no_e_args(self):
+        with mock.patch.object(zab.subprocess, "run") as mock_run:
+            zab.tmux_create_session("sess1", ["python3", "agent"], hook_cmd="hook-cmd", socket="sock1", title="✳ Old")
+        new_sess_call = mock_run.call_args_list[0][0][0]
+        self.assertIn("new-session", new_sess_call)
+        self.assertNotIn("-e", new_sess_call)
+        self.assertIn("-c", new_sess_call)
+        self.assertIn("sess1", new_sess_call)
+        self.assertEqual(new_sess_call[-2:], ["python3", "agent"])
+        calls = [c[0][0] for c in mock_run.call_args_list]
+        self.assertTrue(any("mouse" in c and "on" in c for c in calls))
+        self.assertTrue(any("status" in c and "off" in c for c in calls))
+        self.assertTrue(any("history-limit" in c and "50000" in c for c in calls))
+        self.assertTrue(any("set-titles" in c and "on" in c for c in calls))
+        self.assertIn(["tmux", "-L", "sock1", "-f", "/dev/null", "select-pane", "-t", "sess1", "-T", "✳ Old"], calls)
+
+    def test_new_session_decision_and_env_forwarding(self):
+        cfg = {"tmux": {"enable": True, "detachedTimeout": 0.05}, "agents": {}}
+        outer_env = {"PATH": "/custom/bin", "TERM": "xterm-256color", "TMUX": "stale", "TMUX_PANE": "%0", "MY_VAR": "outer_val"}
+        with mock.patch.dict(os.environ, outer_env, clear=True),              mock.patch.object(zab.shutil, "which", return_value="/bin/tmux"),              mock.patch.object(zab, "_resolve", return_value=("t1", "title")),              mock.patch.object(zab, "tmux_has_session", return_value=False),              mock.patch.object(zab, "plan_launch", return_value=("claude", ["claude"], None, {"AI_ACCOUNT": "default"})),              mock.patch.object(zab, "tmux_create_session") as mock_create,              mock.patch.object(zab, "tmux_attach") as mock_attach:
+            zab.cmd_launch(cfg, "/dummy/cfg.json")
+        mock_create.assert_called_once()
+        args, kwargs = mock_create.call_args
+        self.assertEqual(args[0], "zab-t1")
+        inner_cmd = args[1]
+        self.assertIn("inner-launch", inner_cmd)
+        self.assertIn("--env-file", inner_cmd)
+        env_file = Path(inner_cmd[inner_cmd.index("--env-file") + 1])
+        self.assertTrue(env_file.exists())
+        self.assertEqual(stat.S_IMODE(env_file.stat().st_mode), 0o600)
+        saved = json.loads(env_file.read_text())
+        self.assertEqual(saved["AI_ACCOUNT"], "default")
+        self.assertEqual(saved[zab.ENV_ID], "t1")
+        self.assertEqual(saved[zab.ENV_AGENT], "claude")
+        self.assertEqual(saved["MY_VAR"], "outer_val")
+        self.assertEqual(saved["PATH"], "/custom/bin")
+        self.assertNotIn("TERM", saved)
+        self.assertNotIn("TMUX", saved)
+        self.assertNotIn("TMUX_PANE", saved)
+        self.assertIsNotNone(args[2])
+        mock_attach.assert_called_once_with("zab-t1")
+
+    def test_fallback_when_tmux_missing(self):
+        cfg = {"tmux": {"enable": True}, "agents": {"claude": {"command": ["claude"]}}}
+        with mock.patch.object(zab.shutil, "which", return_value=None),              mock.patch.object(zab, "_resolve", return_value=("t1", "title")),              mock.patch.object(zab, "plan_launch", return_value=("claude", ["claude"], None, {})),              mock.patch.object(zab.os, "execvpe") as mock_exec:
+            zab.cmd_launch(cfg, "/dummy/cfg.json")
+        mock_exec.assert_called_once()
+
+    def test_fallback_when_new_session_fails(self):
+        cfg = {"tmux": {"enable": True}, "agents": {"claude": {"command": ["claude"]}}}
+        with mock.patch.object(zab.shutil, "which", return_value="/bin/tmux"), \
+             mock.patch.object(zab, "_resolve", return_value=("t1", "title")), \
+             mock.patch.object(zab, "tmux_has_session", return_value=False), \
+             mock.patch.object(zab, "plan_launch", return_value=("claude", ["claude"], None, {})), \
+             mock.patch.object(zab, "tmux_create_session", side_effect=zab.subprocess.CalledProcessError(1, "tmux")), \
+             mock.patch.object(zab.os, "execvpe") as mock_exec:
+            zab.cmd_launch(cfg, "/dummy/cfg.json")
+        mock_exec.assert_called_once()
+
+    def test_attach_when_concurrent_session_created(self):
+        cfg = {"tmux": {"enable": True}, "agents": {"claude": {"command": ["claude"]}}}
+        with mock.patch.object(zab.shutil, "which", return_value="/bin/tmux"), \
+             mock.patch.object(zab, "_resolve", return_value=("t1", "title")), \
+             mock.patch.object(zab, "tmux_has_session", side_effect=[False, True]), \
+             mock.patch.object(zab, "plan_launch", return_value=("claude", ["claude"], None, {})), \
+             mock.patch.object(zab, "tmux_create_session", side_effect=zab.subprocess.CalledProcessError(1, "tmux")), \
+             mock.patch.object(zab, "tmux_attach") as mock_attach, \
+             mock.patch.object(zab.os, "execvpe") as mock_exec:
+            res = zab.cmd_launch(cfg, "/dummy/cfg.json")
+        self.assertEqual(res, 0)
+        mock_attach.assert_called_once_with("zab-t1")
+        mock_exec.assert_not_called()
+
+    def test_inner_launch_loads_env_and_deletes_file(self):
+        env_file = self.root / "t1.env"
+        fd = os.open(env_file, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with open(fd, "w") as f:
+            json.dump({"CUSTOM_KEY": "custom_val", "PATH": "/usr/bin", "TERM_PROGRAM": "zed"}, f)
+        pane_env = {"TERM": "tmux-256color", "TMUX": "/tmp/sock,1,0", "TMUX_PANE": "%1", "TERM_PROGRAM": "tmux", "OLD": "drop"}
+        with mock.patch.dict(os.environ, pane_env, clear=True), \
+             mock.patch.object(zab.os, "execvpe") as mock_exec, \
+             mock.patch.object(zab, "_spawn_watcher") as mock_watch:
+            zab.cmd_inner_launch("t1", "pi-agent", "pi-agent", 100.0, "s1", ["pi-agent", "--resume", "s1"], env_file=str(env_file))
+            self.assertFalse(env_file.exists())
+            self.assertEqual(os.environ["CUSTOM_KEY"], "custom_val")
+            self.assertEqual(os.environ["TERM"], "tmux-256color")
+            self.assertEqual(os.environ["TMUX"], "/tmp/sock,1,0")
+            self.assertEqual(os.environ["TMUX_PANE"], "%1")
+            self.assertEqual(os.environ["TERM_PROGRAM"], "tmux")
+            self.assertNotIn("OLD", os.environ)
+            self.assertEqual(os.environ[zab.ENV_PID], str(os.getpid()))
+            self.assertEqual(os.environ[zab.ENV_ID], "t1")
+            self.assertEqual(os.environ[zab.ENV_AGENT], "pi-agent")
+            mock_watch.assert_called_once()
+            mock_exec.assert_called_once_with("pi-agent", ["pi-agent", "--resume", "s1"], mock.ANY)
+
+    def test_main_timeout_kill_with_and_without_config(self):
+        with mock.patch.object(zab, "cmd_timeout_kill", return_value=0) as mock_tk:
+            zab.main(["timeout-kill", "--socket", "s1", "--session", "sess1", "--delay", "5.0"])
+            mock_tk.assert_called_with("s1", "sess1", 5.0)
+
+            mock_tk.reset_mock()
+            zab.main(["--config", "/path/to/cfg.json", "timeout-kill", "--socket", "s2", "--session", "sess2", "--delay", "10.0"])
+            mock_tk.assert_called_with("s2", "sess2", 10.0)
+
+    def test_inner_launch_missing_env_file_keeps_env_and_execs(self):
+        missing_file = self.root / "nonexistent.env"
+        with mock.patch.dict(os.environ, {"INHERITED": "yes"}, clear=True), \
+             mock.patch.object(zab.os, "execvpe") as mock_exec:
+            zab.cmd_inner_launch("t1", "pi-agent", None, 100.0, "s1", ["pi-agent"], env_file=str(missing_file))
+            self.assertEqual(os.environ["INHERITED"], "yes")
+            mock_exec.assert_called_once()
 
 if __name__ == "__main__":
     unittest.main()

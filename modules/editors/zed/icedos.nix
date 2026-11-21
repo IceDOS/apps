@@ -42,6 +42,7 @@
             remoteLookup
             resolveTimeout
             sshTarget
+            tmux
             zedDb
             ;
         in
@@ -50,6 +51,10 @@
           remoteLookup = mkBoolOption { default = remoteLookup; };
           resolveTimeout = mkNumberOption { default = resolveTimeout; };
           sshTarget = mkStrOption { default = sshTarget; };
+          tmux = {
+            detachedTimeout = mkNumberOption { default = tmux.detachedTimeout; };
+            enable = mkBoolOption { default = tmux.enable; };
+          };
           zedDb = mkStrOption { default = zedDb; };
         };
 
@@ -154,6 +159,7 @@
                 remoteLookup
                 resolveTimeout
                 sshTarget
+                tmux
                 zedDb
                 ;
               agents = config.icedos.ai-tools.agent-launch.agents or { };
@@ -162,7 +168,12 @@
 
           # python3, not python3Minimal: the bridge needs the sqlite3 module.
           bridgeBin = pkgs.writeShellScriptBin "zed-agent-bridge" ''
-            export PATH=${lib.makeBinPath [ pkgs.openssh ]}"''${PATH:+:$PATH}"
+            export PATH=${
+              lib.makeBinPath [
+                pkgs.openssh
+                pkgs.tmux
+              ]
+            }"''${PATH:+:$PATH}"
             exec ${pkgs.python3}/bin/python3 ${./lib/zed_agent_bridge.py} --config ${bridgeConfig} "$@"
           '';
 
