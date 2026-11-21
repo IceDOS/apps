@@ -423,5 +423,14 @@
       )
     ];
 
-  meta.name = "zed";
+  meta = {
+    name = "zed";
+    # agent-bridge extends agent-launch's picker and agent registry.
+    dependencies = [
+      {
+        url = "github:icedos/ai-tools";
+        modules = [ "agent-launch" ];
+      }
+    ];
+  };
 }
