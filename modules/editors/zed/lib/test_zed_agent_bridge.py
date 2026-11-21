@@ -181,6 +181,78 @@ class LocatorTest(TmpHome):
         self.assertTrue(zab.LOCATORS["antigravity"]["exists"]("c-old"))
         self.assertFalse(zab.LOCATORS["antigravity"]["exists"]("nope"))
 
+    def test_opencode_latest(self):
+        d = self.root / ".local/share/opencode"
+        self.assertFalse(zab.LOCATORS["opencode"]["exists"]("none"))
+        self.assertIsNone(zab.LOCATORS["opencode"]["latest"]("/p", time.time()))
+
+        d.mkdir(parents=True)
+        con = sqlite3.connect(d / "opencode.db")
+        con.execute(
+            """create table session_v2 (
+              id text primary key,
+              project_id text not null,
+              workspace_id text,
+              parent_id text,
+              fork_session_id text,
+              fork_boundary text,
+              slug text not null,
+              directory text not null,
+              path text,
+              title text,
+              version text not null,
+              share_url text,
+              summary_additions integer,
+              summary_deletions integer,
+              summary_files integer,
+              summary_diffs text,
+              metadata text,
+              cost real default 0 not null,
+              tokens_input integer default 0 not null,
+              tokens_output integer default 0 not null,
+              tokens_reasoning integer default 0 not null,
+              tokens_cache_read integer default 0 not null,
+              tokens_cache_write integer default 0 not null,
+              revert text,
+              permission text,
+              agent text,
+              model text,
+              time_created integer not null,
+              time_updated integer not null,
+              time_busy integer,
+              time_idle integer,
+              time_viewed integer,
+              idle_outcome text,
+              time_compacting integer,
+              time_archived integer,
+              time_suspended integer,
+              resume_attempts integer default 0 not null
+            )"""
+        )
+        now = time.time()
+        now_ms = int(now * 1000)
+        insert_sql = (
+            "insert into session_v2 (id, project_id, slug, directory, version, parent_id, time_created, time_updated) "
+            "values (?, 'p1', 'slug', ?, '1.0', ?, ?, ?)"
+        )
+        con.executemany(
+            insert_sql,
+            [
+                ("s-old", "/p", None, now_ms - 100000, now_ms - 100000),
+                ("s-new", "/p", None, now_ms - 5000, now_ms - 5000),
+                ("s-child", "/p", "s-new", now_ms - 1000, now_ms - 1000),
+                ("s-other", "/q", None, now_ms, now_ms),
+            ],
+        )
+        con.commit()
+        con.close()
+        self.assertEqual(zab.LOCATORS["opencode"]["latest"]("/p", now - 50), "s-new")
+        self.assertIsNone(zab.LOCATORS["opencode"]["latest"]("/p", now + 10))
+        self.assertIsNone(zab.LOCATORS["opencode"]["latest"]("/other", now - 50))
+        self.assertTrue(zab.LOCATORS["opencode"]["exists"]("s-old"))
+        self.assertTrue(zab.LOCATORS["opencode"]["exists"]("s-child"))
+        self.assertFalse(zab.LOCATORS["opencode"]["exists"]("nope"))
+
     def test_watch_once_records_unclaimed_session(self):
         zab.write_state("other", "pi-agent", "taken")
         latest = lambda cwd, since: "taken"

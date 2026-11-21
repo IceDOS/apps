@@ -235,10 +235,44 @@ def agy_latest(cwd: str, since: float) -> str | None:
     return None
 
 
+def _opencode_db() -> Path:
+    base = Path(os.environ.get("XDG_DATA_HOME") or (Path.home() / ".local/share"))
+    return base / "opencode/opencode.db"
+
+
+def _opencode_query(sql: str, params=()) -> list:
+    if not _opencode_db().exists():
+        return []
+    con = sqlite3.connect(f"file:{_opencode_db()}?mode=ro", uri=True, timeout=1)
+    try:
+        return con.execute(sql, params).fetchall()
+    finally:
+        con.close()
+
+
+def opencode_exists(sid: str) -> bool:
+    return bool(_opencode_query("select 1 from session_v2 where id=?", (sid,)))
+
+
+def opencode_latest(cwd: str, since: float) -> str | None:
+    rows = _opencode_query(
+        "select id, directory, parent_id, time_created, time_updated from session_v2"
+        " where parent_id is null order by coalesce(time_updated, time_created) desc limit 50"
+    )
+    target = cwd.rstrip("/") or "/"
+    since_ms = since * 1000 if since < 1e11 else since
+    for sid, directory, _pid, t_created, t_updated in rows:
+        if ((directory or "").rstrip("/") or "/") == target:
+            if max(t_updated or 0, t_created or 0) >= since_ms:
+                return sid
+    return None
+
+
 LOCATORS = {
     "claude": {"exists": claude_exists, "latest": None},
     "pi-agent": {"exists": pi_exists, "latest": pi_latest},
     "antigravity": {"exists": agy_exists, "latest": agy_latest},
+    "opencode": {"exists": opencode_exists, "latest": opencode_latest},
 }
 
 
