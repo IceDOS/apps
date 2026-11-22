@@ -3,6 +3,7 @@ import json
 import os
 import sqlite3
 import stat
+import subprocess
 import sys
 import tempfile
 import time
@@ -261,6 +262,54 @@ class LocatorTest(TmpHome):
         latest = lambda cwd, since: "mine"
         self.assertEqual(zab.watch_once("t1", "pi-agent", latest, "/p", 0, None), "mine")
         self.assertEqual(zab.read_state("t1")["session_id"], "mine")
+
+    def test_watch_once_exact_answer_overrides_a_guessed_claim(self):
+        zab.write_state("other", "antigravity", "conv-a")
+        latest = lambda cwd, since: "conv-a"
+        self.assertEqual(zab.watch_once("t1", "antigravity", latest, "/p", 0, None, exact=True), "conv-a")
+
+    def _agy_tree(self, *ids):
+        """Nested processes named agy, each holding antigravity-cli/presence/<id>.lock; returns the outer one."""
+        agy = self.root / "bin" / "agy"
+        agy.parent.mkdir()
+        agy.symlink_to(sys.executable)
+        presence = self.root / "antigravity-cli" / "presence"
+        presence.mkdir(parents=True)
+        prog = self.root / "fake_agy.py"
+        prog.write_text(
+            "import subprocess, sys, time\n"
+            f"f = open({str(presence)!r} + '/' + sys.argv[1] + '.lock', 'w')\n"
+            f"kid = subprocess.Popen([{str(agy)!r}, '-I', __file__, *sys.argv[2:]]) if sys.argv[2:] else None\n"
+            "time.sleep(30)\n"
+        )
+        proc = subprocess.Popen([str(agy), "-I", str(prog), *ids])
+        self.addCleanup(lambda: (subprocess.run(["pkill", "-P", str(proc.pid)]), proc.kill(), proc.wait()))
+        return proc
+
+    def test_agy_owned_reads_the_outer_agy_presence_lock(self):
+        launcher = subprocess.Popen(["sleep", "30"])  # stands in for a non-agy wrapper
+        self.addCleanup(lambda: (launcher.kill(), launcher.wait()))
+        proc = self._agy_tree("conv-thread", "conv-rlm-child")
+        for _ in range(50):
+            if zab.agy_owned(proc.pid) == "conv-thread":
+                break
+            time.sleep(0.1)
+        self.assertEqual(zab.agy_owned(proc.pid), "conv-thread")
+        self.assertEqual(zab.agy_owned(os.getpid()), "conv-thread")  # found below a non-agy root too
+        self.assertIsNone(zab.agy_owned(launcher.pid))
+
+    def test_agy_held_reads_proc_locks(self):
+        presence = zab._agy_presence()
+        presence.mkdir(parents=True)
+        lock = presence / "c1.lock"
+        lock.touch()
+        ino = lock.stat().st_ino
+        line = f"1: FLOCK  ADVISORY  WRITE 4242 fe:00:{ino} 0 EOF\n"
+        with mock.patch.object(zab.Path, "read_text", return_value=line):
+            self.assertTrue(zab.agy_held("c1"))
+        with mock.patch.object(zab.Path, "read_text", return_value=""):
+            self.assertFalse(zab.agy_held("c1"))
+        self.assertFalse(zab.agy_held("missing"))
 
 
 CFG = {

@@ -220,8 +220,60 @@ def _uri_paths(uris: str) -> set[str]:
     return {unquote(u[len("file://"):]).rstrip("/") for u in re.findall(r'file://[^\s",\]]+', uris)}
 
 
+def _agy_presence() -> Path:
+    return _agy_db().parent / "presence"
+
+
+def agy_held(sid: str) -> bool:
+    """A live agy holds a flock on its conversation's presence file."""
+    try:
+        ino = (_agy_presence() / f"{sid}.lock").stat().st_ino
+        locks = Path("/proc/locks").read_text()
+    except OSError:
+        return False
+    return any(line.split()[5].endswith(f":{ino}") for line in locks.splitlines() if len(line.split()) > 5)
+
+
 def agy_exists(sid: str) -> bool:
-    return bool(_agy_query("select 1 from conversation_summaries where conversation_id=?", (sid,)))
+    # Resuming a conversation another agy holds would open that thread's session here.
+    return bool(_agy_query("select 1 from conversation_summaries where conversation_id=?", (sid,))) and not agy_held(sid)
+
+
+def _children() -> dict[int, list[int]]:
+    kids: dict[int, list[int]] = {}
+    for d in Path("/proc").iterdir():
+        if not d.name.isdigit():
+            continue
+        try:
+            ppid = int((d / "stat").read_text().rpartition(")")[2].split()[1])
+        except (OSError, ValueError, IndexError):
+            continue
+        kids.setdefault(ppid, []).append(int(d.name))
+    return kids
+
+
+def agy_owned(root: int) -> str | None:
+    """Conversation of the shallowest agy under root, read from the presence lock it holds open."""
+    kids, level = _children(), [root]
+    while level:
+        for pid in level:
+            try:
+                if Path(f"/proc/{pid}/comm").read_text().strip() != "agy":
+                    continue
+                fds = list(Path(f"/proc/{pid}/fd").iterdir())
+            except OSError:
+                continue
+            for fd in fds:
+                try:
+                    target = os.readlink(fd)
+                except OSError:
+                    continue
+                m = re.search(r"/antigravity-cli/presence/([^/]+)\.lock$", target)
+                if m:
+                    return m[1]
+        # Breadth-first, so rlm's child agy processes never win over the thread's own agy.
+        level = [k for pid in level for k in kids.get(pid, [])]
+    return None
 
 
 def agy_latest(cwd: str, since: float) -> str | None:
@@ -279,9 +331,14 @@ LOCATORS = {
 }
 
 
-def watch_once(tid, agent, latest, cwd, since, current):
+# Locators that can read the session from the launched process instead of guessing by cwd and time.
+OWNED = {agy_latest: agy_owned}
+
+
+def watch_once(tid, agent, latest, cwd, since, current, exact=False):
     sid = latest(cwd, since)
-    if sid and sid != current and not claimed_by_other(sid, tid):
+    # An exact answer wins over another thread's claim, which came from a guess.
+    if sid and sid != current and (exact or not claimed_by_other(sid, tid)):
         write_state(tid, agent, sid)
         log(f"{tid}: {agent} session {sid}")
         return sid
@@ -344,10 +401,13 @@ def claude_hook(stdin) -> int:
 
 
 def _watch(tid, agent, latest, cwd, since, current, parent):
+    owned = OWNED.get(latest)
+    if owned:
+        latest = lambda _cwd, _since: owned(parent)  # noqa: E731
     while True:
         alive = os.getppid() == parent
         try:
-            current = watch_once(tid, agent, latest, cwd, since, current)
+            current = watch_once(tid, agent, latest, cwd, since, current, exact=bool(owned))
         except Exception as e:  # noqa: BLE001
             log(f"watch failed: {e!r}")
         if not alive:
