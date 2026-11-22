@@ -536,6 +536,12 @@ def tmux_create_session(
     subprocess.run(["tmux", "-L", socket, "-f", "/dev/null", "set-option", "-s", "extended-keys", "on"], check=False)
     subprocess.run(["tmux", "-L", socket, "-f", "/dev/null", "set-option", "-t", session, "status", "off"], check=False)
     subprocess.run(["tmux", "-L", socket, "-f", "/dev/null", "set-option", "-t", session, "mouse", "on"], check=False)
+    subprocess.run(["tmux", "-L", socket, "-f", "/dev/null", "set-option", "-s", "set-clipboard", "on"], check=False)
+    subprocess.run(["tmux", "-L", socket, "-f", "/dev/null", "set-option", "-t", session, "mode-style", "bg=#3a4a5f,fg=default"], check=False)
+    # Drag into pane enters copy-mode only if press was inside; avoids swallowing file drops.
+    subprocess.run(["tmux", "-L", socket, "-f", "/dev/null", "bind-key", "-T", "root", "MouseDown1Pane", "select-pane -t= ; set-option -p @zab_down 1 ; send-keys -M"], check=False)
+    subprocess.run(["tmux", "-L", socket, "-f", "/dev/null", "bind-key", "-T", "root", "MouseUp1Pane", "set-option -p @zab_down 0 ; send-keys -M"], check=False)
+    subprocess.run(["tmux", "-L", socket, "-f", "/dev/null", "bind-key", "-T", "root", "MouseDrag1Pane", "if -F '#{||:#{pane_in_mode},#{mouse_any_flag}}' { send -M } { if -F '#{==:#{@zab_down},1}' { copy-mode -M } } ; set-option -p @zab_down 0"], check=False)
     subprocess.run(["tmux", "-L", socket, "-f", "/dev/null", "set-option", "-t", session, "history-limit", "50000"], check=False)
     # Forward the agent's OSC title to Zed, which names the thread after it.
     subprocess.run(["tmux", "-L", socket, "-f", "/dev/null", "set-option", "-t", session, "set-titles", "on"], check=False)

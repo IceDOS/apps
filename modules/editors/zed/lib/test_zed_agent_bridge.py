@@ -495,6 +495,16 @@ class TmuxTest(TmpHome):
         self.assertTrue(any("set-titles" in c and "on" in c for c in calls))
         self.assertIn(["tmux", "-L", "sock1", "-f", "/dev/null", "select-pane", "-t", "sess1", "-T", "✳ Old"], calls)
 
+    def test_tmux_create_session_drag_bindings(self):
+        with mock.patch.object(zab.subprocess, "run") as mock_run:
+            zab.tmux_create_session("sess1", ["bash"], socket="test-sock")
+        calls = [c[0][0] for c in mock_run.call_args_list]
+        self.assertIn(["tmux", "-L", "test-sock", "-f", "/dev/null", "set-option", "-s", "set-clipboard", "on"], calls)
+        self.assertIn(["tmux", "-L", "test-sock", "-f", "/dev/null", "set-option", "-t", "sess1", "mode-style", "bg=#3a4a5f,fg=default"], calls)
+        self.assertIn(["tmux", "-L", "test-sock", "-f", "/dev/null", "bind-key", "-T", "root", "MouseDown1Pane", "select-pane -t= ; set-option -p @zab_down 1 ; send-keys -M"], calls)
+        self.assertIn(["tmux", "-L", "test-sock", "-f", "/dev/null", "bind-key", "-T", "root", "MouseUp1Pane", "set-option -p @zab_down 0 ; send-keys -M"], calls)
+        self.assertIn(["tmux", "-L", "test-sock", "-f", "/dev/null", "bind-key", "-T", "root", "MouseDrag1Pane", "if -F '#{||:#{pane_in_mode},#{mouse_any_flag}}' { send -M } { if -F '#{==:#{@zab_down},1}' { copy-mode -M } } ; set-option -p @zab_down 0"], calls)
+
     def test_new_session_decision_and_env_forwarding(self):
         cfg = {"tmux": {"enable": True, "detachedTimeout": 0.05}, "agents": {}}
         outer_env = {"PATH": "/custom/bin", "TERM": "xterm-256color", "TMUX": "stale", "TMUX_PANE": "%0", "MY_VAR": "outer_val"}
