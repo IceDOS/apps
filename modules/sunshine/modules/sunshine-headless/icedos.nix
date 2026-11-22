@@ -207,13 +207,15 @@
         in
         {
           # Backport of Sunshine #6044. mkBefore: this must run before the sunshine module's symlinkJoin overlay.
-          nixpkgs.overlays = lib.mkBefore [
-            (_: previous: {
-              sunshine = previous.sunshine.overrideAttrs (old: {
-                patches = (old.patches or [ ]) ++ [ ./lib/portalgrab-subscribe-first.patch ];
-              });
-            })
-          ];
+          nixpkgs.overlays = lib.mkIf (!config.icedos.system.cache.pending) (
+            lib.mkBefore [
+              (_: previous: {
+                sunshine = previous.sunshine.overrideAttrs (old: {
+                  patches = (old.patches or [ ]) ++ [ ./lib/portalgrab-subscribe-first.patch ];
+                });
+              })
+            ]
+          );
 
           # The whole block below is the HEADLESS session; the primary is untouched.
 
