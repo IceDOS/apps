@@ -436,8 +436,8 @@
 
   meta = {
     name = "zed";
-    # agent-bridge extends agent-launch's picker and agent registry.
-    dependencies = [
+    # agent-bridge extends agent-launch's picker and agent registry; the editor works without it.
+    optionalDependencies = [
       {
         url = "github:icedos/ai-tools";
         modules = [ "agent-launch" ];
