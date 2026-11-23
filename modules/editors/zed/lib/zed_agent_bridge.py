@@ -534,6 +534,7 @@ def tmux_create_session(
     subprocess.run(["tmux", "-L", socket, "-f", "/dev/null", "set-option", "-s", "escape-time", "0"], check=False)
     # Zed's keymap sends Shift+Enter as CSI 13;2u; without this tmux forwards a plain Enter.
     subprocess.run(["tmux", "-L", socket, "-f", "/dev/null", "set-option", "-s", "extended-keys", "on"], check=False)
+    subprocess.run(["tmux", "-L", socket, "-f", "/dev/null", "set-option", "-s", "extended-keys-format", "csi-u"], check=False)
     subprocess.run(["tmux", "-L", socket, "-f", "/dev/null", "set-option", "-t", session, "status", "off"], check=False)
     subprocess.run(["tmux", "-L", socket, "-f", "/dev/null", "set-option", "-t", session, "mouse", "on"], check=False)
     subprocess.run(["tmux", "-L", socket, "-f", "/dev/null", "set-option", "-s", "set-clipboard", "on"], check=False)

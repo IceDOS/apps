@@ -500,6 +500,7 @@ class TmuxTest(TmpHome):
             zab.tmux_create_session("sess1", ["bash"], socket="test-sock")
         calls = [c[0][0] for c in mock_run.call_args_list]
         self.assertIn(["tmux", "-L", "test-sock", "-f", "/dev/null", "set-option", "-s", "set-clipboard", "on"], calls)
+        self.assertIn(["tmux", "-L", "test-sock", "-f", "/dev/null", "set-option", "-s", "extended-keys-format", "csi-u"], calls)
         self.assertIn(["tmux", "-L", "test-sock", "-f", "/dev/null", "set-option", "-t", "sess1", "mode-style", "bg=#3a4a5f,fg=default"], calls)
         self.assertIn(["tmux", "-L", "test-sock", "-f", "/dev/null", "bind-key", "-T", "root", "MouseDown1Pane", "select-pane -t= ; set-option -p @zab_down 1 ; send-keys -M"], calls)
         self.assertIn(["tmux", "-L", "test-sock", "-f", "/dev/null", "bind-key", "-T", "root", "MouseUp1Pane", "set-option -p @zab_down 0 ; send-keys -M"], calls)
