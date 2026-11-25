@@ -1,8 +1,8 @@
 {
-  "version": "2026-11-18-677ac6f",
-  "rev": "677ac6f53ad0aef2a1cc9e5374bfe1d0606037a1",
-  "hash": "sha256-/P7og2mDmiRhxxONNJUHn7N7qqM/avdXy9i0TC+gu+s=",
-  "cargoHash": "sha256-U93ECB9G/qi8h8YQcEV/wSEWOwG+72/TVGcQ8ydcgEE=",
+  "version": "2026-11-21-09ebad9",
+  "rev": "09ebad981293d25d9fc8f95b238a05f4e1f93599",
+  "hash": "sha256-NZ207l+1wVN5RcvFp1q4r9eelffCpYkPMDKRIIIXT2c=",
+  "cargoHash": "sha256-9bywLF+etHdTHvmvB0TgwaUiUNYKjh7WDOTS5bgkHYA=",
   "androidPlatform": "37.0",
   "composeWebview": "1.0.3",
   "gradle": {
